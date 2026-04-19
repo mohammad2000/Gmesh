@@ -169,6 +169,26 @@ class GMeshStub(object):
                 request_serializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.SerializeToString,
                 response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.FromString,
                 _registered_method=True)
+        self.CreateIngressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/CreateIngressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.CreateIngressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.FromString,
+                _registered_method=True)
+        self.UpdateIngressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/UpdateIngressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateIngressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.FromString,
+                _registered_method=True)
+        self.DeleteIngressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/DeleteIngressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileResponse.FromString,
+                _registered_method=True)
+        self.ListIngressProfiles = channel.unary_unary(
+                '/gmesh.v1.GMesh/ListIngressProfiles',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.FromString,
+                _registered_method=True)
 
 
 class GMeshServicer(object):
@@ -351,6 +371,34 @@ class GMeshServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateIngressProfile(self, request, context):
+        """── Ingress profiles (Phase 12) ───────────────────────────────────────
+        Expose a backend service (running on another mesh peer, optionally
+        inside a scope netns) on the edge peer's public address via nftables
+        DNAT. Inbound packets are tunneled over the mesh to the backend.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateIngressProfile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteIngressProfile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListIngressProfiles(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GMeshServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -483,6 +531,26 @@ def add_GMeshServicer_to_server(servicer, server):
                     servicer.DisableExit,
                     request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.FromString,
                     response_serializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.SerializeToString,
+            ),
+            'CreateIngressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateIngressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.CreateIngressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.SerializeToString,
+            ),
+            'UpdateIngressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateIngressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateIngressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.SerializeToString,
+            ),
+            'DeleteIngressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteIngressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileResponse.SerializeToString,
+            ),
+            'ListIngressProfiles': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListIngressProfiles,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1192,6 +1260,114 @@ class GMesh(object):
             '/gmesh.v1.GMesh/DisableExit',
             gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.SerializeToString,
             gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateIngressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/CreateIngressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.CreateIngressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateIngressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/UpdateIngressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.UpdateIngressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.IngressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteIngressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/DeleteIngressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteIngressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListIngressProfiles(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/ListIngressProfiles',
+            gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.FromString,
             options,
             channel_credentials,
             insecure,

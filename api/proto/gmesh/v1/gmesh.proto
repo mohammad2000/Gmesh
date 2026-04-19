@@ -61,6 +61,15 @@ service GMesh {
   // egresses correctly; DisableExit tears them down.
   rpc EnableExit  (EnableExitRequest)  returns (EnableExitResponse);
   rpc DisableExit (DisableExitRequest) returns (DisableExitResponse);
+
+  // ── Ingress profiles (Phase 12) ───────────────────────────────────────
+  // Expose a backend service (running on another mesh peer, optionally
+  // inside a scope netns) on the edge peer's public address via nftables
+  // DNAT. Inbound packets are tunneled over the mesh to the backend.
+  rpc CreateIngressProfile (CreateIngressProfileRequest) returns (IngressProfileResponse);
+  rpc UpdateIngressProfile (UpdateIngressProfileRequest) returns (IngressProfileResponse);
+  rpc DeleteIngressProfile (DeleteIngressProfileRequest) returns (DeleteIngressProfileResponse);
+  rpc ListIngressProfiles  (ListIngressProfilesRequest)  returns (ListIngressProfilesResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -391,3 +400,41 @@ message EnableExitResponse  {}
 
 message DisableExitRequest  {}
 message DisableExitResponse {}
+
+// ── Ingress profile (Phase 12) ─────────────────────────────────────────
+
+message IngressProfile {
+  int64  id               = 1;
+  string name             = 2;
+  bool   enabled          = 3;
+
+  // Backend — where the real service runs.
+  int64  backend_peer_id  = 4;   // mesh peer ID hosting the service
+  int64  backend_scope_id = 5;   // 0 = service lives on the peer itself
+  string backend_ip       = 6;   // explicit IP (scope mesh_ip or peer mesh_ip)
+  uint32 backend_port     = 7;
+
+  // Edge — what this profile publishes.
+  int64  edge_peer_id     = 8;   // edge peer that accepts inbound (this daemon)
+  uint32 edge_port        = 9;
+  string protocol         = 10;  // "tcp" | "udp"
+
+  // Optional source filter: only accept from these CIDRs. Empty = 0.0.0.0/0.
+  repeated string allowed_source_cidrs = 11;
+
+  // Phase 20 hook: require mTLS termination at the edge before DNAT.
+  bool require_mtls       = 12;
+
+  int64  created_at_unix  = 13;
+  int64  updated_at_unix  = 14;
+}
+
+message CreateIngressProfileRequest { IngressProfile profile = 1; }
+message UpdateIngressProfileRequest { IngressProfile profile = 1; }
+message IngressProfileResponse      { IngressProfile profile = 1; }
+
+message DeleteIngressProfileRequest  { int64 id = 1; }
+message DeleteIngressProfileResponse {}
+
+message ListIngressProfilesRequest  {}
+message ListIngressProfilesResponse { repeated IngressProfile profiles = 1; }

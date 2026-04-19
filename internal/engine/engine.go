@@ -17,6 +17,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/crypto"
 	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/events"
+	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/nat"
@@ -49,6 +50,7 @@ type Engine struct {
 	Scope     scope.Manager
 	Egress    egress.Manager
 	Exit      egress.ExitManager
+	Ingress   ingress.Manager
 	Store     *state.Store
 	Events    *events.Bus
 	Monitor   *health.Monitor
@@ -84,6 +86,7 @@ type Options struct {
 	Routing   routing.Manager   // nil → detect (Linux or in-memory)
 	Egress    egress.Manager    // nil → detect (Linux or stub)
 	Exit      egress.ExitManager // nil → detect (Linux or stub)
+	Ingress   ingress.Manager   // nil → detect (Linux or stub)
 }
 
 // New wires an Engine together.
@@ -154,6 +157,10 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	if ex == nil {
 		ex = egress.NewExit(log)
 	}
+	ig := opts.Ingress
+	if ig == nil {
+		ig = ingress.New(log)
+	}
 
 	bus := events.NewBus(log)
 
@@ -170,6 +177,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Scope:         sc,
 		Egress:        eg,
 		Exit:          ex,
+		Ingress:       ig,
 		Store:         store,
 		Events:        bus,
 		relaySessions: make(map[int64]*relay.Session),
@@ -358,6 +366,39 @@ func (e *Engine) TeardownRelay(peerID int64) {
 		_ = sess.Close()
 	}
 }
+
+// ── Ingress profiles (Phase 12) ───────────────────────────────────────
+
+// CreateIngress installs a DNAT profile so inbound traffic on this edge
+// peer reaches the configured backend through the mesh.
+func (e *Engine) CreateIngress(ctx context.Context, p *ingress.Profile) (*ingress.Profile, error) {
+	res, err := e.Ingress.Create(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	e.emit(events.TypeScopeConnected, p.BackendScopeID, map[string]any{
+		"kind":           "ingress_profile",
+		"profile_id":     res.ID,
+		"profile_name":   res.Name,
+		"edge_port":      res.EdgePort,
+		"backend":        fmt.Sprintf("%s:%d", res.BackendIP, res.BackendPort),
+		"backend_peer":   res.BackendPeerID,
+	})
+	return res, nil
+}
+
+// UpdateIngress re-installs a profile.
+func (e *Engine) UpdateIngress(ctx context.Context, p *ingress.Profile) (*ingress.Profile, error) {
+	return e.Ingress.Update(ctx, p)
+}
+
+// DeleteIngress removes a profile.
+func (e *Engine) DeleteIngress(ctx context.Context, profileID int64) error {
+	return e.Ingress.Delete(ctx, profileID)
+}
+
+// ListIngress returns a snapshot.
+func (e *Engine) ListIngress() []*ingress.Profile { return e.Ingress.List() }
 
 // ── Egress profiles (Phase 11) ────────────────────────────────────────
 

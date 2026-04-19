@@ -49,6 +49,7 @@ func main() {
 		eventsCmd(),
 		healthCmd(),
 		egressCmd(),
+		ingressCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1061,6 +1062,129 @@ func egressExitCmd() *cobra.Command {
 	}
 	cmd.AddCommand(enable, disable)
 	return cmd
+}
+
+// ── Ingress profiles ─────────────────────────────────────────────────
+
+func ingressCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "ingress", Short: "Public port forwarding via a mesh edge peer"}
+	cmd.AddCommand(ingressCreateCmd(), ingressDeleteCmd(), ingressListCmd())
+	return cmd
+}
+
+func ingressCreateCmd() *cobra.Command {
+	var (
+		id, backendPeer, backendScope, edgePeer int64
+		name, backendIP, proto                  string
+		backendPort, edgePort                   uint16
+		allowedSrc                              []string
+		enabled                                 bool
+	)
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create an ingress profile (reverse port forward)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.CreateIngressProfile(ctx, &gmeshv1.CreateIngressProfileRequest{
+				Profile: &gmeshv1.IngressProfile{
+					Id: id, Name: name, Enabled: enabled,
+					BackendPeerId: backendPeer, BackendScopeId: backendScope,
+					BackendIp: backendIP, BackendPort: uint32(backendPort),
+					EdgePeerId: edgePeer, EdgePort: uint32(edgePort),
+					Protocol:           proto,
+					AllowedSourceCidrs: allowedSrc,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("create ingress rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp.Profile)
+			}
+			fmt.Printf("created ingress profile id=%d name=%q edge=:%d → %s:%d\n",
+				resp.Profile.Id, resp.Profile.Name, resp.Profile.EdgePort,
+				resp.Profile.BackendIp, resp.Profile.BackendPort)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "profile ID")
+	cmd.Flags().StringVar(&name, "name", "", "profile name")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enabled flag")
+	cmd.Flags().Int64Var(&backendPeer, "backend-peer", 0, "backend mesh peer ID")
+	cmd.Flags().Int64Var(&backendScope, "backend-scope", 0, "optional backend scope ID")
+	cmd.Flags().StringVar(&backendIP, "backend-ip", "", "backend IP (mesh IP of peer or scope)")
+	cmd.Flags().Uint16Var(&backendPort, "backend-port", 0, "backend port")
+	cmd.Flags().Int64Var(&edgePeer, "edge-peer", 0, "edge peer ID (this daemon's peer ID)")
+	cmd.Flags().Uint16Var(&edgePort, "edge-port", 0, "public port on the edge peer")
+	cmd.Flags().StringVar(&proto, "protocol", "tcp", `"tcp" | "udp"`)
+	cmd.Flags().StringSliceVar(&allowedSrc, "allow-source", nil, "optional source CIDR allowlist (repeat)")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("backend-ip")
+	_ = cmd.MarkFlagRequired("backend-port")
+	_ = cmd.MarkFlagRequired("edge-port")
+	return cmd
+}
+
+func ingressDeleteCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Remove an ingress profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.DeleteIngressProfile(ctx, &gmeshv1.DeleteIngressProfileRequest{Id: id}); err != nil {
+				return fmt.Errorf("delete ingress rpc: %w", err)
+			}
+			fmt.Printf("deleted ingress profile id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "profile ID")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+func ingressListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all ingress profiles",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListIngressProfiles(ctx, &gmeshv1.ListIngressProfilesRequest{})
+			if err != nil {
+				return fmt.Errorf("list ingress rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tNAME\tENABLED\tEDGE_PORT\tBACKEND\tPROTO")
+			for _, p := range resp.Profiles {
+				fmt.Fprintf(w, "%d\t%s\t%v\t%d\t%s:%d\t%s\n",
+					p.Id, p.Name, p.Enabled, p.EdgePort, p.BackendIp, p.BackendPort, p.Protocol)
+			}
+			return w.Flush()
+		},
+	}
 }
 
 func peerUpdateCmd() *cobra.Command {

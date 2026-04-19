@@ -23,6 +23,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/engine"
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
+	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -385,6 +386,78 @@ func (s *Server) subscriberCount() int {
 
 // eventsBus exposes the bus for in-process consumers.
 func (s *Server) eventsBus() *events.Bus { return s.Engine.Events }
+
+// ── Ingress profiles (Phase 12) ───────────────────────────────────────
+
+func (s *Server) CreateIngressProfile(ctx context.Context, in *gmeshv1.CreateIngressProfileRequest) (*gmeshv1.IngressProfileResponse, error) {
+	if in.Profile == nil {
+		return nil, status.Error(codes.InvalidArgument, "profile required")
+	}
+	p := ingressFromProto(in.Profile)
+	res, err := s.Engine.CreateIngress(ctx, p)
+	if err != nil {
+		if err == ingress.ErrExists {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "create ingress: %v", err)
+	}
+	return &gmeshv1.IngressProfileResponse{Profile: ingressToProto(res)}, nil
+}
+
+func (s *Server) UpdateIngressProfile(ctx context.Context, in *gmeshv1.UpdateIngressProfileRequest) (*gmeshv1.IngressProfileResponse, error) {
+	if in.Profile == nil {
+		return nil, status.Error(codes.InvalidArgument, "profile required")
+	}
+	res, err := s.Engine.UpdateIngress(ctx, ingressFromProto(in.Profile))
+	if err != nil {
+		if err == ingress.ErrNotFound {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update ingress: %v", err)
+	}
+	return &gmeshv1.IngressProfileResponse{Profile: ingressToProto(res)}, nil
+}
+
+func (s *Server) DeleteIngressProfile(ctx context.Context, in *gmeshv1.DeleteIngressProfileRequest) (*gmeshv1.DeleteIngressProfileResponse, error) {
+	if err := s.Engine.DeleteIngress(ctx, in.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete ingress: %v", err)
+	}
+	return &gmeshv1.DeleteIngressProfileResponse{}, nil
+}
+
+func (s *Server) ListIngressProfiles(_ context.Context, _ *gmeshv1.ListIngressProfilesRequest) (*gmeshv1.ListIngressProfilesResponse, error) {
+	resp := &gmeshv1.ListIngressProfilesResponse{}
+	for _, p := range s.Engine.ListIngress() {
+		resp.Profiles = append(resp.Profiles, ingressToProto(p))
+	}
+	return resp, nil
+}
+
+func ingressFromProto(p *gmeshv1.IngressProfile) *ingress.Profile {
+	return &ingress.Profile{
+		ID: p.Id, Name: p.Name, Enabled: p.Enabled,
+		BackendPeerID: p.BackendPeerId, BackendScopeID: p.BackendScopeId,
+		BackendIP: p.BackendIp, BackendPort: uint16(p.BackendPort), //nolint:gosec
+		EdgePeerID: p.EdgePeerId, EdgePort: uint16(p.EdgePort), //nolint:gosec
+		Protocol:       p.Protocol,
+		AllowedSources: p.AllowedSourceCidrs,
+		RequireMTLS:    p.RequireMtls,
+	}
+}
+
+func ingressToProto(p *ingress.Profile) *gmeshv1.IngressProfile {
+	return &gmeshv1.IngressProfile{
+		Id: p.ID, Name: p.Name, Enabled: p.Enabled,
+		BackendPeerId: p.BackendPeerID, BackendScopeId: p.BackendScopeID,
+		BackendIp: p.BackendIP, BackendPort: uint32(p.BackendPort),
+		EdgePeerId: p.EdgePeerID, EdgePort: uint32(p.EdgePort),
+		Protocol:           p.Protocol,
+		AllowedSourceCidrs: p.AllowedSources,
+		RequireMtls:        p.RequireMTLS,
+		CreatedAtUnix:      p.CreatedAt.Unix(),
+		UpdatedAtUnix:      p.UpdatedAt.Unix(),
+	}
+}
 
 // ── Egress profiles (Phase 11) ────────────────────────────────────────
 

@@ -19,32 +19,36 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GMesh_Join_FullMethodName                = "/gmesh.v1.GMesh/Join"
-	GMesh_Leave_FullMethodName               = "/gmesh.v1.GMesh/Leave"
-	GMesh_Status_FullMethodName              = "/gmesh.v1.GMesh/Status"
-	GMesh_Version_FullMethodName             = "/gmesh.v1.GMesh/Version"
-	GMesh_AddPeer_FullMethodName             = "/gmesh.v1.GMesh/AddPeer"
-	GMesh_RemovePeer_FullMethodName          = "/gmesh.v1.GMesh/RemovePeer"
-	GMesh_UpdatePeer_FullMethodName          = "/gmesh.v1.GMesh/UpdatePeer"
-	GMesh_ListPeers_FullMethodName           = "/gmesh.v1.GMesh/ListPeers"
-	GMesh_GetPeerStats_FullMethodName        = "/gmesh.v1.GMesh/GetPeerStats"
-	GMesh_DiscoverNAT_FullMethodName         = "/gmesh.v1.GMesh/DiscoverNAT"
-	GMesh_HolePunch_FullMethodName           = "/gmesh.v1.GMesh/HolePunch"
-	GMesh_SetupRelay_FullMethodName          = "/gmesh.v1.GMesh/SetupRelay"
-	GMesh_AllocateWSTunnel_FullMethodName    = "/gmesh.v1.GMesh/AllocateWSTunnel"
-	GMesh_HealthCheck_FullMethodName         = "/gmesh.v1.GMesh/HealthCheck"
-	GMesh_ScopeConnect_FullMethodName        = "/gmesh.v1.GMesh/ScopeConnect"
-	GMesh_ScopeDisconnect_FullMethodName     = "/gmesh.v1.GMesh/ScopeDisconnect"
-	GMesh_ApplyFirewall_FullMethodName       = "/gmesh.v1.GMesh/ApplyFirewall"
-	GMesh_ResetFirewall_FullMethodName       = "/gmesh.v1.GMesh/ResetFirewall"
-	GMesh_GetFirewallStatus_FullMethodName   = "/gmesh.v1.GMesh/GetFirewallStatus"
-	GMesh_SubscribeEvents_FullMethodName     = "/gmesh.v1.GMesh/SubscribeEvents"
-	GMesh_CreateEgressProfile_FullMethodName = "/gmesh.v1.GMesh/CreateEgressProfile"
-	GMesh_UpdateEgressProfile_FullMethodName = "/gmesh.v1.GMesh/UpdateEgressProfile"
-	GMesh_DeleteEgressProfile_FullMethodName = "/gmesh.v1.GMesh/DeleteEgressProfile"
-	GMesh_ListEgressProfiles_FullMethodName  = "/gmesh.v1.GMesh/ListEgressProfiles"
-	GMesh_EnableExit_FullMethodName          = "/gmesh.v1.GMesh/EnableExit"
-	GMesh_DisableExit_FullMethodName         = "/gmesh.v1.GMesh/DisableExit"
+	GMesh_Join_FullMethodName                 = "/gmesh.v1.GMesh/Join"
+	GMesh_Leave_FullMethodName                = "/gmesh.v1.GMesh/Leave"
+	GMesh_Status_FullMethodName               = "/gmesh.v1.GMesh/Status"
+	GMesh_Version_FullMethodName              = "/gmesh.v1.GMesh/Version"
+	GMesh_AddPeer_FullMethodName              = "/gmesh.v1.GMesh/AddPeer"
+	GMesh_RemovePeer_FullMethodName           = "/gmesh.v1.GMesh/RemovePeer"
+	GMesh_UpdatePeer_FullMethodName           = "/gmesh.v1.GMesh/UpdatePeer"
+	GMesh_ListPeers_FullMethodName            = "/gmesh.v1.GMesh/ListPeers"
+	GMesh_GetPeerStats_FullMethodName         = "/gmesh.v1.GMesh/GetPeerStats"
+	GMesh_DiscoverNAT_FullMethodName          = "/gmesh.v1.GMesh/DiscoverNAT"
+	GMesh_HolePunch_FullMethodName            = "/gmesh.v1.GMesh/HolePunch"
+	GMesh_SetupRelay_FullMethodName           = "/gmesh.v1.GMesh/SetupRelay"
+	GMesh_AllocateWSTunnel_FullMethodName     = "/gmesh.v1.GMesh/AllocateWSTunnel"
+	GMesh_HealthCheck_FullMethodName          = "/gmesh.v1.GMesh/HealthCheck"
+	GMesh_ScopeConnect_FullMethodName         = "/gmesh.v1.GMesh/ScopeConnect"
+	GMesh_ScopeDisconnect_FullMethodName      = "/gmesh.v1.GMesh/ScopeDisconnect"
+	GMesh_ApplyFirewall_FullMethodName        = "/gmesh.v1.GMesh/ApplyFirewall"
+	GMesh_ResetFirewall_FullMethodName        = "/gmesh.v1.GMesh/ResetFirewall"
+	GMesh_GetFirewallStatus_FullMethodName    = "/gmesh.v1.GMesh/GetFirewallStatus"
+	GMesh_SubscribeEvents_FullMethodName      = "/gmesh.v1.GMesh/SubscribeEvents"
+	GMesh_CreateEgressProfile_FullMethodName  = "/gmesh.v1.GMesh/CreateEgressProfile"
+	GMesh_UpdateEgressProfile_FullMethodName  = "/gmesh.v1.GMesh/UpdateEgressProfile"
+	GMesh_DeleteEgressProfile_FullMethodName  = "/gmesh.v1.GMesh/DeleteEgressProfile"
+	GMesh_ListEgressProfiles_FullMethodName   = "/gmesh.v1.GMesh/ListEgressProfiles"
+	GMesh_EnableExit_FullMethodName           = "/gmesh.v1.GMesh/EnableExit"
+	GMesh_DisableExit_FullMethodName          = "/gmesh.v1.GMesh/DisableExit"
+	GMesh_CreateIngressProfile_FullMethodName = "/gmesh.v1.GMesh/CreateIngressProfile"
+	GMesh_UpdateIngressProfile_FullMethodName = "/gmesh.v1.GMesh/UpdateIngressProfile"
+	GMesh_DeleteIngressProfile_FullMethodName = "/gmesh.v1.GMesh/DeleteIngressProfile"
+	GMesh_ListIngressProfiles_FullMethodName  = "/gmesh.v1.GMesh/ListIngressProfiles"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -99,6 +103,14 @@ type GMeshClient interface {
 	// egresses correctly; DisableExit tears them down.
 	EnableExit(ctx context.Context, in *EnableExitRequest, opts ...grpc.CallOption) (*EnableExitResponse, error)
 	DisableExit(ctx context.Context, in *DisableExitRequest, opts ...grpc.CallOption) (*DisableExitResponse, error)
+	// ── Ingress profiles (Phase 12) ───────────────────────────────────────
+	// Expose a backend service (running on another mesh peer, optionally
+	// inside a scope netns) on the edge peer's public address via nftables
+	// DNAT. Inbound packets are tunneled over the mesh to the backend.
+	CreateIngressProfile(ctx context.Context, in *CreateIngressProfileRequest, opts ...grpc.CallOption) (*IngressProfileResponse, error)
+	UpdateIngressProfile(ctx context.Context, in *UpdateIngressProfileRequest, opts ...grpc.CallOption) (*IngressProfileResponse, error)
+	DeleteIngressProfile(ctx context.Context, in *DeleteIngressProfileRequest, opts ...grpc.CallOption) (*DeleteIngressProfileResponse, error)
+	ListIngressProfiles(ctx context.Context, in *ListIngressProfilesRequest, opts ...grpc.CallOption) (*ListIngressProfilesResponse, error)
 }
 
 type gMeshClient struct {
@@ -378,6 +390,46 @@ func (c *gMeshClient) DisableExit(ctx context.Context, in *DisableExitRequest, o
 	return out, nil
 }
 
+func (c *gMeshClient) CreateIngressProfile(ctx context.Context, in *CreateIngressProfileRequest, opts ...grpc.CallOption) (*IngressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IngressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_CreateIngressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) UpdateIngressProfile(ctx context.Context, in *UpdateIngressProfileRequest, opts ...grpc.CallOption) (*IngressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IngressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_UpdateIngressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) DeleteIngressProfile(ctx context.Context, in *DeleteIngressProfileRequest, opts ...grpc.CallOption) (*DeleteIngressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteIngressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_DeleteIngressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListIngressProfiles(ctx context.Context, in *ListIngressProfilesRequest, opts ...grpc.CallOption) (*ListIngressProfilesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListIngressProfilesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListIngressProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -430,6 +482,14 @@ type GMeshServer interface {
 	// egresses correctly; DisableExit tears them down.
 	EnableExit(context.Context, *EnableExitRequest) (*EnableExitResponse, error)
 	DisableExit(context.Context, *DisableExitRequest) (*DisableExitResponse, error)
+	// ── Ingress profiles (Phase 12) ───────────────────────────────────────
+	// Expose a backend service (running on another mesh peer, optionally
+	// inside a scope netns) on the edge peer's public address via nftables
+	// DNAT. Inbound packets are tunneled over the mesh to the backend.
+	CreateIngressProfile(context.Context, *CreateIngressProfileRequest) (*IngressProfileResponse, error)
+	UpdateIngressProfile(context.Context, *UpdateIngressProfileRequest) (*IngressProfileResponse, error)
+	DeleteIngressProfile(context.Context, *DeleteIngressProfileRequest) (*DeleteIngressProfileResponse, error)
+	ListIngressProfiles(context.Context, *ListIngressProfilesRequest) (*ListIngressProfilesResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -517,6 +577,18 @@ func (UnimplementedGMeshServer) EnableExit(context.Context, *EnableExitRequest) 
 }
 func (UnimplementedGMeshServer) DisableExit(context.Context, *DisableExitRequest) (*DisableExitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DisableExit not implemented")
+}
+func (UnimplementedGMeshServer) CreateIngressProfile(context.Context, *CreateIngressProfileRequest) (*IngressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateIngressProfile not implemented")
+}
+func (UnimplementedGMeshServer) UpdateIngressProfile(context.Context, *UpdateIngressProfileRequest) (*IngressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateIngressProfile not implemented")
+}
+func (UnimplementedGMeshServer) DeleteIngressProfile(context.Context, *DeleteIngressProfileRequest) (*DeleteIngressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteIngressProfile not implemented")
+}
+func (UnimplementedGMeshServer) ListIngressProfiles(context.Context, *ListIngressProfilesRequest) (*ListIngressProfilesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListIngressProfiles not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -1000,6 +1072,78 @@ func _GMesh_DisableExit_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_CreateIngressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateIngressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).CreateIngressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_CreateIngressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).CreateIngressProfile(ctx, req.(*CreateIngressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_UpdateIngressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateIngressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).UpdateIngressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_UpdateIngressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).UpdateIngressProfile(ctx, req.(*UpdateIngressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_DeleteIngressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteIngressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).DeleteIngressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_DeleteIngressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).DeleteIngressProfile(ctx, req.(*DeleteIngressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListIngressProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListIngressProfilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListIngressProfiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListIngressProfiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListIngressProfiles(ctx, req.(*ListIngressProfilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1106,6 +1250,22 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DisableExit",
 			Handler:    _GMesh_DisableExit_Handler,
+		},
+		{
+			MethodName: "CreateIngressProfile",
+			Handler:    _GMesh_CreateIngressProfile_Handler,
+		},
+		{
+			MethodName: "UpdateIngressProfile",
+			Handler:    _GMesh_UpdateIngressProfile_Handler,
+		},
+		{
+			MethodName: "DeleteIngressProfile",
+			Handler:    _GMesh_DeleteIngressProfile_Handler,
+		},
+		{
+			MethodName: "ListIngressProfiles",
+			Handler:    _GMesh_ListIngressProfiles_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
