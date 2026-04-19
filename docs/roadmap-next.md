@@ -18,7 +18,8 @@ Phase 14  Path Monitor (active)    ✅ v0.5.0   — includes auto-failover liste
 Phase 15  GeoIP Resolver           ✅ v0.6.0
 Phase 16  A/B Traffic Splitter     ✅ v0.6.0
 Phase 17  Policy Engine (skeleton) ✅ v0.6.0   — YAML + debounce
-Phase 18  eBPF L7 Classifier          ─┐  Tier 3: advanced features
+Phase 18  L7 Classifier (port-based) ─┐  Tier 3: advanced features
+          (eBPF variant still TODO)    │  ✅ v0.10.0 (conntrack + port map; NOT eBPF yet)
 Phase 19  Onion Circuit Manager        │  ✅ v0.8.0 (multi-hop source-routed path; NOT Tor-style)
 Phase 20  Zero-Trust mTLS              │  ✅ v0.7.0 (CA + SPIFFE peer certs + revocation)
 Phase 21  Connection Anomaly          ─┘  ✅ v0.9.0 (bandwidth_z + handshake_storm + peer_flap)

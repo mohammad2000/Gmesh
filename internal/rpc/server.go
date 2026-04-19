@@ -26,6 +26,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/circuit"
+	"github.com/mohammad2000/Gmesh/internal/l7"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
@@ -465,6 +466,53 @@ func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequ
 		out = append(out, pathStateToProto(st))
 	}
 	return &gmeshv1.ListPathStatesResponse{States: out}, nil
+}
+
+// ── L7 classifier (Phase 18) ──────────────────────────────────────────
+
+func (s *Server) ListL7Flows(_ context.Context, in *gmeshv1.ListL7FlowsRequest) (*gmeshv1.ListL7FlowsResponse, error) {
+	if s.Engine == nil || s.Engine.L7 == nil {
+		return &gmeshv1.ListL7FlowsResponse{}, nil
+	}
+	flows := s.Engine.L7.Flows()
+	out := make([]*gmeshv1.L7Flow, 0, len(flows))
+	for _, f := range flows {
+		if in.PeerId != 0 && f.PeerID != in.PeerId {
+			continue
+		}
+		out = append(out, l7FlowToProto(f))
+	}
+	return &gmeshv1.ListL7FlowsResponse{Flows: out}, nil
+}
+
+func (s *Server) ListL7Totals(_ context.Context, in *gmeshv1.ListL7TotalsRequest) (*gmeshv1.ListL7TotalsResponse, error) {
+	if s.Engine == nil || s.Engine.L7 == nil {
+		return &gmeshv1.ListL7TotalsResponse{}, nil
+	}
+	totals := s.Engine.L7.Totals()
+	out := make([]*gmeshv1.L7Total, 0, len(totals))
+	for _, t := range totals {
+		if in.PeerId != 0 && t.PeerID != in.PeerId {
+			continue
+		}
+		out = append(out, &gmeshv1.L7Total{
+			PeerId: t.PeerID, L7Proto: string(t.Protocol),
+			Bytes: t.Bytes, Flows: int64(t.Flows),
+		})
+	}
+	return &gmeshv1.ListL7TotalsResponse{Totals: out}, nil
+}
+
+func l7FlowToProto(f l7.Flow) *gmeshv1.L7Flow {
+	return &gmeshv1.L7Flow{
+		SrcIp: f.SrcIP, DstIp: f.DstIP,
+		SrcPort: uint32(f.SrcPort), DstPort: uint32(f.DstPort),
+		L4Proto: f.L4Proto, L7Proto: string(f.L7Proto),
+		Confidence: f.Confidence,
+		RxBytes:    f.RxBytes, TxBytes: f.TxBytes,
+		PeerId:       f.PeerID,
+		LastSeenUnix: f.LastSeen.Unix(),
+	}
 }
 
 // ── Anomaly (Phase 21) ────────────────────────────────────────────────

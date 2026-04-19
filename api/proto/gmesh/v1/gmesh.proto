@@ -93,6 +93,13 @@ service GMesh {
   rpc ListPolicies   (ListPoliciesRequest)   returns (ListPoliciesResponse);
   rpc ReloadPolicies (ReloadPoliciesRequest) returns (ReloadPoliciesResponse);
 
+  // ── L7 classifier (Phase 18) ─────────────────────────────────────────
+  // Per-protocol traffic visibility. Classification is port-based
+  // today — see docs/l7.md for the scope caveat (eBPF DPI is a
+  // follow-up).
+  rpc ListL7Flows  (ListL7FlowsRequest)  returns (ListL7FlowsResponse);
+  rpc ListL7Totals (ListL7TotalsRequest) returns (ListL7TotalsResponse);
+
   // ── Anomaly alerts (Phase 21) ────────────────────────────────────────
   // Recent alerts produced by the built-in detectors (bandwidth z-score,
   // handshake storm, peer flap). Full live stream is available on the
@@ -610,6 +617,35 @@ message ReloadPoliciesResponse {
   int64 loaded = 1;
   repeated string errors = 2;
 }
+
+// ── L7 classifier (Phase 18) ──────────────────────────────────────────
+
+message L7Flow {
+  string src_ip    = 1;
+  string dst_ip    = 2;
+  uint32 src_port  = 3;
+  uint32 dst_port  = 4;
+  string l4_proto  = 5;
+  string l7_proto  = 6;  // "http" | "tls" | "ssh" | "dns" | "unknown" | …
+  double confidence = 7; // 0..1
+  int64  rx_bytes  = 8;
+  int64  tx_bytes  = 9;
+  int64  peer_id   = 10; // 0 = off-mesh
+  int64  last_seen_unix = 11;
+}
+
+message L7Total {
+  int64  peer_id   = 1;
+  string l7_proto  = 2;
+  int64  bytes     = 3;
+  int64  flows     = 4;
+}
+
+message ListL7FlowsRequest  { int64 peer_id = 1; }
+message ListL7FlowsResponse { repeated L7Flow flows = 1; }
+
+message ListL7TotalsRequest  { int64 peer_id = 1; }
+message ListL7TotalsResponse { repeated L7Total totals = 1; }
 
 // ── Anomaly alerts (Phase 21) ────────────────────────────────────────
 

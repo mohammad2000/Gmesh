@@ -58,6 +58,8 @@ const (
 	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
 	GMesh_ListPolicies_FullMethodName         = "/gmesh.v1.GMesh/ListPolicies"
 	GMesh_ReloadPolicies_FullMethodName       = "/gmesh.v1.GMesh/ReloadPolicies"
+	GMesh_ListL7Flows_FullMethodName          = "/gmesh.v1.GMesh/ListL7Flows"
+	GMesh_ListL7Totals_FullMethodName         = "/gmesh.v1.GMesh/ListL7Totals"
 	GMesh_ListAnomalies_FullMethodName        = "/gmesh.v1.GMesh/ListAnomalies"
 	GMesh_CreateCircuit_FullMethodName        = "/gmesh.v1.GMesh/CreateCircuit"
 	GMesh_UpdateCircuit_FullMethodName        = "/gmesh.v1.GMesh/UpdateCircuit"
@@ -150,6 +152,12 @@ type GMeshClient interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error)
+	// ── L7 classifier (Phase 18) ─────────────────────────────────────────
+	// Per-protocol traffic visibility. Classification is port-based
+	// today — see docs/l7.md for the scope caveat (eBPF DPI is a
+	// follow-up).
+	ListL7Flows(ctx context.Context, in *ListL7FlowsRequest, opts ...grpc.CallOption) (*ListL7FlowsResponse, error)
+	ListL7Totals(ctx context.Context, in *ListL7TotalsRequest, opts ...grpc.CallOption) (*ListL7TotalsResponse, error)
 	// ── Anomaly alerts (Phase 21) ────────────────────────────────────────
 	// Recent alerts produced by the built-in detectors (bandwidth z-score,
 	// handshake storm, peer flap). Full live stream is available on the
@@ -581,6 +589,26 @@ func (c *gMeshClient) ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequ
 	return out, nil
 }
 
+func (c *gMeshClient) ListL7Flows(ctx context.Context, in *ListL7FlowsRequest, opts ...grpc.CallOption) (*ListL7FlowsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListL7FlowsResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListL7Flows_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListL7Totals(ctx context.Context, in *ListL7TotalsRequest, opts ...grpc.CallOption) (*ListL7TotalsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListL7TotalsResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListL7Totals_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gMeshClient) ListAnomalies(ctx context.Context, in *ListAnomaliesRequest, opts ...grpc.CallOption) (*ListAnomaliesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAnomaliesResponse)
@@ -770,6 +798,12 @@ type GMeshServer interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error)
+	// ── L7 classifier (Phase 18) ─────────────────────────────────────────
+	// Per-protocol traffic visibility. Classification is port-based
+	// today — see docs/l7.md for the scope caveat (eBPF DPI is a
+	// follow-up).
+	ListL7Flows(context.Context, *ListL7FlowsRequest) (*ListL7FlowsResponse, error)
+	ListL7Totals(context.Context, *ListL7TotalsRequest) (*ListL7TotalsResponse, error)
 	// ── Anomaly alerts (Phase 21) ────────────────────────────────────────
 	// Recent alerts produced by the built-in detectors (bandwidth z-score,
 	// handshake storm, peer flap). Full live stream is available on the
@@ -918,6 +952,12 @@ func (UnimplementedGMeshServer) ListPolicies(context.Context, *ListPoliciesReque
 }
 func (UnimplementedGMeshServer) ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (UnimplementedGMeshServer) ListL7Flows(context.Context, *ListL7FlowsRequest) (*ListL7FlowsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListL7Flows not implemented")
+}
+func (UnimplementedGMeshServer) ListL7Totals(context.Context, *ListL7TotalsRequest) (*ListL7TotalsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListL7Totals not implemented")
 }
 func (UnimplementedGMeshServer) ListAnomalies(context.Context, *ListAnomaliesRequest) (*ListAnomaliesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAnomalies not implemented")
@@ -1668,6 +1708,42 @@ func _GMesh_ReloadPolicies_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_ListL7Flows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListL7FlowsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListL7Flows(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListL7Flows_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListL7Flows(ctx, req.(*ListL7FlowsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListL7Totals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListL7TotalsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListL7Totals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListL7Totals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListL7Totals(ctx, req.(*ListL7TotalsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GMesh_ListAnomalies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAnomaliesRequest)
 	if err := dec(in); err != nil {
@@ -2024,6 +2100,14 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReloadPolicies",
 			Handler:    _GMesh_ReloadPolicies_Handler,
+		},
+		{
+			MethodName: "ListL7Flows",
+			Handler:    _GMesh_ListL7Flows_Handler,
+		},
+		{
+			MethodName: "ListL7Totals",
+			Handler:    _GMesh_ListL7Totals_Handler,
 		},
 		{
 			MethodName: "ListAnomalies",

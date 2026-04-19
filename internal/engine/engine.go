@@ -24,6 +24,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/geoip"
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
+	"github.com/mohammad2000/Gmesh/internal/l7"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
@@ -69,6 +70,7 @@ type Engine struct {
 	MTLS      mtls.Manager
 	Circuit   circuit.Manager
 	Anomaly   *anomaly.Monitor
+	L7        *l7.Monitor
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -214,6 +216,10 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	// Anomaly monitor with a shared publisher into the event bus.
 	anMon := anomaly.New(log, anomaly.Config{}, &anomalyBridgePublisher{bus: bus})
 
+	// L7 classifier — port-based userspace implementation (see
+	// internal/l7/l7.go's scope note about why this is not eBPF yet).
+	l7Mon := l7.New(log, 0)
+
 	var mm mtls.Manager
 	if opts.MTLS != nil {
 		mm = opts.MTLS
@@ -266,6 +272,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		MTLS:          mm,
 		Circuit:       cir,
 		Anomaly:       anMon,
+		L7:            l7Mon,
 		Store:         store,
 		Events:        bus,
 		relaySessions:        make(map[int64]*relay.Session),
@@ -389,7 +396,48 @@ func (e *Engine) Start(ctx context.Context) error {
 		go e.runAnomalyFeed(ctx)
 	}
 
+	if e.L7 != nil {
+		// Seed the peer index once + refresh in the sync loop. The
+		// classifier needs mesh IP → peer ID to tag flows.
+		e.refreshL7PeerIndex()
+		go e.L7.Run(ctx)
+		go e.l7PeerIndexLoop(ctx)
+	}
+
 	return nil
+}
+
+// refreshL7PeerIndex syncs the classifier's mesh-IP → peer-ID map from
+// the live peer registry. Idempotent; the classifier atomically swaps
+// the old index for the new one.
+func (e *Engine) refreshL7PeerIndex() {
+	if e.L7 == nil || e.Peers == nil {
+		return
+	}
+	idx := map[string]int64{}
+	for _, p := range e.Peers.Snapshot() {
+		if p.MeshIP != "" {
+			idx[p.MeshIP] = p.ID
+		}
+	}
+	e.L7.Classifier.SetPeerIndex(idx)
+}
+
+// l7PeerIndexLoop refreshes the L7 peer index on a slow cadence. Changes
+// to the peer registry (add/remove) thus propagate to the classifier
+// without us plumbing an event subscription. 60 s is fast enough for
+// dashboards while keeping overhead negligible.
+func (e *Engine) l7PeerIndexLoop(ctx context.Context) {
+	t := time.NewTicker(60 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			e.refreshL7PeerIndex()
+		}
+	}
 }
 
 // runAnomalyFeed polls peer stats every 10s, computes per-peer

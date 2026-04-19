@@ -57,6 +57,7 @@ func main() {
 		mtlsCmd(),
 		circuitCmd(),
 		anomalyCmd(),
+		l7Cmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1964,5 +1965,81 @@ func anomalyListCmd() *cobra.Command {
 	}
 	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "filter by peer (0 = all)")
 	cmd.Flags().Int32Var(&limit, "limit", 50, "max alerts (0 = all)")
+	return cmd
+}
+
+// ── l7 (Phase 18) ─────────────────────────────────────────────────────
+
+func l7Cmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "l7", Short: "Application-layer traffic classification"}
+	cmd.AddCommand(l7FlowsCmd(), l7TotalsCmd())
+	return cmd
+}
+
+func l7FlowsCmd() *cobra.Command {
+	var peerID int64
+	cmd := &cobra.Command{
+		Use:   "flows",
+		Short: "Show classified live flows",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListL7Flows(ctx, &gmeshv1.ListL7FlowsRequest{PeerId: peerID})
+			if err != nil {
+				return fmt.Errorf("list l7 flows rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "PEER\tL4\tL7\tCONF\tSRC\tDST\tRX\tTX")
+			for _, f := range resp.Flows {
+				fmt.Fprintf(w, "%d\t%s\t%s\t%.0f%%\t%s:%d\t%s:%d\t%d\t%d\n",
+					f.PeerId, f.L4Proto, f.L7Proto, f.Confidence*100,
+					f.SrcIp, f.SrcPort, f.DstIp, f.DstPort,
+					f.RxBytes, f.TxBytes)
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "filter by peer (0 = all)")
+	return cmd
+}
+
+func l7TotalsCmd() *cobra.Command {
+	var peerID int64
+	cmd := &cobra.Command{
+		Use:   "totals",
+		Short: "Show per-(peer, protocol) byte/flow totals",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListL7Totals(ctx, &gmeshv1.ListL7TotalsRequest{PeerId: peerID})
+			if err != nil {
+				return fmt.Errorf("list l7 totals rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "PEER\tL7\tBYTES\tFLOWS")
+			for _, t := range resp.Totals {
+				fmt.Fprintf(w, "%d\t%s\t%d\t%d\n",
+					t.PeerId, t.L7Proto, t.Bytes, t.Flows)
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "filter by peer (0 = all)")
 	return cmd
 }
