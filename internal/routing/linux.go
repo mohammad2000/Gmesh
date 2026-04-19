@@ -1,0 +1,108 @@
+//go:build linux
+
+package routing
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os/exec"
+	"strings"
+	"sync"
+)
+
+// LinuxManager issues `ip route` commands via the `iproute2` suite.
+// Tracked routes are kept in memory so Remove is idempotent even if the
+// kernel state is already gone (e.g. after a reboot of the gmeshd daemon
+// while kernel state persisted, or vice versa).
+type LinuxManager struct {
+	Log *slog.Logger
+
+	mu     sync.Mutex
+	routes map[string]Route // key: "meshIP/iface"
+}
+
+// NewLinux returns a real Linux routing manager.
+func NewLinux(log *slog.Logger) *LinuxManager {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &LinuxManager{Log: log, routes: make(map[string]Route)}
+}
+
+// Ensure installs a /32 (or /128) route to meshIP via iface, replacing any
+// conflicting route on a different interface.
+func (m *LinuxManager) Ensure(ctx context.Context, meshIP, iface string) error {
+	if meshIP == "" || iface == "" {
+		return fmt.Errorf("routing: meshIP and iface required")
+	}
+	target := normalizeMeshIP(meshIP)
+
+	// `ip route replace` will insert if missing, overwrite if present.
+	if err := run(ctx, "ip", "route", "replace", target, "dev", iface); err != nil {
+		return fmt.Errorf("ip route replace %s dev %s: %w", target, iface, err)
+	}
+
+	m.mu.Lock()
+	m.routes[target+"/"+iface] = Route{MeshIP: meshIP, Interface: iface}
+	m.mu.Unlock()
+
+	m.Log.Debug("route installed", "mesh_ip", meshIP, "iface", iface)
+	return nil
+}
+
+// Remove deletes the tracked route. Missing-in-kernel is not an error.
+func (m *LinuxManager) Remove(ctx context.Context, meshIP, iface string) error {
+	if meshIP == "" || iface == "" {
+		return nil
+	}
+	target := normalizeMeshIP(meshIP)
+
+	// Ignore "No such process" and "cannot find" errors — route may already be gone.
+	if err := run(ctx, "ip", "route", "del", target, "dev", iface); err != nil {
+		if !strings.Contains(err.Error(), "No such process") &&
+			!strings.Contains(err.Error(), "Cannot find") &&
+			!strings.Contains(err.Error(), "No route to host") {
+			return fmt.Errorf("ip route del %s dev %s: %w", target, iface, err)
+		}
+	}
+
+	m.mu.Lock()
+	delete(m.routes, target+"/"+iface)
+	m.mu.Unlock()
+
+	m.Log.Debug("route removed", "mesh_ip", meshIP, "iface", iface)
+	return nil
+}
+
+// List returns tracked routes (not the full kernel table).
+func (m *LinuxManager) List() []Route {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]Route, 0, len(m.routes))
+	for _, r := range m.routes {
+		out = append(out, r)
+	}
+	return out
+}
+
+// normalizeMeshIP ensures a /32 or /128 suffix.
+func normalizeMeshIP(ip string) string {
+	if strings.ContainsAny(ip, "/") {
+		return ip
+	}
+	if strings.Contains(ip, ":") {
+		return ip + "/128"
+	}
+	return ip + "/32"
+}
+
+// run executes a command and returns trimmed output on error.
+func run(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}

@@ -1,11 +1,22 @@
 // Package routing manages `ip route` state for mesh peers: one /32 host
 // route per peer mesh_ip pointing at the WG interface, plus conflict
 // resolution when another interface claims the same prefix.
+//
+// Two implementations live here:
+//
+//   - InMemory: tracks state only, no kernel side-effects. Used on macOS
+//     dev and in tests.
+//   - LinuxManager (linux.go): issues real `ip route replace / del`
+//     commands via iproute2.
+//
+// Picked at runtime via New(), which returns LinuxManager on Linux and
+// falls back to InMemory elsewhere.
 package routing
 
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 )
 
@@ -67,3 +78,7 @@ func (m *InMemory) List() []Route {
 
 // ErrNotImplemented is returned by real backends still under construction.
 var ErrNotImplemented = errors.New("routing: not implemented")
+
+// New returns the best available routing backend for the current host.
+// Linux → LinuxManager; everything else → InMemory.
+func New(log *slog.Logger) Manager { return newPlatformManager(log) }

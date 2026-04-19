@@ -23,6 +23,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
+	"github.com/mohammad2000/Gmesh/internal/scope"
 	"github.com/mohammad2000/Gmesh/internal/traversal"
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
@@ -239,6 +240,63 @@ func (s *Server) GetPeerStats(ctx context.Context, in *gmeshv1.GetPeerStatsReque
 		return nil, status.Error(codes.NotFound, "peer not found")
 	}
 	return &gmeshv1.GetPeerStatsResponse{Peer: peerToProto(p)}, nil
+}
+
+// ── Scope ─────────────────────────────────────────────────────────────
+
+// ScopeConnect builds the scope's netns + veth + WG-in-netns.
+func (s *Server) ScopeConnect(ctx context.Context, in *gmeshv1.ScopeConnectRequest) (*gmeshv1.ScopeConnectResponse, error) {
+	if in.ScopeId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "scope_id required")
+	}
+	if in.ScopeMeshIp == "" {
+		return nil, status.Error(codes.InvalidArgument, "scope_mesh_ip required")
+	}
+	spec := scope.Spec{
+		ScopeID:       in.ScopeId,
+		Netns:         in.ScopeNetns,
+		MeshIP:        in.ScopeMeshIp,
+		VethCIDR:      in.VethCidr,
+		VMVethIP:      in.VmVethIp,
+		ScopeVethIP:   in.ScopeIp,
+		GatewayMeshIP: in.GatewayMeshIp,
+		ListenPort:    uint16(in.ListenPort), //nolint:gosec // bounded
+	}
+	p, err := s.Engine.ScopeConnect(ctx, spec)
+	if err != nil {
+		if err == scope.ErrAlreadyConnected {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "scope connect: %v", err)
+	}
+	return &gmeshv1.ScopeConnectResponse{Peer: scopePeerToProto(p)}, nil
+}
+
+// ScopeDisconnect tears the scope down.
+func (s *Server) ScopeDisconnect(ctx context.Context, in *gmeshv1.ScopeDisconnectRequest) (*gmeshv1.ScopeDisconnectResponse, error) {
+	if in.ScopeId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "scope_id required")
+	}
+	if err := s.Engine.ScopeDisconnect(ctx, in.ScopeId); err != nil {
+		return nil, status.Errorf(codes.Internal, "scope disconnect: %v", err)
+	}
+	return &gmeshv1.ScopeDisconnectResponse{}, nil
+}
+
+// scopePeerToProto maps our internal scope.Peer to the gRPC Peer.
+func scopePeerToProto(p *scope.Peer) *gmeshv1.Peer {
+	if p == nil {
+		return nil
+	}
+	return &gmeshv1.Peer{
+		Id:         p.ID,
+		Type:       gmeshv1.PeerType_PEER_TYPE_SCOPE,
+		MeshIp:     p.MeshIP,
+		PublicKey:  p.PublicKey,
+		ScopeId:    p.ID,
+		AllowedIps: []string{p.MeshIP + "/32"},
+		Status:     gmeshv1.PeerStatus_PEER_STATUS_CONNECTING,
+	}
 }
 
 // ── Firewall ──────────────────────────────────────────────────────────

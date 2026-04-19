@@ -20,6 +20,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/routing"
+	"github.com/mohammad2000/Gmesh/internal/scope"
 	"github.com/mohammad2000/Gmesh/internal/state"
 	"github.com/mohammad2000/Gmesh/internal/traversal"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
@@ -42,6 +43,7 @@ type Engine struct {
 	WG        wireguard.Manager
 	Firewall  firewall.Backend
 	Routing   routing.Manager
+	Scope     scope.Manager
 	Store     *state.Store
 
 	relayMu       sync.Mutex
@@ -71,6 +73,8 @@ type Options struct {
 	Responder Responder         // nil → real nat.Responder
 	NAT       *nat.Discoverer   // nil → default with configured STUN servers
 	Firewall  firewall.Backend  // nil → detect (nft → iptables → memory)
+	Scope     scope.Manager     // nil → detect (Linux or stub)
+	Routing   routing.Manager   // nil → detect (Linux or in-memory)
 }
 
 // New wires an Engine together.
@@ -125,6 +129,14 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	if fw == nil {
 		fw = firewall.Detect(cfg.Firewall.UseNftables, cfg.Firewall.Table, cfg.Firewall.Chain, log)
 	}
+	sc := opts.Scope
+	if sc == nil {
+		sc = scope.New(log)
+	}
+	rt := opts.Routing
+	if rt == nil {
+		rt = routing.New(log)
+	}
 
 	e := &Engine{
 		Config:        cfg,
@@ -135,7 +147,8 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Trav:          trav,
 		WG:            wg,
 		Firewall:      fw,
-		Routing:       routing.NewInMemory(),
+		Routing:       rt,
+		Scope:         sc,
 		Store:         store,
 		relaySessions: make(map[int64]*relay.Session),
 		wsTunnels:     make(map[int64]*relay.WSTunnel),
@@ -282,6 +295,58 @@ func (e *Engine) TeardownRelay(peerID int64) {
 	if sess != nil {
 		_ = sess.Close()
 	}
+}
+
+// ── Scope peers ───────────────────────────────────────────────────────
+
+// ScopeConnect builds the netns + veth + in-netns WG for a scope and adds
+// its /32 route if we're joined to the mesh.
+func (e *Engine) ScopeConnect(ctx context.Context, spec scope.Spec) (*scope.Peer, error) {
+	p, err := e.Scope.Connect(ctx, spec)
+	if err != nil {
+		return nil, fmt.Errorf("scope connect: %w", err)
+	}
+	// Register the scope as a peer in our local registry so ListPeers and
+	// HolePunch see it too. The scope's WG identity lives in its own netns;
+	// from the engine's POV it's just another peer.
+	pr := &peer.Peer{
+		ID:         spec.ScopeID,
+		Type:       peer.TypeScope,
+		MeshIP:     spec.MeshIP,
+		PublicKey:  p.PublicKey,
+		Status:     peer.StatusConnecting,
+		ScopeID:    spec.ScopeID,
+		AllowedIPs: []string{spec.MeshIP + "/32"},
+	}
+	e.Peers.Upsert(pr)
+
+	if e.IsJoined() && e.Routing != nil {
+		if err := e.Routing.Ensure(ctx, spec.MeshIP, e.Interface()); err != nil {
+			e.Log.Warn("scope route install failed", "error", err, "mesh_ip", spec.MeshIP)
+		}
+	}
+	return p, nil
+}
+
+// ScopeDisconnect tears down the scope's networking and removes it from
+// our peer registry + routing table.
+func (e *Engine) ScopeDisconnect(ctx context.Context, scopeID int64) error {
+	if err := e.Scope.Disconnect(ctx, scopeID); err != nil && err != scope.ErrNotConnected {
+		return fmt.Errorf("scope disconnect: %w", err)
+	}
+	if p, ok := e.Peers.Get(scopeID); ok && e.Routing != nil {
+		_ = e.Routing.Remove(ctx, p.MeshIP, e.Interface())
+	}
+	e.Peers.Remove(scopeID)
+	return nil
+}
+
+// ScopeList returns all active scope peers.
+func (e *Engine) ScopeList() []*scope.Peer {
+	if e.Scope == nil {
+		return nil
+	}
+	return e.Scope.List()
 }
 
 // ── Firewall ──────────────────────────────────────────────────────────
@@ -582,6 +647,11 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 		return fmt.Errorf("wg add peer: %w", err)
 	}
 	e.Peers.Upsert(p)
+	if e.Routing != nil && p.MeshIP != "" {
+		if err := e.Routing.Ensure(ctx, p.MeshIP, e.Interface()); err != nil {
+			e.Log.Warn("peer route install failed", "error", err, "mesh_ip", p.MeshIP)
+		}
+	}
 	if err := e.persist(); err != nil {
 		e.Log.Warn("persist after AddPeer failed", "error", err)
 	}
@@ -598,6 +668,9 @@ func (e *Engine) RemovePeer(ctx context.Context, peerID int64) error {
 		return fmt.Errorf("wg remove peer: %w", err)
 	}
 	e.Peers.Remove(peerID)
+	if e.Routing != nil && p.MeshIP != "" {
+		_ = e.Routing.Remove(ctx, p.MeshIP, e.Interface())
+	}
 	if err := e.persist(); err != nil {
 		e.Log.Warn("persist after RemovePeer failed", "error", err)
 	}

@@ -45,6 +45,7 @@ func main() {
 		holePunchCmd(),
 		relayCmd(),
 		firewallCmd(),
+		scopeCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -729,6 +730,91 @@ func firewallRuleToProto(r firewall.Rule) *gmeshv1.FirewallRule {
 		RateLimit: r.RateLimit, RateBurst: r.RateBurst,
 		Schedule: r.ScheduleRaw, ExpiresAt: r.ExpiresAt, Tags: r.Tags,
 	}
+}
+
+// ── Scope ─────────────────────────────────────────────────────────────
+
+func scopeCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "scope", Short: "Manage netns-isolated scope peers"}
+	cmd.AddCommand(scopeConnectCmd(), scopeDisconnectCmd())
+	return cmd
+}
+
+func scopeConnectCmd() *cobra.Command {
+	var (
+		id                                                    int64
+		meshIP, netns, vethCIDR, vmVethIP, scopeIP, gatewayIP string
+		listenPort                                            uint16
+	)
+	cmd := &cobra.Command{
+		Use:   "connect",
+		Short: "Create scope netns + veth + in-netns WG + DNAT rule",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			resp, err := c.ScopeConnect(ctx, &gmeshv1.ScopeConnectRequest{
+				ScopeId:       id,
+				ScopeMeshIp:   meshIP,
+				ScopeNetns:    netns,
+				VethCidr:      vethCIDR,
+				VmVethIp:      vmVethIP,
+				ScopeIp:       scopeIP,
+				GatewayMeshIp: gatewayIP,
+				ListenPort:    uint32(listenPort),
+			})
+			if err != nil {
+				return fmt.Errorf("scope connect rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp.Peer)
+			}
+			fmt.Printf("scope %d connected\npublic_key: %s\nmesh_ip:    %s\n",
+				resp.Peer.Id, resp.Peer.PublicKey, resp.Peer.MeshIp)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "scope ID")
+	cmd.Flags().StringVar(&meshIP, "mesh-ip", "", "scope's mesh IP (10.200.x.x)")
+	cmd.Flags().StringVar(&netns, "netns", "", "netns name (default scope-<id>)")
+	cmd.Flags().StringVar(&vethCIDR, "veth-cidr", "", "veth /30, e.g. 10.50.42.0/30")
+	cmd.Flags().StringVar(&vmVethIP, "vm-veth-ip", "", "host end of veth")
+	cmd.Flags().StringVar(&scopeIP, "scope-ip", "", "scope end of veth")
+	cmd.Flags().StringVar(&gatewayIP, "gateway-mesh-ip", "", "parent VM mesh_ip")
+	cmd.Flags().Uint16Var(&listenPort, "listen-port", 0, "host-visible UDP port (DNAT'd into netns)")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("mesh-ip")
+	_ = cmd.MarkFlagRequired("listen-port")
+	return cmd
+}
+
+func scopeDisconnectCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "disconnect",
+		Short: "Tear down a scope's networking",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if _, err := c.ScopeDisconnect(ctx, &gmeshv1.ScopeDisconnectRequest{ScopeId: id}); err != nil {
+				return fmt.Errorf("scope disconnect rpc: %w", err)
+			}
+			fmt.Printf("scope %d disconnected\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "scope ID")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
 }
 
 func peerUpdateCmd() *cobra.Command {
