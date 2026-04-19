@@ -44,3 +44,4 @@ coverage.html
 # Runtime
 *.sock
 *.pid
+__pycache__/

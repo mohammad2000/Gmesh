@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gmesh-bridge"
+version = "0.1.0"
+description = "Python bridge between the GritivaCore agent and the gmeshd daemon"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Mohammad Salamati", email = "m.salamati2000@gmail.com" }]
+dependencies = [
+    "grpcio>=1.59",
+    "protobuf>=4.25",
+]
+
+[project.optional-dependencies]
+dev = [
+    "grpcio-tools>=1.59",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gmesh_bridge*", "gmesh*"]
+
+[tool.setuptools.package-dir]
+"gmesh_bridge" = "gmesh_bridge"
+"gmesh" = "../gen/py/gmesh"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
