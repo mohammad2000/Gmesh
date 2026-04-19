@@ -20,6 +20,21 @@ type Config struct {
 	Firewall  FirewallConfig  `yaml:"firewall"`
 	Relay     RelayConfig     `yaml:"relay"`
 	State     StateConfig     `yaml:"state"`
+	Metrics   MetricsConfig   `yaml:"metrics"`
+	Audit     AuditConfig     `yaml:"audit"`
+}
+
+// MetricsConfig controls the Prometheus HTTP endpoint.
+type MetricsConfig struct {
+	Enabled    bool   `yaml:"enabled"`     // default true
+	SocketPath string `yaml:"socket_path"` // default /run/gmesh-metrics.sock
+}
+
+// AuditConfig controls the audit log.
+type AuditConfig struct {
+	Enabled   bool   `yaml:"enabled"`    // default true
+	Path      string `yaml:"path"`       // default /var/log/gmesh/audit.log
+	MaxBytes  int64  `yaml:"max_bytes"`  // default 10 MB
 }
 
 // SocketConfig controls the Unix socket exposed for gRPC.
@@ -117,6 +132,8 @@ func Default() *Config {
 		Firewall: FirewallConfig{Table: "gmesh", Chain: "mesh", UseNftables: true},
 		Relay:    RelayConfig{WSTunnelBuffer: 2048},
 		State:    StateConfig{Dir: "/var/lib/gmesh", File: "state.json"},
+		Metrics:  MetricsConfig{Enabled: true, SocketPath: "/run/gmesh-metrics.sock"},
+		Audit:    AuditConfig{Enabled: true, Path: "/var/log/gmesh/audit.log", MaxBytes: 10 * 1024 * 1024},
 	}
 }
 

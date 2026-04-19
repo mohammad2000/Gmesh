@@ -89,13 +89,18 @@ func (f *fakeWG) ListPeers(_ context.Context, _ string) ([]wireguard.PeerDump, e
 // setup builds an Engine wired to a fakeWG and a temp Store.
 func setup(t *testing.T) (*Engine, *fakeWG) {
 	t.Helper()
+	return setupTB(t)
+}
+
+func setupTB(tb testLike) (*Engine, *fakeWG) {
+	tb.Helper()
 	cfg := config.Default()
-	cfg.State.Dir = t.TempDir()
+	cfg.State.Dir = tb.TempDir()
 	cfg.State.File = "state.json"
 
 	s, err := state.NewStore(cfg.State.Dir, cfg.State.File)
 	if err != nil {
-		t.Fatalf("state.NewStore: %v", err)
+		tb.Fatalf("state.NewStore: %v", err)
 	}
 	fw := newFakeWG()
 	eng, err := New(cfg, Options{
@@ -105,7 +110,7 @@ func setup(t *testing.T) (*Engine, *fakeWG) {
 		Responder: noopResponder{},
 	})
 	if err != nil {
-		t.Fatalf("engine.New: %v", err)
+		tb.Fatalf("engine.New: %v", err)
 	}
 	return eng, fw
 }
@@ -115,6 +120,14 @@ type noopResponder struct{}
 
 func (noopResponder) Start(_ context.Context) error { return nil }
 func (noopResponder) Stop()                         {}
+
+// testLike is the subset of testing.TB used by setupTB, accepting both
+// *testing.T and *testing.B.
+type testLike interface {
+	Helper()
+	TempDir() string
+	Fatalf(string, ...interface{})
+}
 
 func TestJoinLeaveRoundtrip(t *testing.T) {
 	eng, fw := setup(t)

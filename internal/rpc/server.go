@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
+	"github.com/mohammad2000/Gmesh/internal/audit"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/engine"
 	"github.com/mohammad2000/Gmesh/internal/events"
@@ -35,14 +36,16 @@ type Server struct {
 
 	Engine *engine.Engine
 	Log    *slog.Logger
+	Audit  *audit.Logger
 	cfg    config.SocketConfig
 	grpc   *grpc.Server
 	ln     net.Listener
 }
 
-// NewServer constructs a Server bound to the engine.
-func NewServer(eng *engine.Engine, log *slog.Logger) *Server {
-	return &Server{Engine: eng, Log: log, cfg: eng.Config.Socket}
+// NewServer constructs a Server bound to the engine. If au is nil,
+// per-RPC auditing is disabled but metrics are still recorded.
+func NewServer(eng *engine.Engine, log *slog.Logger, au *audit.Logger) *Server {
+	return &Server{Engine: eng, Log: log, Audit: au, cfg: eng.Config.Socket}
 }
 
 // Start creates the unix socket, registers the service, and begins serving.
@@ -62,7 +65,12 @@ func (s *Server) Start() (stop func(), err error) {
 		return nil, fmt.Errorf("chmod socket: %w", err)
 	}
 
-	gs := grpc.NewServer()
+	unary := grpc.ChainUnaryInterceptor(
+		newMetricsInterceptor(),
+		newAuditInterceptor(s.Audit),
+	)
+	stream := grpc.ChainStreamInterceptor(newStreamMetricsInterceptor())
+	gs := grpc.NewServer(unary, stream)
 	gmeshv1.RegisterGMeshServer(gs, s)
 
 	s.grpc = gs
