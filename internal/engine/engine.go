@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/crypto"
 	"github.com/mohammad2000/Gmesh/internal/egress"
@@ -65,6 +66,7 @@ type Engine struct {
 	GeoIP     geoip.Resolver
 	Policies  *policy.Engine
 	MTLS      mtls.Manager
+	Circuit   circuit.Manager
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -109,6 +111,7 @@ type Options struct {
 	PathMon   *pathmon.Monitor  // nil → auto-built with platform prober
 	GeoIP     geoip.Resolver    // nil → empty stub (no GeoIP profiles allowed)
 	MTLS      mtls.Manager      // nil → construct from cfg.MTLS.Dir or disable
+	Circuit   circuit.Manager   // nil → auto-detect (Linux or stub)
 }
 
 // New wires an Engine together.
@@ -201,6 +204,11 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	// same two-step pattern as quota.Switcher.
 	pol = policy.New(nil, logShim{log})
 
+	cir := opts.Circuit
+	if cir == nil {
+		cir = circuit.New(log)
+	}
+
 	var mm mtls.Manager
 	if opts.MTLS != nil {
 		mm = opts.MTLS
@@ -251,6 +259,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		GeoIP:         gi,
 		Policies:      pol,
 		MTLS:          mm,
+		Circuit:       cir,
 		Store:         store,
 		Events:        bus,
 		relaySessions:        make(map[int64]*relay.Session),
@@ -621,6 +630,83 @@ func (e *Engine) ListIngress() []*ingress.Profile { return e.Ingress.List() }
 
 // CreateEgress installs an egress profile. Looks up the exit peer's mesh
 // IP from the registry so the manager can build the route table.
+// CreateCircuit installs this node's share of a multi-hop circuit. The
+// Linux backend figures out the local role (source/transit/exit) from
+// the running node's peer ID and the Circuit's Source + Hops fields.
+func (e *Engine) CreateCircuit(ctx context.Context, c *circuit.Circuit) (*circuit.Circuit, error) {
+	localID := e.localPeerID()
+	role := c.RoleFor(localID)
+	nextHopIP := ""
+	if next := c.NextHop(localID); next != 0 {
+		ip, err := e.exitPeerMeshIP(next)
+		if err != nil {
+			return nil, fmt.Errorf("resolve next-hop %d: %w", next, err)
+		}
+		nextHopIP = ip
+	}
+	iface := e.Interface()
+	if iface == "" {
+		iface = e.Config.WireGuard.Interface
+	}
+	res, err := e.Circuit.Create(ctx, c, nextHopIP, iface, localID)
+	if err != nil {
+		return nil, err
+	}
+	e.emit(events.TypeScopeConnected, c.Source, map[string]any{
+		"kind":        "circuit",
+		"circuit_id":  res.ID,
+		"name":        res.Name,
+		"role":        role.String(),
+		"path":        circuit.FormatHops(res.Source, res.Hops),
+		"next_hop_ip": nextHopIP,
+	})
+	return res, nil
+}
+
+// UpdateCircuit atomically replaces a circuit's kernel state.
+func (e *Engine) UpdateCircuit(ctx context.Context, c *circuit.Circuit) (*circuit.Circuit, error) {
+	localID := e.localPeerID()
+	nextHopIP := ""
+	if next := c.NextHop(localID); next != 0 {
+		ip, err := e.exitPeerMeshIP(next)
+		if err != nil {
+			return nil, fmt.Errorf("resolve next-hop %d: %w", next, err)
+		}
+		nextHopIP = ip
+	}
+	iface := e.Interface()
+	if iface == "" {
+		iface = e.Config.WireGuard.Interface
+	}
+	return e.Circuit.Update(ctx, c, nextHopIP, iface, localID)
+}
+
+// DeleteCircuit removes this node's share of a circuit.
+func (e *Engine) DeleteCircuit(ctx context.Context, id int64) error {
+	return e.Circuit.Delete(ctx, id)
+}
+
+// ListCircuits returns the local view.
+func (e *Engine) ListCircuits() []*circuit.Circuit { return e.Circuit.List() }
+
+// localPeerID returns the engine's own peer ID. For the source node of
+// a circuit this equals Circuit.Source. The peer registry doesn't
+// index by "self" — we read it from state.json's node_id, mapped via
+// the well-known convention that node_id "core" = 1, "brain" = 2 etc.
+// For now we fall back to the registry's first local-matched mesh IP.
+func (e *Engine) localPeerID() int64 {
+	e.mu.RLock()
+	nodeID := e.nodeID
+	e.mu.RUnlock()
+	// Config-driven self peer ID first (SelfPeerID), else fall back to
+	// matching the local mesh IP against the peer registry.
+	if e.Config != nil && e.Config.WireGuard.SelfPeerID != 0 {
+		return e.Config.WireGuard.SelfPeerID
+	}
+	_ = nodeID // kept for a future "peer_id = hash(node_id)" helper
+	return 0
+}
+
 func (e *Engine) CreateEgress(ctx context.Context, p *egress.Profile) (*egress.Profile, error) {
 	if err := e.resolveGeoIP(p); err != nil {
 		return nil, err

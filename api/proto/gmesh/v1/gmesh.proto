@@ -93,6 +93,14 @@ service GMesh {
   rpc ListPolicies   (ListPoliciesRequest)   returns (ListPoliciesResponse);
   rpc ReloadPolicies (ReloadPoliciesRequest) returns (ReloadPoliciesResponse);
 
+  // ── Circuits / onion paths (Phase 19) ────────────────────────────────
+  // A multi-hop source-routed path through the mesh. See docs/circuit.md
+  // for the role model (source/transit/exit) and security posture.
+  rpc CreateCircuit (CreateCircuitRequest) returns (CircuitResponse);
+  rpc UpdateCircuit (UpdateCircuitRequest) returns (CircuitResponse);
+  rpc DeleteCircuit (DeleteCircuitRequest) returns (DeleteCircuitResponse);
+  rpc ListCircuits  (ListCircuitsRequest)  returns (ListCircuitsResponse);
+
   // ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
   // Small embedded CA: bootstrap once per mesh, issue short-lived peer
   // certs with SPIFFE IDs, track revocations. The root cert can be
@@ -596,6 +604,32 @@ message ReloadPoliciesResponse {
   int64 loaded = 1;
   repeated string errors = 2;
 }
+
+// ── Circuits / onion paths (Phase 19) ────────────────────────────────
+
+message Circuit {
+  int64          id         = 1;
+  string         name       = 2;
+  bool           enabled    = 3;
+  int32          priority   = 4;
+  int64          source     = 5;
+  repeated int64 hops       = 6;
+  string         protocol   = 7;   // "any" | "tcp" | "udp"
+  string         dest_cidr  = 8;
+  string         dest_ports = 9;
+  int64          created_at_unix = 10;
+  int64          updated_at_unix = 11;
+}
+
+message CreateCircuitRequest { Circuit circuit = 1; }
+message UpdateCircuitRequest { Circuit circuit = 1; }
+message CircuitResponse      { Circuit circuit = 1; }
+
+message DeleteCircuitRequest  { int64 id = 1; }
+message DeleteCircuitResponse {}
+
+message ListCircuitsRequest  {}
+message ListCircuitsResponse { repeated Circuit circuits = 1; }
 
 // ── mTLS / SPIFFE (Phase 20) ──────────────────────────────────────────
 

@@ -88,6 +88,11 @@ type WireGuardConfig struct {
 	KeepaliveSeconds uint16 `yaml:"keepalive_seconds"` // 25
 	PreferKernel     bool   `yaml:"prefer_kernel"`     // fall back to wireguard-go if unavailable
 	NetworkCIDR      string `yaml:"network_cidr"`      // "10.200.0.0/16"
+	// SelfPeerID is this node's own peer ID within the mesh. Needed by
+	// multi-hop features (Phase 19 circuits) so the daemon can figure
+	// out its role per circuit. Zero means unknown — features that
+	// require it return FailedPrecondition.
+	SelfPeerID int64 `yaml:"self_peer_id"`
 }
 
 // NATConfig controls STUN + discovery behavior.

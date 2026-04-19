@@ -58,6 +58,10 @@ const (
 	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
 	GMesh_ListPolicies_FullMethodName         = "/gmesh.v1.GMesh/ListPolicies"
 	GMesh_ReloadPolicies_FullMethodName       = "/gmesh.v1.GMesh/ReloadPolicies"
+	GMesh_CreateCircuit_FullMethodName        = "/gmesh.v1.GMesh/CreateCircuit"
+	GMesh_UpdateCircuit_FullMethodName        = "/gmesh.v1.GMesh/UpdateCircuit"
+	GMesh_DeleteCircuit_FullMethodName        = "/gmesh.v1.GMesh/DeleteCircuit"
+	GMesh_ListCircuits_FullMethodName         = "/gmesh.v1.GMesh/ListCircuits"
 	GMesh_InitCA_FullMethodName               = "/gmesh.v1.GMesh/InitCA"
 	GMesh_CAStatus_FullMethodName             = "/gmesh.v1.GMesh/CAStatus"
 	GMesh_IssueCert_FullMethodName            = "/gmesh.v1.GMesh/IssueCert"
@@ -145,6 +149,13 @@ type GMeshClient interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error)
+	// ── Circuits / onion paths (Phase 19) ────────────────────────────────
+	// A multi-hop source-routed path through the mesh. See docs/circuit.md
+	// for the role model (source/transit/exit) and security posture.
+	CreateCircuit(ctx context.Context, in *CreateCircuitRequest, opts ...grpc.CallOption) (*CircuitResponse, error)
+	UpdateCircuit(ctx context.Context, in *UpdateCircuitRequest, opts ...grpc.CallOption) (*CircuitResponse, error)
+	DeleteCircuit(ctx context.Context, in *DeleteCircuitRequest, opts ...grpc.CallOption) (*DeleteCircuitResponse, error)
+	ListCircuits(ctx context.Context, in *ListCircuitsRequest, opts ...grpc.CallOption) (*ListCircuitsResponse, error)
 	// ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
 	// Small embedded CA: bootstrap once per mesh, issue short-lived peer
 	// certs with SPIFFE IDs, track revocations. The root cert can be
@@ -564,6 +575,46 @@ func (c *gMeshClient) ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequ
 	return out, nil
 }
 
+func (c *gMeshClient) CreateCircuit(ctx context.Context, in *CreateCircuitRequest, opts ...grpc.CallOption) (*CircuitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CircuitResponse)
+	err := c.cc.Invoke(ctx, GMesh_CreateCircuit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) UpdateCircuit(ctx context.Context, in *UpdateCircuitRequest, opts ...grpc.CallOption) (*CircuitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CircuitResponse)
+	err := c.cc.Invoke(ctx, GMesh_UpdateCircuit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) DeleteCircuit(ctx context.Context, in *DeleteCircuitRequest, opts ...grpc.CallOption) (*DeleteCircuitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCircuitResponse)
+	err := c.cc.Invoke(ctx, GMesh_DeleteCircuit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListCircuits(ctx context.Context, in *ListCircuitsRequest, opts ...grpc.CallOption) (*ListCircuitsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCircuitsResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListCircuits_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gMeshClient) InitCA(ctx context.Context, in *InitCARequest, opts ...grpc.CallOption) (*InitCAResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(InitCAResponse)
@@ -703,6 +754,13 @@ type GMeshServer interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error)
+	// ── Circuits / onion paths (Phase 19) ────────────────────────────────
+	// A multi-hop source-routed path through the mesh. See docs/circuit.md
+	// for the role model (source/transit/exit) and security posture.
+	CreateCircuit(context.Context, *CreateCircuitRequest) (*CircuitResponse, error)
+	UpdateCircuit(context.Context, *UpdateCircuitRequest) (*CircuitResponse, error)
+	DeleteCircuit(context.Context, *DeleteCircuitRequest) (*DeleteCircuitResponse, error)
+	ListCircuits(context.Context, *ListCircuitsRequest) (*ListCircuitsResponse, error)
 	// ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
 	// Small embedded CA: bootstrap once per mesh, issue short-lived peer
 	// certs with SPIFFE IDs, track revocations. The root cert can be
@@ -839,6 +897,18 @@ func (UnimplementedGMeshServer) ListPolicies(context.Context, *ListPoliciesReque
 }
 func (UnimplementedGMeshServer) ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (UnimplementedGMeshServer) CreateCircuit(context.Context, *CreateCircuitRequest) (*CircuitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateCircuit not implemented")
+}
+func (UnimplementedGMeshServer) UpdateCircuit(context.Context, *UpdateCircuitRequest) (*CircuitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCircuit not implemented")
+}
+func (UnimplementedGMeshServer) DeleteCircuit(context.Context, *DeleteCircuitRequest) (*DeleteCircuitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteCircuit not implemented")
+}
+func (UnimplementedGMeshServer) ListCircuits(context.Context, *ListCircuitsRequest) (*ListCircuitsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCircuits not implemented")
 }
 func (UnimplementedGMeshServer) InitCA(context.Context, *InitCARequest) (*InitCAResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InitCA not implemented")
@@ -1574,6 +1644,78 @@ func _GMesh_ReloadPolicies_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_CreateCircuit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateCircuitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).CreateCircuit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_CreateCircuit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).CreateCircuit(ctx, req.(*CreateCircuitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_UpdateCircuit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCircuitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).UpdateCircuit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_UpdateCircuit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).UpdateCircuit(ctx, req.(*UpdateCircuitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_DeleteCircuit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCircuitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).DeleteCircuit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_DeleteCircuit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).DeleteCircuit(ctx, req.(*DeleteCircuitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListCircuits_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCircuitsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListCircuits(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListCircuits_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListCircuits(ctx, req.(*ListCircuitsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GMesh_InitCA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(InitCARequest)
 	if err := dec(in); err != nil {
@@ -1840,6 +1982,22 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReloadPolicies",
 			Handler:    _GMesh_ReloadPolicies_Handler,
+		},
+		{
+			MethodName: "CreateCircuit",
+			Handler:    _GMesh_CreateCircuit_Handler,
+		},
+		{
+			MethodName: "UpdateCircuit",
+			Handler:    _GMesh_UpdateCircuit_Handler,
+		},
+		{
+			MethodName: "DeleteCircuit",
+			Handler:    _GMesh_DeleteCircuit_Handler,
+		},
+		{
+			MethodName: "ListCircuits",
+			Handler:    _GMesh_ListCircuits_Handler,
 		},
 		{
 			MethodName: "InitCA",

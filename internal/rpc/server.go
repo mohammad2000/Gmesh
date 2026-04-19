@@ -24,6 +24,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
+	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
@@ -463,6 +464,71 @@ func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequ
 		out = append(out, pathStateToProto(st))
 	}
 	return &gmeshv1.ListPathStatesResponse{States: out}, nil
+}
+
+// ── Circuits (Phase 19) ───────────────────────────────────────────────
+
+func (s *Server) CreateCircuit(ctx context.Context, in *gmeshv1.CreateCircuitRequest) (*gmeshv1.CircuitResponse, error) {
+	if in.Circuit == nil {
+		return nil, status.Error(codes.InvalidArgument, "circuit required")
+	}
+	c := circuitFromProto(in.Circuit)
+	res, err := s.Engine.CreateCircuit(ctx, c)
+	if err != nil {
+		if err == circuit.ErrExists {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "create circuit: %v", err)
+	}
+	return &gmeshv1.CircuitResponse{Circuit: circuitToProto(res)}, nil
+}
+
+func (s *Server) UpdateCircuit(ctx context.Context, in *gmeshv1.UpdateCircuitRequest) (*gmeshv1.CircuitResponse, error) {
+	if in.Circuit == nil {
+		return nil, status.Error(codes.InvalidArgument, "circuit required")
+	}
+	res, err := s.Engine.UpdateCircuit(ctx, circuitFromProto(in.Circuit))
+	if err != nil {
+		if err == circuit.ErrNotFound {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update circuit: %v", err)
+	}
+	return &gmeshv1.CircuitResponse{Circuit: circuitToProto(res)}, nil
+}
+
+func (s *Server) DeleteCircuit(ctx context.Context, in *gmeshv1.DeleteCircuitRequest) (*gmeshv1.DeleteCircuitResponse, error) {
+	if err := s.Engine.DeleteCircuit(ctx, in.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete circuit: %v", err)
+	}
+	return &gmeshv1.DeleteCircuitResponse{}, nil
+}
+
+func (s *Server) ListCircuits(_ context.Context, _ *gmeshv1.ListCircuitsRequest) (*gmeshv1.ListCircuitsResponse, error) {
+	out := s.Engine.ListCircuits()
+	resp := &gmeshv1.ListCircuitsResponse{Circuits: make([]*gmeshv1.Circuit, 0, len(out))}
+	for _, c := range out {
+		resp.Circuits = append(resp.Circuits, circuitToProto(c))
+	}
+	return resp, nil
+}
+
+func circuitFromProto(p *gmeshv1.Circuit) *circuit.Circuit {
+	return &circuit.Circuit{
+		ID: p.Id, Name: p.Name, Enabled: p.Enabled, Priority: p.Priority,
+		Source: p.Source, Hops: append([]int64(nil), p.Hops...),
+		Protocol: p.Protocol, DestCIDR: p.DestCidr, DestPorts: p.DestPorts,
+	}
+}
+
+func circuitToProto(c *circuit.Circuit) *gmeshv1.Circuit {
+	return &gmeshv1.Circuit{
+		Id: c.ID, Name: c.Name, Enabled: c.Enabled, Priority: c.Priority,
+		Source: c.Source, Hops: append([]int64(nil), c.Hops...),
+		Protocol: c.Protocol, DestCidr: c.DestCIDR, DestPorts: c.DestPorts,
+		CreatedAtUnix: c.CreatedAt.Unix(),
+		UpdatedAtUnix: c.UpdatedAt.Unix(),
+	}
 }
 
 // ── mTLS / SPIFFE (Phase 20) ──────────────────────────────────────────

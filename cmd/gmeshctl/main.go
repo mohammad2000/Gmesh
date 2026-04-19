@@ -55,6 +55,7 @@ func main() {
 		pathCmd(),
 		policyCmd(),
 		mtlsCmd(),
+		circuitCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1794,4 +1795,127 @@ func mtlsTrustCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&outFile, "out", "", "write to this file instead of stdout")
 	return cmd
+}
+
+// ── circuit (Phase 19) ────────────────────────────────────────────────
+
+func circuitCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "circuit", Short: "Multi-hop source-routed paths through the mesh"}
+	cmd.AddCommand(circuitCreateCmd(), circuitDeleteCmd(), circuitListCmd())
+	return cmd
+}
+
+func circuitCreateCmd() *cobra.Command {
+	var (
+		id, source        int64
+		name              string
+		hops              []int64
+		proto             string
+		destCIDR, ports   string
+		priority          int32
+		enabled           bool
+	)
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Install this node's share of a multi-hop path",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.CreateCircuit(ctx, &gmeshv1.CreateCircuitRequest{
+				Circuit: &gmeshv1.Circuit{
+					Id: id, Name: name, Enabled: enabled, Priority: priority,
+					Source: source, Hops: hops,
+					Protocol: proto, DestCidr: destCIDR, DestPorts: ports,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("create circuit rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp.Circuit)
+			}
+			fmt.Printf("created circuit id=%d name=%q\n", resp.Circuit.Id, resp.Circuit.Name)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "circuit ID (required)")
+	cmd.Flags().StringVar(&name, "name", "", "circuit name (required)")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enabled flag")
+	cmd.Flags().Int32Var(&priority, "priority", 100, "0..1000, lower = earlier match")
+	cmd.Flags().Int64Var(&source, "source", 0, "source peer ID (required)")
+	cmd.Flags().Int64SliceVar(&hops, "hop", nil, "hop peer ID (repeat for chain)")
+	cmd.Flags().StringVar(&proto, "protocol", "", `"any" | "tcp" | "udp"`)
+	cmd.Flags().StringVar(&destCIDR, "dest", "0.0.0.0/0", "destination CIDR")
+	cmd.Flags().StringVar(&ports, "dest-ports", "", `e.g. "443" or "80,443"`)
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("source")
+	_ = cmd.MarkFlagRequired("hop")
+	return cmd
+}
+
+func circuitDeleteCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Remove this node's share of a circuit",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.DeleteCircuit(ctx, &gmeshv1.DeleteCircuitRequest{Id: id}); err != nil {
+				return fmt.Errorf("delete circuit rpc: %w", err)
+			}
+			fmt.Printf("deleted circuit id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "circuit ID (required)")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+func circuitListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "Show circuits this node is aware of",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListCircuits(ctx, &gmeshv1.ListCircuitsRequest{})
+			if err != nil {
+				return fmt.Errorf("list circuit rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tNAME\tSOURCE\tPATH\tPROTO\tDEST\tPORTS")
+			for _, c := range resp.Circuits {
+				hops := make([]string, 0, len(c.Hops)+1)
+				hops = append(hops, fmt.Sprintf("%d", c.Source))
+				for _, h := range c.Hops {
+					hops = append(hops, fmt.Sprintf("%d", h))
+				}
+				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%s\t%s\t%s\n",
+					c.Id, c.Name, c.Source, strings.Join(hops, "→"),
+					c.Protocol, c.DestCidr, c.DestPorts)
+			}
+			return w.Flush()
+		},
+	}
 }
