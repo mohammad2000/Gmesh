@@ -2956,6 +2956,612 @@ func (x *Event) GetPayloadJson() string {
 	return ""
 }
 
+type EgressProfile struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Id       int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name     string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Enabled  bool                   `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Priority int32                  `protobuf:"varint,4,opt,name=priority,proto3" json:"priority,omitempty"` // 0..1000, lower = earlier match
+	// Match
+	SourceScopeId int64  `protobuf:"varint,5,opt,name=source_scope_id,json=sourceScopeId,proto3" json:"source_scope_id,omitempty"` // 0 = source is the bare host
+	SourceCidr    string `protobuf:"bytes,6,opt,name=source_cidr,json=sourceCidr,proto3" json:"source_cidr,omitempty"`             // optional, e.g. "10.50.42.0/30"
+	Protocol      string `protobuf:"bytes,7,opt,name=protocol,proto3" json:"protocol,omitempty"`                                   // "any" | "tcp" | "udp"
+	DestCidr      string `protobuf:"bytes,8,opt,name=dest_cidr,json=destCidr,proto3" json:"dest_cidr,omitempty"`                   // e.g. "0.0.0.0/0"
+	DestPorts     string `protobuf:"bytes,9,opt,name=dest_ports,json=destPorts,proto3" json:"dest_ports,omitempty"`                // "443" or "80,443" or ""
+	// Phase 15 hook: GeoIP filter (country codes)
+	GeoipCountries []string `protobuf:"bytes,10,rep,name=geoip_countries,json=geoipCountries,proto3" json:"geoip_countries,omitempty"`
+	// Exit
+	ExitPeerId int64 `protobuf:"varint,11,opt,name=exit_peer_id,json=exitPeerId,proto3" json:"exit_peer_id,omitempty"`
+	// Phase 16 hook: load-balanced exit pool
+	ExitPool      []int64 `protobuf:"varint,12,rep,packed,name=exit_pool,json=exitPool,proto3" json:"exit_pool,omitempty"`
+	ExitWeights   []int32 `protobuf:"varint,13,rep,packed,name=exit_weights,json=exitWeights,proto3" json:"exit_weights,omitempty"` // same length; sums to 100
+	CreatedAtUnix int64   `protobuf:"varint,14,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
+	UpdatedAtUnix int64   `protobuf:"varint,15,opt,name=updated_at_unix,json=updatedAtUnix,proto3" json:"updated_at_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgressProfile) Reset() {
+	*x = EgressProfile{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgressProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgressProfile) ProtoMessage() {}
+
+func (x *EgressProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EgressProfile.ProtoReflect.Descriptor instead.
+func (*EgressProfile) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *EgressProfile) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *EgressProfile) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *EgressProfile) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *EgressProfile) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *EgressProfile) GetSourceScopeId() int64 {
+	if x != nil {
+		return x.SourceScopeId
+	}
+	return 0
+}
+
+func (x *EgressProfile) GetSourceCidr() string {
+	if x != nil {
+		return x.SourceCidr
+	}
+	return ""
+}
+
+func (x *EgressProfile) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *EgressProfile) GetDestCidr() string {
+	if x != nil {
+		return x.DestCidr
+	}
+	return ""
+}
+
+func (x *EgressProfile) GetDestPorts() string {
+	if x != nil {
+		return x.DestPorts
+	}
+	return ""
+}
+
+func (x *EgressProfile) GetGeoipCountries() []string {
+	if x != nil {
+		return x.GeoipCountries
+	}
+	return nil
+}
+
+func (x *EgressProfile) GetExitPeerId() int64 {
+	if x != nil {
+		return x.ExitPeerId
+	}
+	return 0
+}
+
+func (x *EgressProfile) GetExitPool() []int64 {
+	if x != nil {
+		return x.ExitPool
+	}
+	return nil
+}
+
+func (x *EgressProfile) GetExitWeights() []int32 {
+	if x != nil {
+		return x.ExitWeights
+	}
+	return nil
+}
+
+func (x *EgressProfile) GetCreatedAtUnix() int64 {
+	if x != nil {
+		return x.CreatedAtUnix
+	}
+	return 0
+}
+
+func (x *EgressProfile) GetUpdatedAtUnix() int64 {
+	if x != nil {
+		return x.UpdatedAtUnix
+	}
+	return 0
+}
+
+type CreateEgressProfileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *EgressProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateEgressProfileRequest) Reset() {
+	*x = CreateEgressProfileRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateEgressProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateEgressProfileRequest) ProtoMessage() {}
+
+func (x *CreateEgressProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateEgressProfileRequest.ProtoReflect.Descriptor instead.
+func (*CreateEgressProfileRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *CreateEgressProfileRequest) GetProfile() *EgressProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type UpdateEgressProfileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *EgressProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateEgressProfileRequest) Reset() {
+	*x = UpdateEgressProfileRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateEgressProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateEgressProfileRequest) ProtoMessage() {}
+
+func (x *UpdateEgressProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateEgressProfileRequest.ProtoReflect.Descriptor instead.
+func (*UpdateEgressProfileRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *UpdateEgressProfileRequest) GetProfile() *EgressProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type EgressProfileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *EgressProfile         `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgressProfileResponse) Reset() {
+	*x = EgressProfileResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgressProfileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgressProfileResponse) ProtoMessage() {}
+
+func (x *EgressProfileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EgressProfileResponse.ProtoReflect.Descriptor instead.
+func (*EgressProfileResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *EgressProfileResponse) GetProfile() *EgressProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
+type DeleteEgressProfileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteEgressProfileRequest) Reset() {
+	*x = DeleteEgressProfileRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteEgressProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteEgressProfileRequest) ProtoMessage() {}
+
+func (x *DeleteEgressProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteEgressProfileRequest.ProtoReflect.Descriptor instead.
+func (*DeleteEgressProfileRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *DeleteEgressProfileRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type DeleteEgressProfileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteEgressProfileResponse) Reset() {
+	*x = DeleteEgressProfileResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteEgressProfileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteEgressProfileResponse) ProtoMessage() {}
+
+func (x *DeleteEgressProfileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteEgressProfileResponse.ProtoReflect.Descriptor instead.
+func (*DeleteEgressProfileResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{48}
+}
+
+type ListEgressProfilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEgressProfilesRequest) Reset() {
+	*x = ListEgressProfilesRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEgressProfilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEgressProfilesRequest) ProtoMessage() {}
+
+func (x *ListEgressProfilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEgressProfilesRequest.ProtoReflect.Descriptor instead.
+func (*ListEgressProfilesRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{49}
+}
+
+type ListEgressProfilesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profiles      []*EgressProfile       `protobuf:"bytes,1,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListEgressProfilesResponse) Reset() {
+	*x = ListEgressProfilesResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListEgressProfilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListEgressProfilesResponse) ProtoMessage() {}
+
+func (x *ListEgressProfilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListEgressProfilesResponse.ProtoReflect.Descriptor instead.
+func (*ListEgressProfilesResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *ListEgressProfilesResponse) GetProfiles() []*EgressProfile {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+type EnableExitRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Peers permitted to use this node as exit. Empty = allow any authorised
+	// mesh peer.
+	AllowedPeerIds []int64 `protobuf:"varint,1,rep,packed,name=allowed_peer_ids,json=allowedPeerIds,proto3" json:"allowed_peer_ids,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *EnableExitRequest) Reset() {
+	*x = EnableExitRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnableExitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnableExitRequest) ProtoMessage() {}
+
+func (x *EnableExitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnableExitRequest.ProtoReflect.Descriptor instead.
+func (*EnableExitRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *EnableExitRequest) GetAllowedPeerIds() []int64 {
+	if x != nil {
+		return x.AllowedPeerIds
+	}
+	return nil
+}
+
+type EnableExitResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnableExitResponse) Reset() {
+	*x = EnableExitResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnableExitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnableExitResponse) ProtoMessage() {}
+
+func (x *EnableExitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnableExitResponse.ProtoReflect.Descriptor instead.
+func (*EnableExitResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{52}
+}
+
+type DisableExitRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableExitRequest) Reset() {
+	*x = DisableExitRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableExitRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableExitRequest) ProtoMessage() {}
+
+func (x *DisableExitRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableExitRequest.ProtoReflect.Descriptor instead.
+func (*DisableExitRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{53}
+}
+
+type DisableExitResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DisableExitResponse) Reset() {
+	*x = DisableExitResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DisableExitResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DisableExitResponse) ProtoMessage() {}
+
+func (x *DisableExitResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DisableExitResponse.ProtoReflect.Descriptor instead.
+func (*DisableExitResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{54}
+}
+
 type HealthCheckResponse_PeerHealth struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
@@ -2970,7 +3576,7 @@ type HealthCheckResponse_PeerHealth struct {
 
 func (x *HealthCheckResponse_PeerHealth) Reset() {
 	*x = HealthCheckResponse_PeerHealth{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2982,7 +3588,7 @@ func (x *HealthCheckResponse_PeerHealth) String() string {
 func (*HealthCheckResponse_PeerHealth) ProtoMessage() {}
 
 func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3251,7 +3857,44 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x11timestamp_unix_ms\x18\x01 \x01(\x03R\x0ftimestampUnixMs\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x17\n" +
 	"\apeer_id\x18\x03 \x01(\tR\x06peerId\x12!\n" +
-	"\fpayload_json\x18\x04 \x01(\tR\vpayloadJson*L\n" +
+	"\fpayload_json\x18\x04 \x01(\tR\vpayloadJson\"\xe5\x03\n" +
+	"\rEgressProfile\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aenabled\x18\x03 \x01(\bR\aenabled\x12\x1a\n" +
+	"\bpriority\x18\x04 \x01(\x05R\bpriority\x12&\n" +
+	"\x0fsource_scope_id\x18\x05 \x01(\x03R\rsourceScopeId\x12\x1f\n" +
+	"\vsource_cidr\x18\x06 \x01(\tR\n" +
+	"sourceCidr\x12\x1a\n" +
+	"\bprotocol\x18\a \x01(\tR\bprotocol\x12\x1b\n" +
+	"\tdest_cidr\x18\b \x01(\tR\bdestCidr\x12\x1d\n" +
+	"\n" +
+	"dest_ports\x18\t \x01(\tR\tdestPorts\x12'\n" +
+	"\x0fgeoip_countries\x18\n" +
+	" \x03(\tR\x0egeoipCountries\x12 \n" +
+	"\fexit_peer_id\x18\v \x01(\x03R\n" +
+	"exitPeerId\x12\x1b\n" +
+	"\texit_pool\x18\f \x03(\x03R\bexitPool\x12!\n" +
+	"\fexit_weights\x18\r \x03(\x05R\vexitWeights\x12&\n" +
+	"\x0fcreated_at_unix\x18\x0e \x01(\x03R\rcreatedAtUnix\x12&\n" +
+	"\x0fupdated_at_unix\x18\x0f \x01(\x03R\rupdatedAtUnix\"O\n" +
+	"\x1aCreateEgressProfileRequest\x121\n" +
+	"\aprofile\x18\x01 \x01(\v2\x17.gmesh.v1.EgressProfileR\aprofile\"O\n" +
+	"\x1aUpdateEgressProfileRequest\x121\n" +
+	"\aprofile\x18\x01 \x01(\v2\x17.gmesh.v1.EgressProfileR\aprofile\"J\n" +
+	"\x15EgressProfileResponse\x121\n" +
+	"\aprofile\x18\x01 \x01(\v2\x17.gmesh.v1.EgressProfileR\aprofile\",\n" +
+	"\x1aDeleteEgressProfileRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x1d\n" +
+	"\x1bDeleteEgressProfileResponse\"\x1b\n" +
+	"\x19ListEgressProfilesRequest\"Q\n" +
+	"\x1aListEgressProfilesResponse\x123\n" +
+	"\bprofiles\x18\x01 \x03(\v2\x17.gmesh.v1.EgressProfileR\bprofiles\"=\n" +
+	"\x11EnableExitRequest\x12(\n" +
+	"\x10allowed_peer_ids\x18\x01 \x03(\x03R\x0eallowedPeerIds\"\x14\n" +
+	"\x12EnableExitResponse\"\x14\n" +
+	"\x12DisableExitRequest\"\x15\n" +
+	"\x13DisableExitResponse*L\n" +
 	"\bPeerType\x12\x19\n" +
 	"\x15PEER_TYPE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPEER_TYPE_VM\x10\x01\x12\x13\n" +
@@ -3300,7 +3943,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fFW_PROTO_TCP\x10\x02\x12\x10\n" +
 	"\fFW_PROTO_UDP\x10\x03\x12\x11\n" +
 	"\rFW_PROTO_ICMP\x10\x04\x12\x13\n" +
-	"\x0fFW_PROTO_ICMPV6\x10\x052\xcf\v\n" +
+	"\x0fFW_PROTO_ICMPV6\x10\x052\xe5\x0f\n" +
 	"\x05GMesh\x125\n" +
 	"\x04Join\x12\x15.gmesh.v1.JoinRequest\x1a\x16.gmesh.v1.JoinResponse\x128\n" +
 	"\x05Leave\x12\x16.gmesh.v1.LeaveRequest\x1a\x17.gmesh.v1.LeaveResponse\x12;\n" +
@@ -3324,7 +3967,14 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\rApplyFirewall\x12\x1e.gmesh.v1.ApplyFirewallRequest\x1a\x1f.gmesh.v1.ApplyFirewallResponse\x12P\n" +
 	"\rResetFirewall\x12\x1e.gmesh.v1.ResetFirewallRequest\x1a\x1f.gmesh.v1.ResetFirewallResponse\x12\\\n" +
 	"\x11GetFirewallStatus\x12\".gmesh.v1.GetFirewallStatusRequest\x1a#.gmesh.v1.GetFirewallStatusResponse\x12F\n" +
-	"\x0fSubscribeEvents\x12 .gmesh.v1.SubscribeEventsRequest\x1a\x0f.gmesh.v1.Event0\x01B4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
+	"\x0fSubscribeEvents\x12 .gmesh.v1.SubscribeEventsRequest\x1a\x0f.gmesh.v1.Event0\x01\x12\\\n" +
+	"\x13CreateEgressProfile\x12$.gmesh.v1.CreateEgressProfileRequest\x1a\x1f.gmesh.v1.EgressProfileResponse\x12\\\n" +
+	"\x13UpdateEgressProfile\x12$.gmesh.v1.UpdateEgressProfileRequest\x1a\x1f.gmesh.v1.EgressProfileResponse\x12b\n" +
+	"\x13DeleteEgressProfile\x12$.gmesh.v1.DeleteEgressProfileRequest\x1a%.gmesh.v1.DeleteEgressProfileResponse\x12_\n" +
+	"\x12ListEgressProfiles\x12#.gmesh.v1.ListEgressProfilesRequest\x1a$.gmesh.v1.ListEgressProfilesResponse\x12G\n" +
+	"\n" +
+	"EnableExit\x12\x1b.gmesh.v1.EnableExitRequest\x1a\x1c.gmesh.v1.EnableExitResponse\x12J\n" +
+	"\vDisableExit\x12\x1c.gmesh.v1.DisableExitRequest\x1a\x1d.gmesh.v1.DisableExitResponseB4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
 
 var (
 	file_gmesh_v1_gmesh_proto_rawDescOnce sync.Once
@@ -3339,7 +3989,7 @@ func file_gmesh_v1_gmesh_proto_rawDescGZIP() []byte {
 }
 
 var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(PeerType)(0),                          // 0: gmesh.v1.PeerType
 	(PeerStatus)(0),                        // 1: gmesh.v1.PeerStatus
@@ -3391,8 +4041,20 @@ var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(*GetFirewallStatusResponse)(nil),      // 47: gmesh.v1.GetFirewallStatusResponse
 	(*SubscribeEventsRequest)(nil),         // 48: gmesh.v1.SubscribeEventsRequest
 	(*Event)(nil),                          // 49: gmesh.v1.Event
-	(*HealthCheckResponse_PeerHealth)(nil), // 50: gmesh.v1.HealthCheckResponse.PeerHealth
-	nil,                                    // 51: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	(*EgressProfile)(nil),                  // 50: gmesh.v1.EgressProfile
+	(*CreateEgressProfileRequest)(nil),     // 51: gmesh.v1.CreateEgressProfileRequest
+	(*UpdateEgressProfileRequest)(nil),     // 52: gmesh.v1.UpdateEgressProfileRequest
+	(*EgressProfileResponse)(nil),          // 53: gmesh.v1.EgressProfileResponse
+	(*DeleteEgressProfileRequest)(nil),     // 54: gmesh.v1.DeleteEgressProfileRequest
+	(*DeleteEgressProfileResponse)(nil),    // 55: gmesh.v1.DeleteEgressProfileResponse
+	(*ListEgressProfilesRequest)(nil),      // 56: gmesh.v1.ListEgressProfilesRequest
+	(*ListEgressProfilesResponse)(nil),     // 57: gmesh.v1.ListEgressProfilesResponse
+	(*EnableExitRequest)(nil),              // 58: gmesh.v1.EnableExitRequest
+	(*EnableExitResponse)(nil),             // 59: gmesh.v1.EnableExitResponse
+	(*DisableExitRequest)(nil),             // 60: gmesh.v1.DisableExitRequest
+	(*DisableExitResponse)(nil),            // 61: gmesh.v1.DisableExitResponse
+	(*HealthCheckResponse_PeerHealth)(nil), // 62: gmesh.v1.HealthCheckResponse.PeerHealth
+	nil,                                    // 63: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
 }
 var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	0,  // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
@@ -3411,59 +4073,75 @@ var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	7,  // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
 	8,  // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
 	3,  // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
-	50, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
+	62, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
 	7,  // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
 	5,  // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
 	6,  // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
 	41, // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
 	41, // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
-	51, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
-	4,  // 23: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
-	9,  // 24: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
-	11, // 25: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
-	13, // 26: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
-	15, // 27: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
-	17, // 28: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
-	19, // 29: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
-	21, // 30: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
-	23, // 31: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
-	25, // 32: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
-	27, // 33: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
-	29, // 34: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
-	31, // 35: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
-	33, // 36: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
-	35, // 37: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
-	37, // 38: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
-	39, // 39: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
-	42, // 40: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
-	44, // 41: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
-	46, // 42: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
-	48, // 43: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
-	10, // 44: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
-	12, // 45: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
-	14, // 46: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
-	16, // 47: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
-	18, // 48: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
-	20, // 49: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
-	22, // 50: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
-	24, // 51: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
-	26, // 52: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
-	28, // 53: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
-	30, // 54: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
-	32, // 55: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
-	34, // 56: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
-	36, // 57: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
-	38, // 58: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
-	40, // 59: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
-	43, // 60: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
-	45, // 61: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
-	47, // 62: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
-	49, // 63: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
-	44, // [44:64] is the sub-list for method output_type
-	24, // [24:44] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	63, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	50, // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	50, // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	50, // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
+	50, // 26: gmesh.v1.ListEgressProfilesResponse.profiles:type_name -> gmesh.v1.EgressProfile
+	4,  // 27: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
+	9,  // 28: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
+	11, // 29: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
+	13, // 30: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
+	15, // 31: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
+	17, // 32: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
+	19, // 33: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
+	21, // 34: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
+	23, // 35: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
+	25, // 36: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
+	27, // 37: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
+	29, // 38: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
+	31, // 39: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
+	33, // 40: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
+	35, // 41: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
+	37, // 42: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
+	39, // 43: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
+	42, // 44: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
+	44, // 45: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
+	46, // 46: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
+	48, // 47: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
+	51, // 48: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
+	52, // 49: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
+	54, // 50: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
+	56, // 51: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
+	58, // 52: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
+	60, // 53: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
+	10, // 54: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
+	12, // 55: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
+	14, // 56: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
+	16, // 57: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
+	18, // 58: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
+	20, // 59: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
+	22, // 60: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
+	24, // 61: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
+	26, // 62: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
+	28, // 63: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
+	30, // 64: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
+	32, // 65: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
+	34, // 66: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
+	36, // 67: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
+	38, // 68: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
+	40, // 69: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
+	43, // 70: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
+	45, // 71: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
+	47, // 72: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
+	49, // 73: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
+	53, // 74: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	53, // 75: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	55, // 76: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
+	57, // 77: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
+	59, // 78: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
+	61, // 79: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
+	54, // [54:80] is the sub-list for method output_type
+	28, // [28:54] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_gmesh_v1_gmesh_proto_init() }
@@ -3477,7 +4155,7 @@ func file_gmesh_v1_gmesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gmesh_v1_gmesh_proto_rawDesc), len(file_gmesh_v1_gmesh_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   45,
+			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

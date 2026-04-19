@@ -19,6 +19,7 @@ import (
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/audit"
 	"github.com/mohammad2000/Gmesh/internal/config"
+	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/engine"
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
@@ -384,6 +385,96 @@ func (s *Server) subscriberCount() int {
 
 // eventsBus exposes the bus for in-process consumers.
 func (s *Server) eventsBus() *events.Bus { return s.Engine.Events }
+
+// ── Egress profiles (Phase 11) ────────────────────────────────────────
+
+// CreateEgressProfile installs a new egress profile on this node.
+func (s *Server) CreateEgressProfile(ctx context.Context, in *gmeshv1.CreateEgressProfileRequest) (*gmeshv1.EgressProfileResponse, error) {
+	if in.Profile == nil {
+		return nil, status.Error(codes.InvalidArgument, "profile required")
+	}
+	prof := egressFromProto(in.Profile)
+	res, err := s.Engine.CreateEgress(ctx, prof)
+	if err != nil {
+		if err == egress.ErrExists {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "create egress: %v", err)
+	}
+	return &gmeshv1.EgressProfileResponse{Profile: egressToProto(res)}, nil
+}
+
+// UpdateEgressProfile re-installs an existing profile.
+func (s *Server) UpdateEgressProfile(ctx context.Context, in *gmeshv1.UpdateEgressProfileRequest) (*gmeshv1.EgressProfileResponse, error) {
+	if in.Profile == nil {
+		return nil, status.Error(codes.InvalidArgument, "profile required")
+	}
+	res, err := s.Engine.UpdateEgress(ctx, egressFromProto(in.Profile))
+	if err != nil {
+		if err == egress.ErrNotFound {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update egress: %v", err)
+	}
+	return &gmeshv1.EgressProfileResponse{Profile: egressToProto(res)}, nil
+}
+
+// DeleteEgressProfile removes a profile.
+func (s *Server) DeleteEgressProfile(ctx context.Context, in *gmeshv1.DeleteEgressProfileRequest) (*gmeshv1.DeleteEgressProfileResponse, error) {
+	if err := s.Engine.DeleteEgress(ctx, in.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete egress: %v", err)
+	}
+	return &gmeshv1.DeleteEgressProfileResponse{}, nil
+}
+
+// ListEgressProfiles returns every active profile.
+func (s *Server) ListEgressProfiles(_ context.Context, _ *gmeshv1.ListEgressProfilesRequest) (*gmeshv1.ListEgressProfilesResponse, error) {
+	profs := s.Engine.ListEgress()
+	resp := &gmeshv1.ListEgressProfilesResponse{}
+	for _, p := range profs {
+		resp.Profiles = append(resp.Profiles, egressToProto(p))
+	}
+	return resp, nil
+}
+
+// EnableExit installs the MASQUERADE ruleset so this node can act as an
+// exit for other peers.
+func (s *Server) EnableExit(ctx context.Context, in *gmeshv1.EnableExitRequest) (*gmeshv1.EnableExitResponse, error) {
+	if err := s.Engine.EnableExit(ctx, in.AllowedPeerIds); err != nil {
+		return nil, status.Errorf(codes.Internal, "enable exit: %v", err)
+	}
+	return &gmeshv1.EnableExitResponse{}, nil
+}
+
+// DisableExit tears the exit ruleset down.
+func (s *Server) DisableExit(ctx context.Context, _ *gmeshv1.DisableExitRequest) (*gmeshv1.DisableExitResponse, error) {
+	if err := s.Engine.DisableExit(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "disable exit: %v", err)
+	}
+	return &gmeshv1.DisableExitResponse{}, nil
+}
+
+func egressFromProto(p *gmeshv1.EgressProfile) *egress.Profile {
+	return &egress.Profile{
+		ID: p.Id, Name: p.Name, Enabled: p.Enabled, Priority: p.Priority,
+		SourceScopeID: p.SourceScopeId, SourceCIDR: p.SourceCidr,
+		Protocol: p.Protocol, DestCIDR: p.DestCidr, DestPorts: p.DestPorts,
+		GeoIPCountries: p.GeoipCountries,
+		ExitPeerID: p.ExitPeerId, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
+	}
+}
+
+func egressToProto(p *egress.Profile) *gmeshv1.EgressProfile {
+	return &gmeshv1.EgressProfile{
+		Id: p.ID, Name: p.Name, Enabled: p.Enabled, Priority: p.Priority,
+		SourceScopeId: p.SourceScopeID, SourceCidr: p.SourceCIDR,
+		Protocol: p.Protocol, DestCidr: p.DestCIDR, DestPorts: p.DestPorts,
+		GeoipCountries: p.GeoIPCountries,
+		ExitPeerId: p.ExitPeerID, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
+		CreatedAtUnix: p.CreatedAt.Unix(),
+		UpdatedAtUnix: p.UpdatedAt.Unix(),
+	}
+}
 
 // ── Scope ─────────────────────────────────────────────────────────────
 

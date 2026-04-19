@@ -19,26 +19,32 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GMesh_Join_FullMethodName              = "/gmesh.v1.GMesh/Join"
-	GMesh_Leave_FullMethodName             = "/gmesh.v1.GMesh/Leave"
-	GMesh_Status_FullMethodName            = "/gmesh.v1.GMesh/Status"
-	GMesh_Version_FullMethodName           = "/gmesh.v1.GMesh/Version"
-	GMesh_AddPeer_FullMethodName           = "/gmesh.v1.GMesh/AddPeer"
-	GMesh_RemovePeer_FullMethodName        = "/gmesh.v1.GMesh/RemovePeer"
-	GMesh_UpdatePeer_FullMethodName        = "/gmesh.v1.GMesh/UpdatePeer"
-	GMesh_ListPeers_FullMethodName         = "/gmesh.v1.GMesh/ListPeers"
-	GMesh_GetPeerStats_FullMethodName      = "/gmesh.v1.GMesh/GetPeerStats"
-	GMesh_DiscoverNAT_FullMethodName       = "/gmesh.v1.GMesh/DiscoverNAT"
-	GMesh_HolePunch_FullMethodName         = "/gmesh.v1.GMesh/HolePunch"
-	GMesh_SetupRelay_FullMethodName        = "/gmesh.v1.GMesh/SetupRelay"
-	GMesh_AllocateWSTunnel_FullMethodName  = "/gmesh.v1.GMesh/AllocateWSTunnel"
-	GMesh_HealthCheck_FullMethodName       = "/gmesh.v1.GMesh/HealthCheck"
-	GMesh_ScopeConnect_FullMethodName      = "/gmesh.v1.GMesh/ScopeConnect"
-	GMesh_ScopeDisconnect_FullMethodName   = "/gmesh.v1.GMesh/ScopeDisconnect"
-	GMesh_ApplyFirewall_FullMethodName     = "/gmesh.v1.GMesh/ApplyFirewall"
-	GMesh_ResetFirewall_FullMethodName     = "/gmesh.v1.GMesh/ResetFirewall"
-	GMesh_GetFirewallStatus_FullMethodName = "/gmesh.v1.GMesh/GetFirewallStatus"
-	GMesh_SubscribeEvents_FullMethodName   = "/gmesh.v1.GMesh/SubscribeEvents"
+	GMesh_Join_FullMethodName                = "/gmesh.v1.GMesh/Join"
+	GMesh_Leave_FullMethodName               = "/gmesh.v1.GMesh/Leave"
+	GMesh_Status_FullMethodName              = "/gmesh.v1.GMesh/Status"
+	GMesh_Version_FullMethodName             = "/gmesh.v1.GMesh/Version"
+	GMesh_AddPeer_FullMethodName             = "/gmesh.v1.GMesh/AddPeer"
+	GMesh_RemovePeer_FullMethodName          = "/gmesh.v1.GMesh/RemovePeer"
+	GMesh_UpdatePeer_FullMethodName          = "/gmesh.v1.GMesh/UpdatePeer"
+	GMesh_ListPeers_FullMethodName           = "/gmesh.v1.GMesh/ListPeers"
+	GMesh_GetPeerStats_FullMethodName        = "/gmesh.v1.GMesh/GetPeerStats"
+	GMesh_DiscoverNAT_FullMethodName         = "/gmesh.v1.GMesh/DiscoverNAT"
+	GMesh_HolePunch_FullMethodName           = "/gmesh.v1.GMesh/HolePunch"
+	GMesh_SetupRelay_FullMethodName          = "/gmesh.v1.GMesh/SetupRelay"
+	GMesh_AllocateWSTunnel_FullMethodName    = "/gmesh.v1.GMesh/AllocateWSTunnel"
+	GMesh_HealthCheck_FullMethodName         = "/gmesh.v1.GMesh/HealthCheck"
+	GMesh_ScopeConnect_FullMethodName        = "/gmesh.v1.GMesh/ScopeConnect"
+	GMesh_ScopeDisconnect_FullMethodName     = "/gmesh.v1.GMesh/ScopeDisconnect"
+	GMesh_ApplyFirewall_FullMethodName       = "/gmesh.v1.GMesh/ApplyFirewall"
+	GMesh_ResetFirewall_FullMethodName       = "/gmesh.v1.GMesh/ResetFirewall"
+	GMesh_GetFirewallStatus_FullMethodName   = "/gmesh.v1.GMesh/GetFirewallStatus"
+	GMesh_SubscribeEvents_FullMethodName     = "/gmesh.v1.GMesh/SubscribeEvents"
+	GMesh_CreateEgressProfile_FullMethodName = "/gmesh.v1.GMesh/CreateEgressProfile"
+	GMesh_UpdateEgressProfile_FullMethodName = "/gmesh.v1.GMesh/UpdateEgressProfile"
+	GMesh_DeleteEgressProfile_FullMethodName = "/gmesh.v1.GMesh/DeleteEgressProfile"
+	GMesh_ListEgressProfiles_FullMethodName  = "/gmesh.v1.GMesh/ListEgressProfiles"
+	GMesh_EnableExit_FullMethodName          = "/gmesh.v1.GMesh/EnableExit"
+	GMesh_DisableExit_FullMethodName         = "/gmesh.v1.GMesh/DisableExit"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -81,6 +87,18 @@ type GMeshClient interface {
 	// Server-streaming RPC. Subscribers get async events: peer state changes,
 	// NAT re-discovery, health degradation, firewall apply results, etc.
 	SubscribeEvents(ctx context.Context, in *SubscribeEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Event], error)
+	// ── Egress profiles (Phase 11) ────────────────────────────────────────
+	// An egress profile routes selected outbound traffic through a specific
+	// mesh peer acting as an "exit node" instead of the local default gateway.
+	CreateEgressProfile(ctx context.Context, in *CreateEgressProfileRequest, opts ...grpc.CallOption) (*EgressProfileResponse, error)
+	UpdateEgressProfile(ctx context.Context, in *UpdateEgressProfileRequest, opts ...grpc.CallOption) (*EgressProfileResponse, error)
+	DeleteEgressProfile(ctx context.Context, in *DeleteEgressProfileRequest, opts ...grpc.CallOption) (*DeleteEgressProfileResponse, error)
+	ListEgressProfiles(ctx context.Context, in *ListEgressProfilesRequest, opts ...grpc.CallOption) (*ListEgressProfilesResponse, error)
+	// Exit-side operations: called on the peer that acts as an exit node.
+	// EnableExit installs MASQUERADE + FORWARD rules so forwarded traffic
+	// egresses correctly; DisableExit tears them down.
+	EnableExit(ctx context.Context, in *EnableExitRequest, opts ...grpc.CallOption) (*EnableExitResponse, error)
+	DisableExit(ctx context.Context, in *DisableExitRequest, opts ...grpc.CallOption) (*DisableExitResponse, error)
 }
 
 type gMeshClient struct {
@@ -300,6 +318,66 @@ func (c *gMeshClient) SubscribeEvents(ctx context.Context, in *SubscribeEventsRe
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type GMesh_SubscribeEventsClient = grpc.ServerStreamingClient[Event]
 
+func (c *gMeshClient) CreateEgressProfile(ctx context.Context, in *CreateEgressProfileRequest, opts ...grpc.CallOption) (*EgressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EgressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_CreateEgressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) UpdateEgressProfile(ctx context.Context, in *UpdateEgressProfileRequest, opts ...grpc.CallOption) (*EgressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EgressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_UpdateEgressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) DeleteEgressProfile(ctx context.Context, in *DeleteEgressProfileRequest, opts ...grpc.CallOption) (*DeleteEgressProfileResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteEgressProfileResponse)
+	err := c.cc.Invoke(ctx, GMesh_DeleteEgressProfile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListEgressProfiles(ctx context.Context, in *ListEgressProfilesRequest, opts ...grpc.CallOption) (*ListEgressProfilesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListEgressProfilesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListEgressProfiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) EnableExit(ctx context.Context, in *EnableExitRequest, opts ...grpc.CallOption) (*EnableExitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EnableExitResponse)
+	err := c.cc.Invoke(ctx, GMesh_EnableExit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) DisableExit(ctx context.Context, in *DisableExitRequest, opts ...grpc.CallOption) (*DisableExitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisableExitResponse)
+	err := c.cc.Invoke(ctx, GMesh_DisableExit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -340,6 +418,18 @@ type GMeshServer interface {
 	// Server-streaming RPC. Subscribers get async events: peer state changes,
 	// NAT re-discovery, health degradation, firewall apply results, etc.
 	SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[Event]) error
+	// ── Egress profiles (Phase 11) ────────────────────────────────────────
+	// An egress profile routes selected outbound traffic through a specific
+	// mesh peer acting as an "exit node" instead of the local default gateway.
+	CreateEgressProfile(context.Context, *CreateEgressProfileRequest) (*EgressProfileResponse, error)
+	UpdateEgressProfile(context.Context, *UpdateEgressProfileRequest) (*EgressProfileResponse, error)
+	DeleteEgressProfile(context.Context, *DeleteEgressProfileRequest) (*DeleteEgressProfileResponse, error)
+	ListEgressProfiles(context.Context, *ListEgressProfilesRequest) (*ListEgressProfilesResponse, error)
+	// Exit-side operations: called on the peer that acts as an exit node.
+	// EnableExit installs MASQUERADE + FORWARD rules so forwarded traffic
+	// egresses correctly; DisableExit tears them down.
+	EnableExit(context.Context, *EnableExitRequest) (*EnableExitResponse, error)
+	DisableExit(context.Context, *DisableExitRequest) (*DisableExitResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -409,6 +499,24 @@ func (UnimplementedGMeshServer) GetFirewallStatus(context.Context, *GetFirewallS
 }
 func (UnimplementedGMeshServer) SubscribeEvents(*SubscribeEventsRequest, grpc.ServerStreamingServer[Event]) error {
 	return status.Errorf(codes.Unimplemented, "method SubscribeEvents not implemented")
+}
+func (UnimplementedGMeshServer) CreateEgressProfile(context.Context, *CreateEgressProfileRequest) (*EgressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEgressProfile not implemented")
+}
+func (UnimplementedGMeshServer) UpdateEgressProfile(context.Context, *UpdateEgressProfileRequest) (*EgressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateEgressProfile not implemented")
+}
+func (UnimplementedGMeshServer) DeleteEgressProfile(context.Context, *DeleteEgressProfileRequest) (*DeleteEgressProfileResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteEgressProfile not implemented")
+}
+func (UnimplementedGMeshServer) ListEgressProfiles(context.Context, *ListEgressProfilesRequest) (*ListEgressProfilesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListEgressProfiles not implemented")
+}
+func (UnimplementedGMeshServer) EnableExit(context.Context, *EnableExitRequest) (*EnableExitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EnableExit not implemented")
+}
+func (UnimplementedGMeshServer) DisableExit(context.Context, *DisableExitRequest) (*DisableExitResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DisableExit not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -784,6 +892,114 @@ func _GMesh_SubscribeEvents_Handler(srv interface{}, stream grpc.ServerStream) e
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type GMesh_SubscribeEventsServer = grpc.ServerStreamingServer[Event]
 
+func _GMesh_CreateEgressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEgressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).CreateEgressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_CreateEgressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).CreateEgressProfile(ctx, req.(*CreateEgressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_UpdateEgressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateEgressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).UpdateEgressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_UpdateEgressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).UpdateEgressProfile(ctx, req.(*UpdateEgressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_DeleteEgressProfile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEgressProfileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).DeleteEgressProfile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_DeleteEgressProfile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).DeleteEgressProfile(ctx, req.(*DeleteEgressProfileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListEgressProfiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListEgressProfilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListEgressProfiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListEgressProfiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListEgressProfiles(ctx, req.(*ListEgressProfilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_EnableExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableExitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).EnableExit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_EnableExit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).EnableExit(ctx, req.(*EnableExitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_DisableExit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisableExitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).DisableExit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_DisableExit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).DisableExit(ctx, req.(*DisableExitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -866,6 +1082,30 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetFirewallStatus",
 			Handler:    _GMesh_GetFirewallStatus_Handler,
+		},
+		{
+			MethodName: "CreateEgressProfile",
+			Handler:    _GMesh_CreateEgressProfile_Handler,
+		},
+		{
+			MethodName: "UpdateEgressProfile",
+			Handler:    _GMesh_UpdateEgressProfile_Handler,
+		},
+		{
+			MethodName: "DeleteEgressProfile",
+			Handler:    _GMesh_DeleteEgressProfile_Handler,
+		},
+		{
+			MethodName: "ListEgressProfiles",
+			Handler:    _GMesh_ListEgressProfiles_Handler,
+		},
+		{
+			MethodName: "EnableExit",
+			Handler:    _GMesh_EnableExit_Handler,
+		},
+		{
+			MethodName: "DisableExit",
+			Handler:    _GMesh_DisableExit_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

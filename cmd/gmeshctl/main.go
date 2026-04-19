@@ -48,6 +48,7 @@ func main() {
 		scopeCmd(),
 		eventsCmd(),
 		healthCmd(),
+		egressCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -894,6 +895,172 @@ func healthCmd() *cobra.Command {
 			return w.Flush()
 		},
 	}
+}
+
+// ── Egress profiles ──────────────────────────────────────────────────
+
+func egressCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "egress", Short: "Per-profile outbound routing via a mesh exit node"}
+	cmd.AddCommand(egressCreateCmd(), egressDeleteCmd(), egressListCmd(), egressExitCmd())
+	return cmd
+}
+
+func egressCreateCmd() *cobra.Command {
+	var (
+		id, exitPeer, sourceScope int64
+		name, sourceCIDR, proto   string
+		destCIDR, destPorts       string
+		priority                  int32
+		enabled                   bool
+	)
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create an egress profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.CreateEgressProfile(ctx, &gmeshv1.CreateEgressProfileRequest{
+				Profile: &gmeshv1.EgressProfile{
+					Id: id, Name: name, Enabled: enabled, Priority: priority,
+					SourceScopeId: sourceScope, SourceCidr: sourceCIDR,
+					Protocol: proto, DestCidr: destCIDR, DestPorts: destPorts,
+					ExitPeerId: exitPeer,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("create egress rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp.Profile)
+			}
+			fmt.Printf("created egress profile id=%d name=%q exit_peer=%d\n",
+				resp.Profile.Id, resp.Profile.Name, resp.Profile.ExitPeerId)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "profile ID (stable, user-chosen)")
+	cmd.Flags().StringVar(&name, "name", "", "profile name")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enabled flag")
+	cmd.Flags().Int32Var(&priority, "priority", 100, "0..1000, lower=earlier match")
+	cmd.Flags().Int64Var(&sourceScope, "source-scope", 0, "source scope ID; 0 = bare host")
+	cmd.Flags().StringVar(&sourceCIDR, "source-cidr", "", `optional source CIDR (e.g. "10.50.42.0/30")`)
+	cmd.Flags().StringVar(&proto, "protocol", "", `"any" | "tcp" | "udp"`)
+	cmd.Flags().StringVar(&destCIDR, "dest", "0.0.0.0/0", "destination CIDR")
+	cmd.Flags().StringVar(&destPorts, "dest-ports", "", `e.g. "443" or "80,443"`)
+	cmd.Flags().Int64Var(&exitPeer, "exit-peer", 0, "mesh peer ID to use as exit (required)")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("exit-peer")
+	return cmd
+}
+
+func egressDeleteCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Remove an egress profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.DeleteEgressProfile(ctx, &gmeshv1.DeleteEgressProfileRequest{Id: id}); err != nil {
+				return fmt.Errorf("delete egress rpc: %w", err)
+			}
+			fmt.Printf("deleted egress profile id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "profile ID")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+func egressListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all egress profiles",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListEgressProfiles(ctx, &gmeshv1.ListEgressProfilesRequest{})
+			if err != nil {
+				return fmt.Errorf("list egress rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tNAME\tENABLED\tPRIORITY\tSOURCE\tPROTO\tDEST\tPORTS\tEXIT_PEER")
+			for _, p := range resp.Profiles {
+				src := "any"
+				if p.SourceScopeId != 0 {
+					src = fmt.Sprintf("scope:%d", p.SourceScopeId)
+				} else if p.SourceCidr != "" {
+					src = p.SourceCidr
+				}
+				fmt.Fprintf(w, "%d\t%s\t%v\t%d\t%s\t%s\t%s\t%s\t%d\n",
+					p.Id, p.Name, p.Enabled, p.Priority, src,
+					p.Protocol, p.DestCidr, p.DestPorts, p.ExitPeerId)
+			}
+			return w.Flush()
+		},
+	}
+}
+
+func egressExitCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "exit", Short: "Enable or disable this node as an exit"}
+	enable := &cobra.Command{
+		Use:   "enable",
+		Short: "Install MASQUERADE + FORWARD rules so this node can be an exit",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if _, err := c.EnableExit(ctx, &gmeshv1.EnableExitRequest{}); err != nil {
+				return fmt.Errorf("enable exit rpc: %w", err)
+			}
+			fmt.Println("exit enabled")
+			return nil
+		},
+	}
+	disable := &cobra.Command{
+		Use:   "disable",
+		Short: "Tear down exit rules",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.DisableExit(ctx, &gmeshv1.DisableExitRequest{}); err != nil {
+				return fmt.Errorf("disable exit rpc: %w", err)
+			}
+			fmt.Println("exit disabled")
+			return nil
+		},
+	}
+	cmd.AddCommand(enable, disable)
+	return cmd
 }
 
 func peerUpdateCmd() *cobra.Command {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/crypto"
+	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/health"
@@ -46,6 +47,8 @@ type Engine struct {
 	Firewall  firewall.Backend
 	Routing   routing.Manager
 	Scope     scope.Manager
+	Egress    egress.Manager
+	Exit      egress.ExitManager
 	Store     *state.Store
 	Events    *events.Bus
 	Monitor   *health.Monitor
@@ -79,6 +82,8 @@ type Options struct {
 	Firewall  firewall.Backend  // nil → detect (nft → iptables → memory)
 	Scope     scope.Manager     // nil → detect (Linux or stub)
 	Routing   routing.Manager   // nil → detect (Linux or in-memory)
+	Egress    egress.Manager    // nil → detect (Linux or stub)
+	Exit      egress.ExitManager // nil → detect (Linux or stub)
 }
 
 // New wires an Engine together.
@@ -141,6 +146,14 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	if rt == nil {
 		rt = routing.New(log)
 	}
+	eg := opts.Egress
+	if eg == nil {
+		eg = egress.New(log)
+	}
+	ex := opts.Exit
+	if ex == nil {
+		ex = egress.NewExit(log)
+	}
 
 	bus := events.NewBus(log)
 
@@ -155,6 +168,8 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Firewall:      fw,
 		Routing:       rt,
 		Scope:         sc,
+		Egress:        eg,
+		Exit:          ex,
 		Store:         store,
 		Events:        bus,
 		relaySessions: make(map[int64]*relay.Session),
@@ -342,6 +357,83 @@ func (e *Engine) TeardownRelay(peerID int64) {
 	if sess != nil {
 		_ = sess.Close()
 	}
+}
+
+// ── Egress profiles (Phase 11) ────────────────────────────────────────
+
+// CreateEgress installs an egress profile. Looks up the exit peer's mesh
+// IP from the registry so the manager can build the route table.
+func (e *Engine) CreateEgress(ctx context.Context, p *egress.Profile) (*egress.Profile, error) {
+	exitIP, err := e.exitPeerMeshIP(p.ExitPeerID)
+	if err != nil {
+		return nil, err
+	}
+	iface := e.Interface()
+	if iface == "" {
+		iface = e.Config.WireGuard.Interface
+	}
+	res, err := e.Egress.Create(ctx, p, exitIP, iface)
+	if err != nil {
+		return nil, err
+	}
+	e.emit(events.TypePeerAdded, p.ExitPeerID, map[string]any{
+		"kind":          "egress_profile",
+		"profile_id":    res.ID,
+		"profile_name":  res.Name,
+		"source":        res.Source(),
+		"exit_peer_id":  res.ExitPeerID,
+	})
+	return res, nil
+}
+
+// UpdateEgress re-installs an existing profile.
+func (e *Engine) UpdateEgress(ctx context.Context, p *egress.Profile) (*egress.Profile, error) {
+	exitIP, err := e.exitPeerMeshIP(p.ExitPeerID)
+	if err != nil {
+		return nil, err
+	}
+	iface := e.Interface()
+	if iface == "" {
+		iface = e.Config.WireGuard.Interface
+	}
+	return e.Egress.Update(ctx, p, exitIP, iface)
+}
+
+// DeleteEgress removes a profile. Idempotent.
+func (e *Engine) DeleteEgress(ctx context.Context, profileID int64) error {
+	return e.Egress.Delete(ctx, profileID)
+}
+
+// ListEgress returns a snapshot of installed profiles.
+func (e *Engine) ListEgress() []*egress.Profile { return e.Egress.List() }
+
+// EnableExit turns this node into an exit peer for mesh traffic.
+func (e *Engine) EnableExit(ctx context.Context, allowed []int64) error {
+	iface := e.Interface()
+	if iface == "" {
+		iface = e.Config.WireGuard.Interface
+	}
+	return e.Exit.Enable(ctx, iface, allowed)
+}
+
+// DisableExit stops acting as an exit peer.
+func (e *Engine) DisableExit(ctx context.Context) error { return e.Exit.Disable(ctx) }
+
+// exitPeerMeshIP returns the mesh_ip string for the given exit peer ID.
+// Falls back to a recognisable placeholder on the stub backend where no
+// peers are actually registered.
+func (e *Engine) exitPeerMeshIP(peerID int64) (string, error) {
+	if peerID == 0 {
+		return "", fmt.Errorf("egress: exit_peer_id=0")
+	}
+	p, ok := e.Peers.Get(peerID)
+	if !ok {
+		return "", fmt.Errorf("egress: exit peer %d not in registry", peerID)
+	}
+	if p.MeshIP == "" {
+		return "", fmt.Errorf("egress: exit peer %d has empty mesh_ip", peerID)
+	}
+	return p.MeshIP, nil
 }
 
 // ── Scope peers ───────────────────────────────────────────────────────

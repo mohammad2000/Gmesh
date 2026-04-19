@@ -47,6 +47,20 @@ service GMesh {
   // Server-streaming RPC. Subscribers get async events: peer state changes,
   // NAT re-discovery, health degradation, firewall apply results, etc.
   rpc SubscribeEvents (SubscribeEventsRequest) returns (stream Event);
+
+  // ── Egress profiles (Phase 11) ────────────────────────────────────────
+  // An egress profile routes selected outbound traffic through a specific
+  // mesh peer acting as an "exit node" instead of the local default gateway.
+  rpc CreateEgressProfile (CreateEgressProfileRequest) returns (EgressProfileResponse);
+  rpc UpdateEgressProfile (UpdateEgressProfileRequest) returns (EgressProfileResponse);
+  rpc DeleteEgressProfile (DeleteEgressProfileRequest) returns (DeleteEgressProfileResponse);
+  rpc ListEgressProfiles  (ListEgressProfilesRequest)  returns (ListEgressProfilesResponse);
+
+  // Exit-side operations: called on the peer that acts as an exit node.
+  // EnableExit installs MASQUERADE + FORWARD rules so forwarded traffic
+  // egresses correctly; DisableExit tears them down.
+  rpc EnableExit  (EnableExitRequest)  returns (EnableExitResponse);
+  rpc DisableExit (DisableExitRequest) returns (DisableExitResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -328,3 +342,52 @@ message Event {
   string peer_id           = 3;
   string payload_json      = 4;  // structured payload as JSON (schema per type)
 }
+
+// ── Egress profile (Phase 11) ───────────────────────────────────────────
+
+message EgressProfile {
+  int64            id              = 1;
+  string           name            = 2;
+  bool             enabled         = 3;
+  int32            priority        = 4;   // 0..1000, lower = earlier match
+
+  // Match
+  int64            source_scope_id = 5;   // 0 = source is the bare host
+  string           source_cidr     = 6;   // optional, e.g. "10.50.42.0/30"
+  string           protocol        = 7;   // "any" | "tcp" | "udp"
+  string           dest_cidr       = 8;   // e.g. "0.0.0.0/0"
+  string           dest_ports      = 9;   // "443" or "80,443" or ""
+
+  // Phase 15 hook: GeoIP filter (country codes)
+  repeated string  geoip_countries = 10;
+
+  // Exit
+  int64            exit_peer_id    = 11;
+
+  // Phase 16 hook: load-balanced exit pool
+  repeated int64   exit_pool       = 12;
+  repeated int32   exit_weights    = 13;  // same length; sums to 100
+
+  int64            created_at_unix = 14;
+  int64            updated_at_unix = 15;
+}
+
+message CreateEgressProfileRequest { EgressProfile profile = 1; }
+message UpdateEgressProfileRequest { EgressProfile profile = 1; }
+message EgressProfileResponse      { EgressProfile profile = 1; }
+
+message DeleteEgressProfileRequest  { int64 id = 1; }
+message DeleteEgressProfileResponse {}
+
+message ListEgressProfilesRequest  {}
+message ListEgressProfilesResponse { repeated EgressProfile profiles = 1; }
+
+message EnableExitRequest {
+  // Peers permitted to use this node as exit. Empty = allow any authorised
+  // mesh peer.
+  repeated int64 allowed_peer_ids = 1;
+}
+message EnableExitResponse  {}
+
+message DisableExitRequest  {}
+message DisableExitResponse {}

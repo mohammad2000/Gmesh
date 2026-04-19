@@ -139,6 +139,36 @@ class GMeshStub(object):
                 request_serializer=gmesh_dot_v1_dot_gmesh__pb2.SubscribeEventsRequest.SerializeToString,
                 response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.Event.FromString,
                 _registered_method=True)
+        self.CreateEgressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/CreateEgressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.CreateEgressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.FromString,
+                _registered_method=True)
+        self.UpdateEgressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/UpdateEgressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateEgressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.FromString,
+                _registered_method=True)
+        self.DeleteEgressProfile = channel.unary_unary(
+                '/gmesh.v1.GMesh/DeleteEgressProfile',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileResponse.FromString,
+                _registered_method=True)
+        self.ListEgressProfiles = channel.unary_unary(
+                '/gmesh.v1.GMesh/ListEgressProfiles',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesResponse.FromString,
+                _registered_method=True)
+        self.EnableExit = channel.unary_unary(
+                '/gmesh.v1.GMesh/EnableExit',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.EnableExitRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.EnableExitResponse.FromString,
+                _registered_method=True)
+        self.DisableExit = channel.unary_unary(
+                '/gmesh.v1.GMesh/DisableExit',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.FromString,
+                _registered_method=True)
 
 
 class GMeshServicer(object):
@@ -279,6 +309,48 @@ class GMeshServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateEgressProfile(self, request, context):
+        """── Egress profiles (Phase 11) ────────────────────────────────────────
+        An egress profile routes selected outbound traffic through a specific
+        mesh peer acting as an "exit node" instead of the local default gateway.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateEgressProfile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteEgressProfile(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListEgressProfiles(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def EnableExit(self, request, context):
+        """Exit-side operations: called on the peer that acts as an exit node.
+        EnableExit installs MASQUERADE + FORWARD rules so forwarded traffic
+        egresses correctly; DisableExit tears them down.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DisableExit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GMeshServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -381,6 +453,36 @@ def add_GMeshServicer_to_server(servicer, server):
                     servicer.SubscribeEvents,
                     request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.SubscribeEventsRequest.FromString,
                     response_serializer=gmesh_dot_v1_dot_gmesh__pb2.Event.SerializeToString,
+            ),
+            'CreateEgressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateEgressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.CreateEgressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.SerializeToString,
+            ),
+            'UpdateEgressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateEgressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateEgressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.SerializeToString,
+            ),
+            'DeleteEgressProfile': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteEgressProfile,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileResponse.SerializeToString,
+            ),
+            'ListEgressProfiles': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListEgressProfiles,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesResponse.SerializeToString,
+            ),
+            'EnableExit': grpc.unary_unary_rpc_method_handler(
+                    servicer.EnableExit,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.EnableExitRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.EnableExitResponse.SerializeToString,
+            ),
+            'DisableExit': grpc.unary_unary_rpc_method_handler(
+                    servicer.DisableExit,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -928,6 +1030,168 @@ class GMesh(object):
             '/gmesh.v1.GMesh/SubscribeEvents',
             gmesh_dot_v1_dot_gmesh__pb2.SubscribeEventsRequest.SerializeToString,
             gmesh_dot_v1_dot_gmesh__pb2.Event.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateEgressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/CreateEgressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.CreateEgressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateEgressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/UpdateEgressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.UpdateEgressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.EgressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteEgressProfile(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/DeleteEgressProfile',
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteEgressProfileResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListEgressProfiles(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/ListEgressProfiles',
+            gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.ListEgressProfilesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def EnableExit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/EnableExit',
+            gmesh_dot_v1_dot_gmesh__pb2.EnableExitRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.EnableExitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DisableExit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/DisableExit',
+            gmesh_dot_v1_dot_gmesh__pb2.DisableExitRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.DisableExitResponse.FromString,
             options,
             channel_credentials,
             insecure,
