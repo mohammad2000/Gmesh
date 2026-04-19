@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -53,6 +54,7 @@ func main() {
 		quotaCmd(),
 		pathCmd(),
 		policyCmd(),
+		mtlsCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1544,4 +1546,252 @@ func pathListCmd() *cobra.Command {
 			return w.Flush()
 		},
 	}
+}
+
+// ── mtls (Phase 20) ───────────────────────────────────────────────────
+
+func mtlsCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "mtls", Short: "Embedded CA + SPIFFE peer certs"}
+	cmd.AddCommand(mtlsInitCmd(), mtlsStatusCmd(), mtlsIssueCmd(),
+		mtlsListCmd(), mtlsRevokeCmd(), mtlsTrustCmd())
+	return cmd
+}
+
+func mtlsInitCmd() *cobra.Command {
+	var trust string
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Bootstrap the mesh CA (one-time per mesh)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.InitCA(ctx, &gmeshv1.InitCARequest{
+				TrustDomain: trust, Force: force,
+			})
+			if err != nil {
+				return fmt.Errorf("init ca rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("CA initialised; trust_domain=%s\n", resp.TrustDomain)
+			fmt.Println(resp.CaPem)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&trust, "trust-domain", "gmesh.local", "SPIFFE trust domain")
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing CA — DESTRUCTIVE")
+	return cmd
+}
+
+func mtlsStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show CA loaded state + issued/revoked counts",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.CAStatus(ctx, &gmeshv1.CAStatusRequest{})
+			if err != nil {
+				return fmt.Errorf("status rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("loaded:       %v\n", resp.Loaded)
+			fmt.Printf("trust_domain: %s\n", resp.TrustDomain)
+			fmt.Printf("issued:       %d\n", resp.IssuedCount)
+			fmt.Printf("revoked:      %d\n", resp.RevokedCount)
+			return nil
+		},
+	}
+}
+
+func mtlsIssueCmd() *cobra.Command {
+	var (
+		peerID, validityDays int64
+		cn, spiffe           string
+		dnsNames, ipAddrs    []string
+		outDir               string
+	)
+	cmd := &cobra.Command{
+		Use:   "issue",
+		Short: "Sign a peer certificate and (optionally) save to disk",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.IssueCert(ctx, &gmeshv1.IssueCertRequest{
+				PeerId: peerID, CommonName: cn, SpiffeId: spiffe,
+				DnsNames: dnsNames, IpAddrs: ipAddrs,
+				ValidityDays: validityDays,
+			})
+			if err != nil {
+				return fmt.Errorf("issue rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			ic := resp.Cert
+			fmt.Printf("serial:    %s\n", ic.Serial)
+			fmt.Printf("peer_id:   %d\n", ic.PeerId)
+			fmt.Printf("spiffe_id: %s\n", ic.SpiffeId)
+			fmt.Printf("valid:     %s → %s\n",
+				time.Unix(ic.NotBeforeUnix, 0).UTC().Format(time.RFC3339),
+				time.Unix(ic.NotAfterUnix, 0).UTC().Format(time.RFC3339))
+			if outDir != "" {
+				if err := os.MkdirAll(outDir, 0o700); err != nil {
+					return fmt.Errorf("mkdir %s: %w", outDir, err)
+				}
+				for _, f := range []struct {
+					name string
+					data string
+					mode os.FileMode
+				}{
+					{"cert.pem", ic.CertPem, 0o644},
+					{"key.pem", ic.KeyPem, 0o600},
+					{"ca.pem", ic.CaPem, 0o644},
+				} {
+					if err := os.WriteFile(filepath.Join(outDir, f.name), []byte(f.data), f.mode); err != nil {
+						return fmt.Errorf("write %s: %w", f.name, err)
+					}
+				}
+				fmt.Printf("written to %s/{cert,key,ca}.pem\n", outDir)
+			} else {
+				fmt.Println("---- ca.pem ----")
+				fmt.Println(ic.CaPem)
+				fmt.Println("---- cert.pem ----")
+				fmt.Println(ic.CertPem)
+				fmt.Println("---- key.pem ----")
+				fmt.Println(ic.KeyPem)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID (required)")
+	cmd.Flags().StringVar(&cn, "cn", "", `subject CN (default "peer-<id>")`)
+	cmd.Flags().StringVar(&spiffe, "spiffe-id", "", "override SPIFFE URI (default auto)")
+	cmd.Flags().StringSliceVar(&dnsNames, "dns", nil, "DNS SAN (repeatable)")
+	cmd.Flags().StringSliceVar(&ipAddrs, "ip", nil, "IP SAN (repeatable)")
+	cmd.Flags().Int64Var(&validityDays, "days", 0, "validity days (default 90)")
+	cmd.Flags().StringVar(&outDir, "out-dir", "", "write cert/key/ca.pem into this dir")
+	_ = cmd.MarkFlagRequired("peer-id")
+	return cmd
+}
+
+func mtlsListCmd() *cobra.Command {
+	var peerID int64
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List issued certificates",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListCerts(ctx, &gmeshv1.ListCertsRequest{PeerId: peerID})
+			if err != nil {
+				return fmt.Errorf("list rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "SERIAL\tPEER\tCN\tSPIFFE\tNOT_AFTER\tREVOKED")
+			for _, s := range resp.Certs {
+				exp := time.Unix(s.NotAfterUnix, 0).UTC().Format("2006-01-02")
+				rv := ""
+				if s.Revoked {
+					rv = s.RevokeReason
+					if rv == "" {
+						rv = "yes"
+					}
+				}
+				fmt.Fprintf(w, "%s\t%d\t%s\t%s\t%s\t%s\n",
+					s.Serial, s.PeerId, s.CommonName, s.SpiffeId, exp, rv)
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "filter by peer id (0 = all)")
+	return cmd
+}
+
+func mtlsRevokeCmd() *cobra.Command {
+	var serial, reason string
+	cmd := &cobra.Command{
+		Use:   "revoke",
+		Short: "Mark a cert revoked by serial",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.RevokeCert(ctx, &gmeshv1.RevokeCertRequest{Serial: serial, Reason: reason}); err != nil {
+				return fmt.Errorf("revoke rpc: %w", err)
+			}
+			fmt.Printf("revoked %s\n", serial)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serial, "serial", "", "cert serial (hex; required)")
+	cmd.Flags().StringVar(&reason, "reason", "unspecified", "free-form reason string")
+	_ = cmd.MarkFlagRequired("serial")
+	return cmd
+}
+
+func mtlsTrustCmd() *cobra.Command {
+	var outFile string
+	cmd := &cobra.Command{
+		Use:   "trust",
+		Short: "Print the CA root cert (trust bundle) for relying parties",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ExportTrust(ctx, &gmeshv1.ExportTrustRequest{})
+			if err != nil {
+				return fmt.Errorf("export rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			if outFile != "" {
+				if err := os.WriteFile(outFile, []byte(resp.CaPem), 0o644); err != nil {
+					return err
+				}
+				fmt.Printf("wrote %s (trust_domain=%s)\n", outFile, resp.TrustDomain)
+				return nil
+			}
+			fmt.Printf("# trust_domain: %s\n%s", resp.TrustDomain, resp.CaPem)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&outFile, "out", "", "write to this file instead of stdout")
+	return cmd
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
+	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
@@ -462,6 +463,136 @@ func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequ
 		out = append(out, pathStateToProto(st))
 	}
 	return &gmeshv1.ListPathStatesResponse{States: out}, nil
+}
+
+// ── mTLS / SPIFFE (Phase 20) ──────────────────────────────────────────
+
+func (s *Server) InitCA(_ context.Context, in *gmeshv1.InitCARequest) (*gmeshv1.InitCAResponse, error) {
+	if s.Engine == nil || s.Engine.MTLS == nil {
+		return nil, status.Error(codes.FailedPrecondition, "mtls CA not configured (set mtls.dir in config)")
+	}
+	caPEM, err := s.Engine.MTLS.InitCA(in.TrustDomain, in.Force)
+	if err != nil {
+		if err == mtls.ErrAlreadyInitialised {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "init ca: %v", err)
+	}
+	return &gmeshv1.InitCAResponse{
+		CaPem:       caPEM,
+		TrustDomain: s.Engine.MTLS.TrustDomain(),
+	}, nil
+}
+
+func (s *Server) CAStatus(_ context.Context, _ *gmeshv1.CAStatusRequest) (*gmeshv1.CAStatusResponse, error) {
+	resp := &gmeshv1.CAStatusResponse{}
+	if s.Engine == nil || s.Engine.MTLS == nil {
+		return resp, nil
+	}
+	m := s.Engine.MTLS
+	resp.Loaded = m.Loaded()
+	if !resp.Loaded {
+		return resp, nil
+	}
+	resp.TrustDomain = m.TrustDomain()
+	resp.CaPem = m.CACert()
+	for _, c := range m.ListCerts(0) {
+		resp.IssuedCount++
+		if c.Revoked {
+			resp.RevokedCount++
+		}
+	}
+	return resp, nil
+}
+
+func (s *Server) IssueCert(_ context.Context, in *gmeshv1.IssueCertRequest) (*gmeshv1.IssueCertResponse, error) {
+	if s.Engine == nil || s.Engine.MTLS == nil {
+		return nil, status.Error(codes.FailedPrecondition, "mtls CA not configured")
+	}
+	req := mtls.CertRequest{
+		PeerID:     in.PeerId,
+		CommonName: in.CommonName,
+		DNSNames:   in.DnsNames,
+		SpiffeID:   in.SpiffeId,
+	}
+	for _, s := range in.IpAddrs {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			return nil, status.Errorf(codes.InvalidArgument, "bad ip_addr %q", s)
+		}
+		req.IPAddrs = append(req.IPAddrs, ip)
+	}
+	if in.ValidityDays > 0 {
+		now := time.Now().UTC()
+		req.NotBefore = now
+		req.NotAfter = now.AddDate(0, 0, int(in.ValidityDays))
+	}
+	c, err := s.Engine.MTLS.IssueCert(req)
+	if err != nil {
+		if err == mtls.ErrNotInitialised {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "issue cert: %v", err)
+	}
+	return &gmeshv1.IssueCertResponse{
+		Cert: &gmeshv1.IssuedCert{
+			Serial: c.Serial, PeerId: c.PeerID,
+			CommonName: c.CommonName, SpiffeId: c.SpiffeID,
+			CertPem: c.CertPEM, KeyPem: c.KeyPEM, CaPem: c.CAPEM,
+			NotBeforeUnix: c.NotBefore.Unix(),
+			NotAfterUnix:  c.NotAfter.Unix(),
+		},
+	}, nil
+}
+
+func (s *Server) ListCerts(_ context.Context, in *gmeshv1.ListCertsRequest) (*gmeshv1.ListCertsResponse, error) {
+	if s.Engine == nil || s.Engine.MTLS == nil {
+		return &gmeshv1.ListCertsResponse{}, nil
+	}
+	summaries := s.Engine.MTLS.ListCerts(in.PeerId)
+	out := make([]*gmeshv1.CertSummary, 0, len(summaries))
+	for _, c := range summaries {
+		out = append(out, certSummaryToProto(c))
+	}
+	return &gmeshv1.ListCertsResponse{Certs: out}, nil
+}
+
+func (s *Server) RevokeCert(_ context.Context, in *gmeshv1.RevokeCertRequest) (*gmeshv1.RevokeCertResponse, error) {
+	if s.Engine == nil || s.Engine.MTLS == nil {
+		return nil, status.Error(codes.FailedPrecondition, "mtls CA not configured")
+	}
+	if err := s.Engine.MTLS.RevokeCert(in.Serial, in.Reason); err != nil {
+		if err == mtls.ErrNotFound {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "revoke: %v", err)
+	}
+	return &gmeshv1.RevokeCertResponse{}, nil
+}
+
+func (s *Server) ExportTrust(_ context.Context, _ *gmeshv1.ExportTrustRequest) (*gmeshv1.ExportTrustResponse, error) {
+	if s.Engine == nil || s.Engine.MTLS == nil || !s.Engine.MTLS.Loaded() {
+		return nil, status.Error(codes.FailedPrecondition, "mtls CA not initialised")
+	}
+	return &gmeshv1.ExportTrustResponse{
+		CaPem:       s.Engine.MTLS.CACert(),
+		TrustDomain: s.Engine.MTLS.TrustDomain(),
+	}, nil
+}
+
+func certSummaryToProto(c mtls.Summary) *gmeshv1.CertSummary {
+	out := &gmeshv1.CertSummary{
+		Serial: c.Serial, PeerId: c.PeerID,
+		CommonName: c.CommonName, SpiffeId: c.SpiffeID,
+		NotBeforeUnix: c.NotBefore.Unix(),
+		NotAfterUnix:  c.NotAfter.Unix(),
+		Revoked:       c.Revoked,
+		RevokeReason:  c.Reason,
+	}
+	if !c.RevokedAt.IsZero() {
+		out.RevokedAtUnix = c.RevokedAt.Unix()
+	}
+	return out
 }
 
 // ── Policies (Phase 17) ───────────────────────────────────────────────

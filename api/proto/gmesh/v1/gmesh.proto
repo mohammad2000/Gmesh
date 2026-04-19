@@ -92,6 +92,17 @@ service GMesh {
   // List the active policies and force a reload from disk.
   rpc ListPolicies   (ListPoliciesRequest)   returns (ListPoliciesResponse);
   rpc ReloadPolicies (ReloadPoliciesRequest) returns (ReloadPoliciesResponse);
+
+  // ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
+  // Small embedded CA: bootstrap once per mesh, issue short-lived peer
+  // certs with SPIFFE IDs, track revocations. The root cert can be
+  // handed to any peer that wants to terminate or validate TLS.
+  rpc InitCA        (InitCARequest)        returns (InitCAResponse);
+  rpc CAStatus      (CAStatusRequest)      returns (CAStatusResponse);
+  rpc IssueCert     (IssueCertRequest)     returns (IssueCertResponse);
+  rpc ListCerts     (ListCertsRequest)     returns (ListCertsResponse);
+  rpc RevokeCert    (RevokeCertRequest)    returns (RevokeCertResponse);
+  rpc ExportTrust   (ExportTrustRequest)   returns (ExportTrustResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -584,4 +595,74 @@ message ReloadPoliciesRequest  {}
 message ReloadPoliciesResponse {
   int64 loaded = 1;
   repeated string errors = 2;
+}
+
+// ── mTLS / SPIFFE (Phase 20) ──────────────────────────────────────────
+
+message InitCARequest {
+  string trust_domain = 1; // default "gmesh.local"
+  bool   force        = 2; // overwrite existing CA
+}
+message InitCAResponse {
+  string ca_pem       = 1;
+  string trust_domain = 2;
+}
+
+message CAStatusRequest  {}
+message CAStatusResponse {
+  bool   loaded       = 1;
+  string trust_domain = 2;
+  string ca_pem       = 3;
+  int64  issued_count = 4;
+  int64  revoked_count = 5;
+}
+
+message IssueCertRequest {
+  int64  peer_id       = 1;
+  string common_name   = 2;
+  repeated string dns_names = 3;
+  repeated string ip_addrs  = 4;
+  string spiffe_id     = 5; // empty = auto-generate spiffe://<trust>/peer/<id>
+  int64  validity_days = 6; // 0 = 90 days default
+}
+
+message IssuedCert {
+  string serial      = 1;
+  int64  peer_id     = 2;
+  string common_name = 3;
+  string spiffe_id   = 4;
+  string cert_pem    = 5;
+  string key_pem     = 6; // private key, returned ONLY on issue
+  string ca_pem      = 7;
+  int64  not_before_unix = 8;
+  int64  not_after_unix  = 9;
+}
+
+message IssueCertResponse { IssuedCert cert = 1; }
+
+message CertSummary {
+  string serial      = 1;
+  int64  peer_id     = 2;
+  string common_name = 3;
+  string spiffe_id   = 4;
+  int64  not_before_unix = 5;
+  int64  not_after_unix  = 6;
+  bool   revoked         = 7;
+  int64  revoked_at_unix = 8;
+  string revoke_reason   = 9;
+}
+
+message ListCertsRequest  { int64 peer_id = 1; /* 0 = all */ }
+message ListCertsResponse { repeated CertSummary certs = 1; }
+
+message RevokeCertRequest  {
+  string serial = 1;
+  string reason = 2;
+}
+message RevokeCertResponse {}
+
+message ExportTrustRequest  {}
+message ExportTrustResponse {
+  string ca_pem       = 1;
+  string trust_domain = 2;
 }

@@ -5199,6 +5199,830 @@ func (x *ReloadPoliciesResponse) GetErrors() []string {
 	return nil
 }
 
+type InitCARequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TrustDomain   string                 `protobuf:"bytes,1,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"` // default "gmesh.local"
+	Force         bool                   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`                               // overwrite existing CA
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitCARequest) Reset() {
+	*x = InitCARequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitCARequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitCARequest) ProtoMessage() {}
+
+func (x *InitCARequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitCARequest.ProtoReflect.Descriptor instead.
+func (*InitCARequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *InitCARequest) GetTrustDomain() string {
+	if x != nil {
+		return x.TrustDomain
+	}
+	return ""
+}
+
+func (x *InitCARequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+type InitCAResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CaPem         string                 `protobuf:"bytes,1,opt,name=ca_pem,json=caPem,proto3" json:"ca_pem,omitempty"`
+	TrustDomain   string                 `protobuf:"bytes,2,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitCAResponse) Reset() {
+	*x = InitCAResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitCAResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitCAResponse) ProtoMessage() {}
+
+func (x *InitCAResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitCAResponse.ProtoReflect.Descriptor instead.
+func (*InitCAResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *InitCAResponse) GetCaPem() string {
+	if x != nil {
+		return x.CaPem
+	}
+	return ""
+}
+
+func (x *InitCAResponse) GetTrustDomain() string {
+	if x != nil {
+		return x.TrustDomain
+	}
+	return ""
+}
+
+type CAStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CAStatusRequest) Reset() {
+	*x = CAStatusRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CAStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CAStatusRequest) ProtoMessage() {}
+
+func (x *CAStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CAStatusRequest.ProtoReflect.Descriptor instead.
+func (*CAStatusRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{85}
+}
+
+type CAStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Loaded        bool                   `protobuf:"varint,1,opt,name=loaded,proto3" json:"loaded,omitempty"`
+	TrustDomain   string                 `protobuf:"bytes,2,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
+	CaPem         string                 `protobuf:"bytes,3,opt,name=ca_pem,json=caPem,proto3" json:"ca_pem,omitempty"`
+	IssuedCount   int64                  `protobuf:"varint,4,opt,name=issued_count,json=issuedCount,proto3" json:"issued_count,omitempty"`
+	RevokedCount  int64                  `protobuf:"varint,5,opt,name=revoked_count,json=revokedCount,proto3" json:"revoked_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CAStatusResponse) Reset() {
+	*x = CAStatusResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CAStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CAStatusResponse) ProtoMessage() {}
+
+func (x *CAStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CAStatusResponse.ProtoReflect.Descriptor instead.
+func (*CAStatusResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *CAStatusResponse) GetLoaded() bool {
+	if x != nil {
+		return x.Loaded
+	}
+	return false
+}
+
+func (x *CAStatusResponse) GetTrustDomain() string {
+	if x != nil {
+		return x.TrustDomain
+	}
+	return ""
+}
+
+func (x *CAStatusResponse) GetCaPem() string {
+	if x != nil {
+		return x.CaPem
+	}
+	return ""
+}
+
+func (x *CAStatusResponse) GetIssuedCount() int64 {
+	if x != nil {
+		return x.IssuedCount
+	}
+	return 0
+}
+
+func (x *CAStatusResponse) GetRevokedCount() int64 {
+	if x != nil {
+		return x.RevokedCount
+	}
+	return 0
+}
+
+type IssueCertRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	CommonName    string                 `protobuf:"bytes,2,opt,name=common_name,json=commonName,proto3" json:"common_name,omitempty"`
+	DnsNames      []string               `protobuf:"bytes,3,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	IpAddrs       []string               `protobuf:"bytes,4,rep,name=ip_addrs,json=ipAddrs,proto3" json:"ip_addrs,omitempty"`
+	SpiffeId      string                 `protobuf:"bytes,5,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`              // empty = auto-generate spiffe://<trust>/peer/<id>
+	ValidityDays  int64                  `protobuf:"varint,6,opt,name=validity_days,json=validityDays,proto3" json:"validity_days,omitempty"` // 0 = 90 days default
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueCertRequest) Reset() {
+	*x = IssueCertRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueCertRequest) ProtoMessage() {}
+
+func (x *IssueCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueCertRequest.ProtoReflect.Descriptor instead.
+func (*IssueCertRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *IssueCertRequest) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *IssueCertRequest) GetCommonName() string {
+	if x != nil {
+		return x.CommonName
+	}
+	return ""
+}
+
+func (x *IssueCertRequest) GetDnsNames() []string {
+	if x != nil {
+		return x.DnsNames
+	}
+	return nil
+}
+
+func (x *IssueCertRequest) GetIpAddrs() []string {
+	if x != nil {
+		return x.IpAddrs
+	}
+	return nil
+}
+
+func (x *IssueCertRequest) GetSpiffeId() string {
+	if x != nil {
+		return x.SpiffeId
+	}
+	return ""
+}
+
+func (x *IssueCertRequest) GetValidityDays() int64 {
+	if x != nil {
+		return x.ValidityDays
+	}
+	return 0
+}
+
+type IssuedCert struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Serial        string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
+	PeerId        int64                  `protobuf:"varint,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	CommonName    string                 `protobuf:"bytes,3,opt,name=common_name,json=commonName,proto3" json:"common_name,omitempty"`
+	SpiffeId      string                 `protobuf:"bytes,4,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	CertPem       string                 `protobuf:"bytes,5,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
+	KeyPem        string                 `protobuf:"bytes,6,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"` // private key, returned ONLY on issue
+	CaPem         string                 `protobuf:"bytes,7,opt,name=ca_pem,json=caPem,proto3" json:"ca_pem,omitempty"`
+	NotBeforeUnix int64                  `protobuf:"varint,8,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix  int64                  `protobuf:"varint,9,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssuedCert) Reset() {
+	*x = IssuedCert{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssuedCert) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssuedCert) ProtoMessage() {}
+
+func (x *IssuedCert) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssuedCert.ProtoReflect.Descriptor instead.
+func (*IssuedCert) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *IssuedCert) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *IssuedCert) GetCommonName() string {
+	if x != nil {
+		return x.CommonName
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetSpiffeId() string {
+	if x != nil {
+		return x.SpiffeId
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetCertPem() string {
+	if x != nil {
+		return x.CertPem
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetKeyPem() string {
+	if x != nil {
+		return x.KeyPem
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetCaPem() string {
+	if x != nil {
+		return x.CaPem
+	}
+	return ""
+}
+
+func (x *IssuedCert) GetNotBeforeUnix() int64 {
+	if x != nil {
+		return x.NotBeforeUnix
+	}
+	return 0
+}
+
+func (x *IssuedCert) GetNotAfterUnix() int64 {
+	if x != nil {
+		return x.NotAfterUnix
+	}
+	return 0
+}
+
+type IssueCertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cert          *IssuedCert            `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IssueCertResponse) Reset() {
+	*x = IssueCertResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueCertResponse) ProtoMessage() {}
+
+func (x *IssueCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IssueCertResponse.ProtoReflect.Descriptor instead.
+func (*IssueCertResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *IssueCertResponse) GetCert() *IssuedCert {
+	if x != nil {
+		return x.Cert
+	}
+	return nil
+}
+
+type CertSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Serial        string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
+	PeerId        int64                  `protobuf:"varint,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	CommonName    string                 `protobuf:"bytes,3,opt,name=common_name,json=commonName,proto3" json:"common_name,omitempty"`
+	SpiffeId      string                 `protobuf:"bytes,4,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	NotBeforeUnix int64                  `protobuf:"varint,5,opt,name=not_before_unix,json=notBeforeUnix,proto3" json:"not_before_unix,omitempty"`
+	NotAfterUnix  int64                  `protobuf:"varint,6,opt,name=not_after_unix,json=notAfterUnix,proto3" json:"not_after_unix,omitempty"`
+	Revoked       bool                   `protobuf:"varint,7,opt,name=revoked,proto3" json:"revoked,omitempty"`
+	RevokedAtUnix int64                  `protobuf:"varint,8,opt,name=revoked_at_unix,json=revokedAtUnix,proto3" json:"revoked_at_unix,omitempty"`
+	RevokeReason  string                 `protobuf:"bytes,9,opt,name=revoke_reason,json=revokeReason,proto3" json:"revoke_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CertSummary) Reset() {
+	*x = CertSummary{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CertSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CertSummary) ProtoMessage() {}
+
+func (x *CertSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CertSummary.ProtoReflect.Descriptor instead.
+func (*CertSummary) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *CertSummary) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *CertSummary) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *CertSummary) GetCommonName() string {
+	if x != nil {
+		return x.CommonName
+	}
+	return ""
+}
+
+func (x *CertSummary) GetSpiffeId() string {
+	if x != nil {
+		return x.SpiffeId
+	}
+	return ""
+}
+
+func (x *CertSummary) GetNotBeforeUnix() int64 {
+	if x != nil {
+		return x.NotBeforeUnix
+	}
+	return 0
+}
+
+func (x *CertSummary) GetNotAfterUnix() int64 {
+	if x != nil {
+		return x.NotAfterUnix
+	}
+	return 0
+}
+
+func (x *CertSummary) GetRevoked() bool {
+	if x != nil {
+		return x.Revoked
+	}
+	return false
+}
+
+func (x *CertSummary) GetRevokedAtUnix() int64 {
+	if x != nil {
+		return x.RevokedAtUnix
+	}
+	return 0
+}
+
+func (x *CertSummary) GetRevokeReason() string {
+	if x != nil {
+		return x.RevokeReason
+	}
+	return ""
+}
+
+type ListCertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertsRequest) Reset() {
+	*x = ListCertsRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertsRequest) ProtoMessage() {}
+
+func (x *ListCertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertsRequest.ProtoReflect.Descriptor instead.
+func (*ListCertsRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *ListCertsRequest) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+type ListCertsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Certs         []*CertSummary         `protobuf:"bytes,1,rep,name=certs,proto3" json:"certs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertsResponse) Reset() {
+	*x = ListCertsResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertsResponse) ProtoMessage() {}
+
+func (x *ListCertsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertsResponse.ProtoReflect.Descriptor instead.
+func (*ListCertsResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *ListCertsResponse) GetCerts() []*CertSummary {
+	if x != nil {
+		return x.Certs
+	}
+	return nil
+}
+
+type RevokeCertRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Serial        string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeCertRequest) Reset() {
+	*x = RevokeCertRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeCertRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeCertRequest) ProtoMessage() {}
+
+func (x *RevokeCertRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeCertRequest.ProtoReflect.Descriptor instead.
+func (*RevokeCertRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *RevokeCertRequest) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *RevokeCertRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RevokeCertResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeCertResponse) Reset() {
+	*x = RevokeCertResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeCertResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeCertResponse) ProtoMessage() {}
+
+func (x *RevokeCertResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeCertResponse.ProtoReflect.Descriptor instead.
+func (*RevokeCertResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{94}
+}
+
+type ExportTrustRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportTrustRequest) Reset() {
+	*x = ExportTrustRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportTrustRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportTrustRequest) ProtoMessage() {}
+
+func (x *ExportTrustRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportTrustRequest.ProtoReflect.Descriptor instead.
+func (*ExportTrustRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{95}
+}
+
+type ExportTrustResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CaPem         string                 `protobuf:"bytes,1,opt,name=ca_pem,json=caPem,proto3" json:"ca_pem,omitempty"`
+	TrustDomain   string                 `protobuf:"bytes,2,opt,name=trust_domain,json=trustDomain,proto3" json:"trust_domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportTrustResponse) Reset() {
+	*x = ExportTrustResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportTrustResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportTrustResponse) ProtoMessage() {}
+
+func (x *ExportTrustResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportTrustResponse.ProtoReflect.Descriptor instead.
+func (*ExportTrustResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *ExportTrustResponse) GetCaPem() string {
+	if x != nil {
+		return x.CaPem
+	}
+	return ""
+}
+
+func (x *ExportTrustResponse) GetTrustDomain() string {
+	if x != nil {
+		return x.TrustDomain
+	}
+	return ""
+}
+
 type HealthCheckResponse_PeerHealth struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
@@ -5213,7 +6037,7 @@ type HealthCheckResponse_PeerHealth struct {
 
 func (x *HealthCheckResponse_PeerHealth) Reset() {
 	*x = HealthCheckResponse_PeerHealth{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5225,7 +6049,7 @@ func (x *HealthCheckResponse_PeerHealth) String() string {
 func (*HealthCheckResponse_PeerHealth) ProtoMessage() {}
 
 func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5648,7 +6472,65 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x15ReloadPoliciesRequest\"H\n" +
 	"\x16ReloadPoliciesResponse\x12\x16\n" +
 	"\x06loaded\x18\x01 \x01(\x03R\x06loaded\x12\x16\n" +
-	"\x06errors\x18\x02 \x03(\tR\x06errors*L\n" +
+	"\x06errors\x18\x02 \x03(\tR\x06errors\"H\n" +
+	"\rInitCARequest\x12!\n" +
+	"\ftrust_domain\x18\x01 \x01(\tR\vtrustDomain\x12\x14\n" +
+	"\x05force\x18\x02 \x01(\bR\x05force\"J\n" +
+	"\x0eInitCAResponse\x12\x15\n" +
+	"\x06ca_pem\x18\x01 \x01(\tR\x05caPem\x12!\n" +
+	"\ftrust_domain\x18\x02 \x01(\tR\vtrustDomain\"\x11\n" +
+	"\x0fCAStatusRequest\"\xac\x01\n" +
+	"\x10CAStatusResponse\x12\x16\n" +
+	"\x06loaded\x18\x01 \x01(\bR\x06loaded\x12!\n" +
+	"\ftrust_domain\x18\x02 \x01(\tR\vtrustDomain\x12\x15\n" +
+	"\x06ca_pem\x18\x03 \x01(\tR\x05caPem\x12!\n" +
+	"\fissued_count\x18\x04 \x01(\x03R\vissuedCount\x12#\n" +
+	"\rrevoked_count\x18\x05 \x01(\x03R\frevokedCount\"\xc6\x01\n" +
+	"\x10IssueCertRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x1f\n" +
+	"\vcommon_name\x18\x02 \x01(\tR\n" +
+	"commonName\x12\x1b\n" +
+	"\tdns_names\x18\x03 \x03(\tR\bdnsNames\x12\x19\n" +
+	"\bip_addrs\x18\x04 \x03(\tR\aipAddrs\x12\x1b\n" +
+	"\tspiffe_id\x18\x05 \x01(\tR\bspiffeId\x12#\n" +
+	"\rvalidity_days\x18\x06 \x01(\x03R\fvalidityDays\"\x94\x02\n" +
+	"\n" +
+	"IssuedCert\x12\x16\n" +
+	"\x06serial\x18\x01 \x01(\tR\x06serial\x12\x17\n" +
+	"\apeer_id\x18\x02 \x01(\x03R\x06peerId\x12\x1f\n" +
+	"\vcommon_name\x18\x03 \x01(\tR\n" +
+	"commonName\x12\x1b\n" +
+	"\tspiffe_id\x18\x04 \x01(\tR\bspiffeId\x12\x19\n" +
+	"\bcert_pem\x18\x05 \x01(\tR\acertPem\x12\x17\n" +
+	"\akey_pem\x18\x06 \x01(\tR\x06keyPem\x12\x15\n" +
+	"\x06ca_pem\x18\a \x01(\tR\x05caPem\x12&\n" +
+	"\x0fnot_before_unix\x18\b \x01(\x03R\rnotBeforeUnix\x12$\n" +
+	"\x0enot_after_unix\x18\t \x01(\x03R\fnotAfterUnix\"=\n" +
+	"\x11IssueCertResponse\x12(\n" +
+	"\x04cert\x18\x01 \x01(\v2\x14.gmesh.v1.IssuedCertR\x04cert\"\xb1\x02\n" +
+	"\vCertSummary\x12\x16\n" +
+	"\x06serial\x18\x01 \x01(\tR\x06serial\x12\x17\n" +
+	"\apeer_id\x18\x02 \x01(\x03R\x06peerId\x12\x1f\n" +
+	"\vcommon_name\x18\x03 \x01(\tR\n" +
+	"commonName\x12\x1b\n" +
+	"\tspiffe_id\x18\x04 \x01(\tR\bspiffeId\x12&\n" +
+	"\x0fnot_before_unix\x18\x05 \x01(\x03R\rnotBeforeUnix\x12$\n" +
+	"\x0enot_after_unix\x18\x06 \x01(\x03R\fnotAfterUnix\x12\x18\n" +
+	"\arevoked\x18\a \x01(\bR\arevoked\x12&\n" +
+	"\x0frevoked_at_unix\x18\b \x01(\x03R\rrevokedAtUnix\x12#\n" +
+	"\rrevoke_reason\x18\t \x01(\tR\frevokeReason\"+\n" +
+	"\x10ListCertsRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\"@\n" +
+	"\x11ListCertsResponse\x12+\n" +
+	"\x05certs\x18\x01 \x03(\v2\x15.gmesh.v1.CertSummaryR\x05certs\"C\n" +
+	"\x11RevokeCertRequest\x12\x16\n" +
+	"\x06serial\x18\x01 \x01(\tR\x06serial\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x14\n" +
+	"\x12RevokeCertResponse\"\x14\n" +
+	"\x12ExportTrustRequest\"O\n" +
+	"\x13ExportTrustResponse\x12\x15\n" +
+	"\x06ca_pem\x18\x01 \x01(\tR\x05caPem\x12!\n" +
+	"\ftrust_domain\x18\x02 \x01(\tR\vtrustDomain*L\n" +
 	"\bPeerType\x12\x19\n" +
 	"\x15PEER_TYPE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPEER_TYPE_VM\x10\x01\x12\x13\n" +
@@ -5697,7 +6579,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fFW_PROTO_TCP\x10\x02\x12\x10\n" +
 	"\fFW_PROTO_UDP\x10\x03\x12\x11\n" +
 	"\rFW_PROTO_ICMP\x10\x04\x12\x13\n" +
-	"\x0fFW_PROTO_ICMPV6\x10\x052\xa7\x18\n" +
+	"\x0fFW_PROTO_ICMPV6\x10\x052\xc8\x1b\n" +
 	"\x05GMesh\x125\n" +
 	"\x04Join\x12\x15.gmesh.v1.JoinRequest\x1a\x16.gmesh.v1.JoinResponse\x128\n" +
 	"\x05Leave\x12\x16.gmesh.v1.LeaveRequest\x1a\x17.gmesh.v1.LeaveResponse\x12;\n" +
@@ -5743,7 +6625,14 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"ResetQuota\x12\x1b.gmesh.v1.ResetQuotaRequest\x1a\x1c.gmesh.v1.ResetQuotaResponse\x12S\n" +
 	"\x0eListPathStates\x12\x1f.gmesh.v1.ListPathStatesRequest\x1a .gmesh.v1.ListPathStatesResponse\x12M\n" +
 	"\fListPolicies\x12\x1d.gmesh.v1.ListPoliciesRequest\x1a\x1e.gmesh.v1.ListPoliciesResponse\x12S\n" +
-	"\x0eReloadPolicies\x12\x1f.gmesh.v1.ReloadPoliciesRequest\x1a .gmesh.v1.ReloadPoliciesResponseB4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
+	"\x0eReloadPolicies\x12\x1f.gmesh.v1.ReloadPoliciesRequest\x1a .gmesh.v1.ReloadPoliciesResponse\x12;\n" +
+	"\x06InitCA\x12\x17.gmesh.v1.InitCARequest\x1a\x18.gmesh.v1.InitCAResponse\x12A\n" +
+	"\bCAStatus\x12\x19.gmesh.v1.CAStatusRequest\x1a\x1a.gmesh.v1.CAStatusResponse\x12D\n" +
+	"\tIssueCert\x12\x1a.gmesh.v1.IssueCertRequest\x1a\x1b.gmesh.v1.IssueCertResponse\x12D\n" +
+	"\tListCerts\x12\x1a.gmesh.v1.ListCertsRequest\x1a\x1b.gmesh.v1.ListCertsResponse\x12G\n" +
+	"\n" +
+	"RevokeCert\x12\x1b.gmesh.v1.RevokeCertRequest\x1a\x1c.gmesh.v1.RevokeCertResponse\x12J\n" +
+	"\vExportTrust\x12\x1c.gmesh.v1.ExportTrustRequest\x1a\x1d.gmesh.v1.ExportTrustResponseB4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
 
 var (
 	file_gmesh_v1_gmesh_proto_rawDescOnce sync.Once
@@ -5758,7 +6647,7 @@ func file_gmesh_v1_gmesh_proto_rawDescGZIP() []byte {
 }
 
 var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 99)
 var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(PeerType)(0),                          // 0: gmesh.v1.PeerType
 	(PeerStatus)(0),                        // 1: gmesh.v1.PeerStatus
@@ -5850,132 +6739,160 @@ var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(*ListPoliciesResponse)(nil),           // 87: gmesh.v1.ListPoliciesResponse
 	(*ReloadPoliciesRequest)(nil),          // 88: gmesh.v1.ReloadPoliciesRequest
 	(*ReloadPoliciesResponse)(nil),         // 89: gmesh.v1.ReloadPoliciesResponse
-	(*HealthCheckResponse_PeerHealth)(nil), // 90: gmesh.v1.HealthCheckResponse.PeerHealth
-	nil,                                    // 91: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	(*InitCARequest)(nil),                  // 90: gmesh.v1.InitCARequest
+	(*InitCAResponse)(nil),                 // 91: gmesh.v1.InitCAResponse
+	(*CAStatusRequest)(nil),                // 92: gmesh.v1.CAStatusRequest
+	(*CAStatusResponse)(nil),               // 93: gmesh.v1.CAStatusResponse
+	(*IssueCertRequest)(nil),               // 94: gmesh.v1.IssueCertRequest
+	(*IssuedCert)(nil),                     // 95: gmesh.v1.IssuedCert
+	(*IssueCertResponse)(nil),              // 96: gmesh.v1.IssueCertResponse
+	(*CertSummary)(nil),                    // 97: gmesh.v1.CertSummary
+	(*ListCertsRequest)(nil),               // 98: gmesh.v1.ListCertsRequest
+	(*ListCertsResponse)(nil),              // 99: gmesh.v1.ListCertsResponse
+	(*RevokeCertRequest)(nil),              // 100: gmesh.v1.RevokeCertRequest
+	(*RevokeCertResponse)(nil),             // 101: gmesh.v1.RevokeCertResponse
+	(*ExportTrustRequest)(nil),             // 102: gmesh.v1.ExportTrustRequest
+	(*ExportTrustResponse)(nil),            // 103: gmesh.v1.ExportTrustResponse
+	(*HealthCheckResponse_PeerHealth)(nil), // 104: gmesh.v1.HealthCheckResponse.PeerHealth
+	nil,                                    // 105: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
 }
 var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
-	0,  // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
-	1,  // 1: gmesh.v1.Peer.status:type_name -> gmesh.v1.PeerStatus
-	2,  // 2: gmesh.v1.Peer.nat_type:type_name -> gmesh.v1.NATType
-	3,  // 3: gmesh.v1.Peer.method:type_name -> gmesh.v1.ConnectionMethod
-	2,  // 4: gmesh.v1.NATInfo.nat_type:type_name -> gmesh.v1.NATType
-	8,  // 5: gmesh.v1.JoinResponse.nat:type_name -> gmesh.v1.NATInfo
-	8,  // 6: gmesh.v1.StatusResponse.nat:type_name -> gmesh.v1.NATInfo
-	7,  // 7: gmesh.v1.StatusResponse.peers:type_name -> gmesh.v1.Peer
-	8,  // 8: gmesh.v1.AddPeerRequest.remote_nat:type_name -> gmesh.v1.NATInfo
-	3,  // 9: gmesh.v1.AddPeerRequest.force_method:type_name -> gmesh.v1.ConnectionMethod
-	7,  // 10: gmesh.v1.AddPeerResponse.peer:type_name -> gmesh.v1.Peer
-	7,  // 11: gmesh.v1.UpdatePeerResponse.peer:type_name -> gmesh.v1.Peer
-	7,  // 12: gmesh.v1.ListPeersResponse.peers:type_name -> gmesh.v1.Peer
-	7,  // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
-	8,  // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
-	3,  // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
-	90, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
-	7,  // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
-	5,  // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
-	6,  // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
-	41, // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
-	41, // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
-	91, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
-	50, // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
-	50, // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
-	50, // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
-	50, // 26: gmesh.v1.ListEgressProfilesResponse.profiles:type_name -> gmesh.v1.EgressProfile
-	62, // 27: gmesh.v1.CreateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
-	62, // 28: gmesh.v1.UpdateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
-	62, // 29: gmesh.v1.IngressProfileResponse.profile:type_name -> gmesh.v1.IngressProfile
-	62, // 30: gmesh.v1.ListIngressProfilesResponse.profiles:type_name -> gmesh.v1.IngressProfile
-	70, // 31: gmesh.v1.CreateQuotaRequest.quota:type_name -> gmesh.v1.Quota
-	70, // 32: gmesh.v1.UpdateQuotaRequest.quota:type_name -> gmesh.v1.Quota
-	70, // 33: gmesh.v1.QuotaResponse.quota:type_name -> gmesh.v1.Quota
-	70, // 34: gmesh.v1.ListQuotasResponse.quotas:type_name -> gmesh.v1.Quota
-	70, // 35: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
-	82, // 36: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
-	85, // 37: gmesh.v1.ListPoliciesResponse.policies:type_name -> gmesh.v1.Policy
-	4,  // 38: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
-	9,  // 39: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
-	11, // 40: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
-	13, // 41: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
-	15, // 42: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
-	17, // 43: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
-	19, // 44: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
-	21, // 45: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
-	23, // 46: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
-	25, // 47: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
-	27, // 48: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
-	29, // 49: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
-	31, // 50: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
-	33, // 51: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
-	35, // 52: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
-	37, // 53: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
-	39, // 54: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
-	42, // 55: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
-	44, // 56: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
-	46, // 57: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
-	48, // 58: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
-	51, // 59: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
-	52, // 60: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
-	54, // 61: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
-	56, // 62: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
-	58, // 63: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
-	60, // 64: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
-	63, // 65: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
-	64, // 66: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
-	66, // 67: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
-	68, // 68: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
-	71, // 69: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
-	72, // 70: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
-	74, // 71: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
-	76, // 72: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
-	78, // 73: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
-	80, // 74: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
-	83, // 75: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
-	86, // 76: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
-	88, // 77: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
-	10, // 78: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
-	12, // 79: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
-	14, // 80: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
-	16, // 81: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
-	18, // 82: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
-	20, // 83: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
-	22, // 84: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
-	24, // 85: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
-	26, // 86: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
-	28, // 87: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
-	30, // 88: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
-	32, // 89: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
-	34, // 90: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
-	36, // 91: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
-	38, // 92: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
-	40, // 93: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
-	43, // 94: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
-	45, // 95: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
-	47, // 96: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
-	49, // 97: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
-	53, // 98: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	53, // 99: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	55, // 100: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
-	57, // 101: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
-	59, // 102: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
-	61, // 103: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
-	65, // 104: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	65, // 105: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	67, // 106: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
-	69, // 107: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
-	73, // 108: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
-	73, // 109: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
-	75, // 110: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
-	77, // 111: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
-	79, // 112: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
-	81, // 113: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
-	84, // 114: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
-	87, // 115: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
-	89, // 116: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
-	78, // [78:117] is the sub-list for method output_type
-	39, // [39:78] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	0,   // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
+	1,   // 1: gmesh.v1.Peer.status:type_name -> gmesh.v1.PeerStatus
+	2,   // 2: gmesh.v1.Peer.nat_type:type_name -> gmesh.v1.NATType
+	3,   // 3: gmesh.v1.Peer.method:type_name -> gmesh.v1.ConnectionMethod
+	2,   // 4: gmesh.v1.NATInfo.nat_type:type_name -> gmesh.v1.NATType
+	8,   // 5: gmesh.v1.JoinResponse.nat:type_name -> gmesh.v1.NATInfo
+	8,   // 6: gmesh.v1.StatusResponse.nat:type_name -> gmesh.v1.NATInfo
+	7,   // 7: gmesh.v1.StatusResponse.peers:type_name -> gmesh.v1.Peer
+	8,   // 8: gmesh.v1.AddPeerRequest.remote_nat:type_name -> gmesh.v1.NATInfo
+	3,   // 9: gmesh.v1.AddPeerRequest.force_method:type_name -> gmesh.v1.ConnectionMethod
+	7,   // 10: gmesh.v1.AddPeerResponse.peer:type_name -> gmesh.v1.Peer
+	7,   // 11: gmesh.v1.UpdatePeerResponse.peer:type_name -> gmesh.v1.Peer
+	7,   // 12: gmesh.v1.ListPeersResponse.peers:type_name -> gmesh.v1.Peer
+	7,   // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
+	8,   // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
+	3,   // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
+	104, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
+	7,   // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
+	5,   // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
+	6,   // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
+	41,  // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
+	41,  // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
+	105, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	50,  // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	50,  // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	50,  // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
+	50,  // 26: gmesh.v1.ListEgressProfilesResponse.profiles:type_name -> gmesh.v1.EgressProfile
+	62,  // 27: gmesh.v1.CreateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
+	62,  // 28: gmesh.v1.UpdateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
+	62,  // 29: gmesh.v1.IngressProfileResponse.profile:type_name -> gmesh.v1.IngressProfile
+	62,  // 30: gmesh.v1.ListIngressProfilesResponse.profiles:type_name -> gmesh.v1.IngressProfile
+	70,  // 31: gmesh.v1.CreateQuotaRequest.quota:type_name -> gmesh.v1.Quota
+	70,  // 32: gmesh.v1.UpdateQuotaRequest.quota:type_name -> gmesh.v1.Quota
+	70,  // 33: gmesh.v1.QuotaResponse.quota:type_name -> gmesh.v1.Quota
+	70,  // 34: gmesh.v1.ListQuotasResponse.quotas:type_name -> gmesh.v1.Quota
+	70,  // 35: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
+	82,  // 36: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
+	85,  // 37: gmesh.v1.ListPoliciesResponse.policies:type_name -> gmesh.v1.Policy
+	95,  // 38: gmesh.v1.IssueCertResponse.cert:type_name -> gmesh.v1.IssuedCert
+	97,  // 39: gmesh.v1.ListCertsResponse.certs:type_name -> gmesh.v1.CertSummary
+	4,   // 40: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
+	9,   // 41: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
+	11,  // 42: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
+	13,  // 43: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
+	15,  // 44: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
+	17,  // 45: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
+	19,  // 46: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
+	21,  // 47: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
+	23,  // 48: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
+	25,  // 49: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
+	27,  // 50: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
+	29,  // 51: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
+	31,  // 52: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
+	33,  // 53: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
+	35,  // 54: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
+	37,  // 55: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
+	39,  // 56: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
+	42,  // 57: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
+	44,  // 58: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
+	46,  // 59: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
+	48,  // 60: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
+	51,  // 61: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
+	52,  // 62: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
+	54,  // 63: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
+	56,  // 64: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
+	58,  // 65: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
+	60,  // 66: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
+	63,  // 67: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
+	64,  // 68: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
+	66,  // 69: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
+	68,  // 70: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
+	71,  // 71: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
+	72,  // 72: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
+	74,  // 73: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
+	76,  // 74: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
+	78,  // 75: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
+	80,  // 76: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
+	83,  // 77: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
+	86,  // 78: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
+	88,  // 79: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
+	90,  // 80: gmesh.v1.GMesh.InitCA:input_type -> gmesh.v1.InitCARequest
+	92,  // 81: gmesh.v1.GMesh.CAStatus:input_type -> gmesh.v1.CAStatusRequest
+	94,  // 82: gmesh.v1.GMesh.IssueCert:input_type -> gmesh.v1.IssueCertRequest
+	98,  // 83: gmesh.v1.GMesh.ListCerts:input_type -> gmesh.v1.ListCertsRequest
+	100, // 84: gmesh.v1.GMesh.RevokeCert:input_type -> gmesh.v1.RevokeCertRequest
+	102, // 85: gmesh.v1.GMesh.ExportTrust:input_type -> gmesh.v1.ExportTrustRequest
+	10,  // 86: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
+	12,  // 87: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
+	14,  // 88: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
+	16,  // 89: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
+	18,  // 90: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
+	20,  // 91: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
+	22,  // 92: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
+	24,  // 93: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
+	26,  // 94: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
+	28,  // 95: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
+	30,  // 96: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
+	32,  // 97: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
+	34,  // 98: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
+	36,  // 99: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
+	38,  // 100: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
+	40,  // 101: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
+	43,  // 102: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
+	45,  // 103: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
+	47,  // 104: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
+	49,  // 105: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
+	53,  // 106: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	53,  // 107: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	55,  // 108: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
+	57,  // 109: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
+	59,  // 110: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
+	61,  // 111: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
+	65,  // 112: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	65,  // 113: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	67,  // 114: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
+	69,  // 115: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
+	73,  // 116: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
+	73,  // 117: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
+	75,  // 118: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
+	77,  // 119: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
+	79,  // 120: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
+	81,  // 121: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
+	84,  // 122: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
+	87,  // 123: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
+	89,  // 124: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
+	91,  // 125: gmesh.v1.GMesh.InitCA:output_type -> gmesh.v1.InitCAResponse
+	93,  // 126: gmesh.v1.GMesh.CAStatus:output_type -> gmesh.v1.CAStatusResponse
+	96,  // 127: gmesh.v1.GMesh.IssueCert:output_type -> gmesh.v1.IssueCertResponse
+	99,  // 128: gmesh.v1.GMesh.ListCerts:output_type -> gmesh.v1.ListCertsResponse
+	101, // 129: gmesh.v1.GMesh.RevokeCert:output_type -> gmesh.v1.RevokeCertResponse
+	103, // 130: gmesh.v1.GMesh.ExportTrust:output_type -> gmesh.v1.ExportTrustResponse
+	86,  // [86:131] is the sub-list for method output_type
+	41,  // [41:86] is the sub-list for method input_type
+	41,  // [41:41] is the sub-list for extension type_name
+	41,  // [41:41] is the sub-list for extension extendee
+	0,   // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_gmesh_v1_gmesh_proto_init() }
@@ -5989,7 +6906,7 @@ func file_gmesh_v1_gmesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gmesh_v1_gmesh_proto_rawDesc), len(file_gmesh_v1_gmesh_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   85,
+			NumMessages:   99,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -24,6 +24,18 @@ type Config struct {
 	Audit     AuditConfig     `yaml:"audit"`
 	GeoIP     GeoIPConfig     `yaml:"geoip"`
 	Policies  PoliciesConfig  `yaml:"policies"`
+	MTLS      MTLSConfig      `yaml:"mtls"`
+}
+
+// MTLSConfig controls the Phase-20 embedded CA.
+type MTLSConfig struct {
+	// Dir is the CA root directory: ca.crt, ca.key, issued/, revoked.json.
+	// Leave empty to disable the CA — mTLS RPCs will return
+	// FailedPrecondition.
+	Dir string `yaml:"dir"`
+	// TrustDomain used at first InitCA. If a CA already exists on disk
+	// its existing trust_domain wins regardless of this setting.
+	TrustDomain string `yaml:"trust_domain"`
 }
 
 // GeoIPConfig controls the GeoIP resolver used by egress profiles with

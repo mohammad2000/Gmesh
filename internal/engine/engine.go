@@ -22,6 +22,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/geoip"
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
+	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
@@ -63,6 +64,7 @@ type Engine struct {
 	PathMon   *pathmon.Monitor
 	GeoIP     geoip.Resolver
 	Policies  *policy.Engine
+	MTLS      mtls.Manager
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -106,6 +108,7 @@ type Options struct {
 	Quota     quota.Manager     // nil → detect (Linux or stub)
 	PathMon   *pathmon.Monitor  // nil → auto-built with platform prober
 	GeoIP     geoip.Resolver    // nil → empty stub (no GeoIP profiles allowed)
+	MTLS      mtls.Manager      // nil → construct from cfg.MTLS.Dir or disable
 }
 
 // New wires an Engine together.
@@ -198,6 +201,20 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	// same two-step pattern as quota.Switcher.
 	pol = policy.New(nil, logShim{log})
 
+	var mm mtls.Manager
+	if opts.MTLS != nil {
+		mm = opts.MTLS
+	} else if cfg.MTLS.Dir != "" {
+		lm := mtls.NewLinux(log, cfg.MTLS.Dir)
+		// Best-effort open — a missing CA on first boot is not fatal; the
+		// operator calls InitCA when ready.
+		if err := lm.Open(); err != nil && err != mtls.ErrNotInitialised {
+			log.Warn("mtls Open failed — CA disabled until operator runs InitCA",
+				"dir", cfg.MTLS.Dir, "error", err)
+		}
+		mm = lm
+	}
+
 	gi := opts.GeoIP
 	if gi == nil {
 		if path := cfg.GeoIP.CIDRFile; path != "" {
@@ -233,6 +250,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		PathMon:       pm,
 		GeoIP:         gi,
 		Policies:      pol,
+		MTLS:          mm,
 		Store:         store,
 		Events:        bus,
 		relaySessions:        make(map[int64]*relay.Session),

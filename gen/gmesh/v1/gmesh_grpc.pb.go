@@ -58,6 +58,12 @@ const (
 	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
 	GMesh_ListPolicies_FullMethodName         = "/gmesh.v1.GMesh/ListPolicies"
 	GMesh_ReloadPolicies_FullMethodName       = "/gmesh.v1.GMesh/ReloadPolicies"
+	GMesh_InitCA_FullMethodName               = "/gmesh.v1.GMesh/InitCA"
+	GMesh_CAStatus_FullMethodName             = "/gmesh.v1.GMesh/CAStatus"
+	GMesh_IssueCert_FullMethodName            = "/gmesh.v1.GMesh/IssueCert"
+	GMesh_ListCerts_FullMethodName            = "/gmesh.v1.GMesh/ListCerts"
+	GMesh_RevokeCert_FullMethodName           = "/gmesh.v1.GMesh/RevokeCert"
+	GMesh_ExportTrust_FullMethodName          = "/gmesh.v1.GMesh/ExportTrust"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -139,6 +145,16 @@ type GMeshClient interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error)
+	// ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
+	// Small embedded CA: bootstrap once per mesh, issue short-lived peer
+	// certs with SPIFFE IDs, track revocations. The root cert can be
+	// handed to any peer that wants to terminate or validate TLS.
+	InitCA(ctx context.Context, in *InitCARequest, opts ...grpc.CallOption) (*InitCAResponse, error)
+	CAStatus(ctx context.Context, in *CAStatusRequest, opts ...grpc.CallOption) (*CAStatusResponse, error)
+	IssueCert(ctx context.Context, in *IssueCertRequest, opts ...grpc.CallOption) (*IssueCertResponse, error)
+	ListCerts(ctx context.Context, in *ListCertsRequest, opts ...grpc.CallOption) (*ListCertsResponse, error)
+	RevokeCert(ctx context.Context, in *RevokeCertRequest, opts ...grpc.CallOption) (*RevokeCertResponse, error)
+	ExportTrust(ctx context.Context, in *ExportTrustRequest, opts ...grpc.CallOption) (*ExportTrustResponse, error)
 }
 
 type gMeshClient struct {
@@ -548,6 +564,66 @@ func (c *gMeshClient) ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequ
 	return out, nil
 }
 
+func (c *gMeshClient) InitCA(ctx context.Context, in *InitCARequest, opts ...grpc.CallOption) (*InitCAResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitCAResponse)
+	err := c.cc.Invoke(ctx, GMesh_InitCA_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) CAStatus(ctx context.Context, in *CAStatusRequest, opts ...grpc.CallOption) (*CAStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CAStatusResponse)
+	err := c.cc.Invoke(ctx, GMesh_CAStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) IssueCert(ctx context.Context, in *IssueCertRequest, opts ...grpc.CallOption) (*IssueCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IssueCertResponse)
+	err := c.cc.Invoke(ctx, GMesh_IssueCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListCerts(ctx context.Context, in *ListCertsRequest, opts ...grpc.CallOption) (*ListCertsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCertsResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListCerts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) RevokeCert(ctx context.Context, in *RevokeCertRequest, opts ...grpc.CallOption) (*RevokeCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeCertResponse)
+	err := c.cc.Invoke(ctx, GMesh_RevokeCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ExportTrust(ctx context.Context, in *ExportTrustRequest, opts ...grpc.CallOption) (*ExportTrustResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExportTrustResponse)
+	err := c.cc.Invoke(ctx, GMesh_ExportTrust_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -627,6 +703,16 @@ type GMeshServer interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error)
+	// ── mTLS / SPIFFE identity (Phase 20) ────────────────────────────────
+	// Small embedded CA: bootstrap once per mesh, issue short-lived peer
+	// certs with SPIFFE IDs, track revocations. The root cert can be
+	// handed to any peer that wants to terminate or validate TLS.
+	InitCA(context.Context, *InitCARequest) (*InitCAResponse, error)
+	CAStatus(context.Context, *CAStatusRequest) (*CAStatusResponse, error)
+	IssueCert(context.Context, *IssueCertRequest) (*IssueCertResponse, error)
+	ListCerts(context.Context, *ListCertsRequest) (*ListCertsResponse, error)
+	RevokeCert(context.Context, *RevokeCertRequest) (*RevokeCertResponse, error)
+	ExportTrust(context.Context, *ExportTrustRequest) (*ExportTrustResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -753,6 +839,24 @@ func (UnimplementedGMeshServer) ListPolicies(context.Context, *ListPoliciesReque
 }
 func (UnimplementedGMeshServer) ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (UnimplementedGMeshServer) InitCA(context.Context, *InitCARequest) (*InitCAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitCA not implemented")
+}
+func (UnimplementedGMeshServer) CAStatus(context.Context, *CAStatusRequest) (*CAStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CAStatus not implemented")
+}
+func (UnimplementedGMeshServer) IssueCert(context.Context, *IssueCertRequest) (*IssueCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IssueCert not implemented")
+}
+func (UnimplementedGMeshServer) ListCerts(context.Context, *ListCertsRequest) (*ListCertsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListCerts not implemented")
+}
+func (UnimplementedGMeshServer) RevokeCert(context.Context, *RevokeCertRequest) (*RevokeCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeCert not implemented")
+}
+func (UnimplementedGMeshServer) ExportTrust(context.Context, *ExportTrustRequest) (*ExportTrustResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExportTrust not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -1470,6 +1574,114 @@ func _GMesh_ReloadPolicies_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_InitCA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitCARequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).InitCA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_InitCA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).InitCA(ctx, req.(*InitCARequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_CAStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CAStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).CAStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_CAStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).CAStatus(ctx, req.(*CAStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_IssueCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IssueCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).IssueCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_IssueCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).IssueCert(ctx, req.(*IssueCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListCerts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCertsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListCerts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListCerts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListCerts(ctx, req.(*ListCertsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_RevokeCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).RevokeCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_RevokeCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).RevokeCert(ctx, req.(*RevokeCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ExportTrust_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportTrustRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ExportTrust(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ExportTrust_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ExportTrust(ctx, req.(*ExportTrustRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1628,6 +1840,30 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReloadPolicies",
 			Handler:    _GMesh_ReloadPolicies_Handler,
+		},
+		{
+			MethodName: "InitCA",
+			Handler:    _GMesh_InitCA_Handler,
+		},
+		{
+			MethodName: "CAStatus",
+			Handler:    _GMesh_CAStatus_Handler,
+		},
+		{
+			MethodName: "IssueCert",
+			Handler:    _GMesh_IssueCert_Handler,
+		},
+		{
+			MethodName: "ListCerts",
+			Handler:    _GMesh_ListCerts_Handler,
+		},
+		{
+			MethodName: "RevokeCert",
+			Handler:    _GMesh_RevokeCert_Handler,
+		},
+		{
+			MethodName: "ExportTrust",
+			Handler:    _GMesh_ExportTrust_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
