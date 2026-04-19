@@ -41,7 +41,11 @@ func main() {
 		"socket", cfg.Socket.Path,
 	)
 
-	eng := engine.New(cfg)
+	eng, err := engine.New(cfg, engine.Options{Log: log})
+	if err != nil {
+		log.Error("engine init failed", "error", err)
+		os.Exit(1)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
