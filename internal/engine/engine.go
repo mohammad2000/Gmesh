@@ -24,35 +24,44 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
 )
 
+// Responder interface decouples engine from internal/nat.Responder for tests.
+type Responder interface {
+	Start(ctx context.Context) error
+	Stop()
+}
+
 // Engine is the central orchestrator.
 type Engine struct {
-	Config   *config.Config
-	Log      *slog.Logger
-	Peers    *peer.Registry
-	NAT      *nat.Discoverer
-	Trav     *traversal.Engine
-	WG       wireguard.Manager
-	Relay    relay.Client
-	Firewall firewall.Backend
-	Routing  routing.Manager
-	Store    *state.Store
+	Config    *config.Config
+	Log       *slog.Logger
+	Peers     *peer.Registry
+	NAT       *nat.Discoverer
+	Responder Responder
+	Trav      *traversal.Engine
+	WG        wireguard.Manager
+	Relay     relay.Client
+	Firewall  firewall.Backend
+	Routing   routing.Manager
+	Store     *state.Store
 
-	mu      sync.RWMutex
-	joined  bool
-	meshIP  string
-	iface   string
-	nodeID  string
-	pubKey  string
-	privKey string
+	mu        sync.RWMutex
+	joined    bool
+	meshIP    string
+	iface     string
+	nodeID    string
+	pubKey    string
+	privKey   string
 	keepalive time.Duration
 }
 
 // Options bundles the optional dependencies that vary between tests and
 // production.
 type Options struct {
-	Log   *slog.Logger
-	WG    wireguard.Manager // nil → auto-detect via wireguard.New
-	Store *state.Store      // nil → auto-create from cfg.State
+	Log       *slog.Logger
+	WG        wireguard.Manager // nil → auto-detect via wireguard.New
+	Store     *state.Store      // nil → auto-create from cfg.State
+	Responder Responder         // nil → real nat.Responder
+	NAT       *nat.Discoverer   // nil → default with configured STUN servers
 }
 
 // New wires an Engine together.
@@ -80,12 +89,32 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		store = s
 	}
 
+	discoverer := opts.NAT
+	if discoverer == nil {
+		discoverer = nat.NewDiscoverer(
+			cfg.NAT.STUNServers,
+			time.Duration(cfg.NAT.DiscoveryTimeoutS)*time.Second,
+			time.Duration(cfg.NAT.CacheTTLSeconds)*time.Second,
+		)
+		discoverer.Log = log
+	}
+
+	responder := opts.Responder
+	if responder == nil {
+		responder = nat.NewResponder(cfg.NAT.UDPResponderPort, log)
+	}
+
+	trav := traversal.NewEngine()
+	trav.Register(&traversal.DirectStrategy{Probe: &traversal.UDPProber{}, Log: log})
+	trav.Register(&traversal.UPnPStrategy{InternalPort: cfg.WireGuard.ListenPort, Log: log})
+
 	e := &Engine{
 		Config:    cfg,
 		Log:       log,
 		Peers:     peer.NewRegistry(),
-		NAT:       nat.NewDiscoverer(cfg.NAT.STUNServers, time.Duration(cfg.NAT.DiscoveryTimeoutS)*time.Second, time.Duration(cfg.NAT.CacheTTLSeconds)*time.Second),
-		Trav:      traversal.NewEngine(),
+		NAT:       discoverer,
+		Responder: responder,
+		Trav:      trav,
 		WG:        wg,
 		Routing:   routing.NewInMemory(),
 		Store:     store,
@@ -138,17 +167,35 @@ func (e *Engine) rehydrate() error {
 
 // Start begins background loops. Canceling ctx stops them.
 func (e *Engine) Start(ctx context.Context) error {
-	_ = ctx
-	// TODO: health monitor, NAT refresher, event dispatcher.
+	if e.Responder != nil {
+		if err := e.Responder.Start(ctx); err != nil {
+			return fmt.Errorf("start udp responder: %w", err)
+		}
+	}
+	// TODO Phase 7: health monitor, NAT refresher, event dispatcher.
 	return nil
 }
 
 // Stop tears the engine down. Safe to call multiple times.
 func (e *Engine) Stop(_ context.Context) error {
+	if e.Responder != nil {
+		e.Responder.Stop()
+	}
 	if e.WG != nil {
 		_ = e.WG.Close()
 	}
 	return nil
+}
+
+// DiscoverNAT runs STUN-based NAT discovery (or returns cached result).
+func (e *Engine) DiscoverNAT(ctx context.Context, forceRefresh bool) (*nat.Info, error) {
+	return e.NAT.Discover(ctx, forceRefresh)
+}
+
+// HolePunch attempts the DIRECT strategy against remote. Richer hole-punch
+// methods (STUN-assisted, SimOpen, Birthday) land in Phase 3.
+func (e *Engine) HolePunch(ctx context.Context, pc *traversal.PeerContext) (*traversal.Outcome, []*traversal.Outcome, error) {
+	return e.Trav.Run(ctx, []traversal.Method{traversal.MethodDirect}, pc)
 }
 
 // IsJoined reports whether Join() has been called.

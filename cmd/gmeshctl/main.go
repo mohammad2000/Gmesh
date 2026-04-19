@@ -40,6 +40,8 @@ func main() {
 		joinCmd(),
 		leaveCmd(),
 		peerCmd(),
+		natCmd(),
+		holePunchCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -346,6 +348,83 @@ func peerShowCmd() *cobra.Command {
 	}
 	cmd.Flags().Int64Var(&id, "id", 0, "peer ID")
 	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+// ── NAT + Hole-punch ──────────────────────────────────────────────────
+
+func natCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "nat", Short: "NAT discovery + inspection"}
+	discover := &cobra.Command{
+		Use:   "discover",
+		Short: "Run STUN-based NAT discovery",
+	}
+	var force bool
+	discover.Flags().BoolVar(&force, "force", false, "bypass the cache")
+	discover.RunE = func(_ *cobra.Command, _ []string) error {
+		c, close_, err := dial()
+		if err != nil {
+			return err
+		}
+		defer close_()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		resp, err := c.DiscoverNAT(ctx, &gmeshv1.DiscoverNATRequest{ForceRefresh: force})
+		if err != nil {
+			return fmt.Errorf("discover nat rpc: %w", err)
+		}
+		if outputJSON {
+			return writeJSON(resp.Nat)
+		}
+		fmt.Printf("nat_type:            %s\n", resp.Nat.NatType)
+		fmt.Printf("external_ip:         %s\n", resp.Nat.ExternalIp)
+		fmt.Printf("external_port:       %d\n", resp.Nat.ExternalPort)
+		fmt.Printf("supports_hole_punch: %v\n", resp.Nat.SupportsHolePunch)
+		fmt.Printf("is_relay_capable:    %v\n", resp.Nat.IsRelayCapable)
+		return nil
+	}
+	cmd.AddCommand(discover)
+	return cmd
+}
+
+func holePunchCmd() *cobra.Command {
+	var (
+		peerID   int64
+		endpoint string
+	)
+	cmd := &cobra.Command{
+		Use:   "hole-punch",
+		Short: "Attempt a hole-punch against --endpoint (Phase 2: DIRECT only)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.HolePunch(ctx, &gmeshv1.HolePunchRequest{
+				PeerId:         peerID,
+				RemoteEndpoint: endpoint,
+			})
+			if err != nil {
+				return fmt.Errorf("hole punch rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("success:     %v\n", resp.Success)
+			fmt.Printf("method_used: %s\n", resp.MethodUsed)
+			fmt.Printf("latency_ms:  %d\n", resp.LatencyMs)
+			if resp.Error != "" {
+				fmt.Printf("error:       %s\n", resp.Error)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID (optional)")
+	cmd.Flags().StringVar(&endpoint, "endpoint", "", "remote host:port")
+	_ = cmd.MarkFlagRequired("endpoint")
 	return cmd
 }
 

@@ -18,7 +18,9 @@ import (
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/engine"
+	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/traversal"
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
@@ -229,6 +231,51 @@ func (s *Server) GetPeerStats(ctx context.Context, in *gmeshv1.GetPeerStatsReque
 		return nil, status.Error(codes.NotFound, "peer not found")
 	}
 	return &gmeshv1.GetPeerStatsResponse{Peer: peerToProto(p)}, nil
+}
+
+// ── NAT & traversal ────────────────────────────────────────────────────
+
+// DiscoverNAT runs STUN classification.
+func (s *Server) DiscoverNAT(ctx context.Context, in *gmeshv1.DiscoverNATRequest) (*gmeshv1.DiscoverNATResponse, error) {
+	info, err := s.Engine.DiscoverNAT(ctx, in.ForceRefresh)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "nat discover: %v", err)
+	}
+	return &gmeshv1.DiscoverNATResponse{Nat: natToProto(info)}, nil
+}
+
+// HolePunch currently just runs the DIRECT strategy against remote_endpoint.
+// Richer hole-punch methods land in Phase 3.
+func (s *Server) HolePunch(ctx context.Context, in *gmeshv1.HolePunchRequest) (*gmeshv1.HolePunchResponse, error) {
+	out, _, err := s.Engine.HolePunch(ctx, &traversal.PeerContext{
+		PeerID:         in.PeerId,
+		RemoteEndpoint: in.RemoteEndpoint,
+		FireAtUnixMS:   in.FireAtUnixMs,
+	})
+	if err != nil && out == nil {
+		return &gmeshv1.HolePunchResponse{Success: false, Error: err.Error()}, nil
+	}
+	resp := &gmeshv1.HolePunchResponse{
+		Success:    out.Success,
+		MethodUsed: gmeshv1.ConnectionMethod(out.Method),
+		LatencyMs:  out.LatencyMS,
+		Error:      out.Error,
+	}
+	return resp, nil
+}
+
+// natToProto converts an internal nat.Info to the wire format.
+func natToProto(i *nat.Info) *gmeshv1.NATInfo {
+	if i == nil {
+		return nil
+	}
+	return &gmeshv1.NATInfo{
+		NatType:           gmeshv1.NATType(i.Type),
+		ExternalIp:        i.ExternalIP,
+		ExternalPort:      uint32(i.ExternalPort),
+		SupportsHolePunch: i.SupportsHolePunch,
+		IsRelayCapable:    i.IsRelayCapable,
+	}
 }
 
 // peerToProto converts an internal peer.Peer to the wire format.

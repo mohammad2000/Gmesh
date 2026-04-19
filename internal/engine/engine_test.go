@@ -99,15 +99,22 @@ func setup(t *testing.T) (*Engine, *fakeWG) {
 	}
 	fw := newFakeWG()
 	eng, err := New(cfg, Options{
-		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		WG:    fw,
-		Store: s,
+		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		WG:        fw,
+		Store:     s,
+		Responder: noopResponder{},
 	})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
 	return eng, fw
 }
+
+// noopResponder is a no-op implementation of the Responder interface for tests.
+type noopResponder struct{}
+
+func (noopResponder) Start(_ context.Context) error { return nil }
+func (noopResponder) Stop()                         {}
 
 func TestJoinLeaveRoundtrip(t *testing.T) {
 	eng, fw := setup(t)
@@ -215,7 +222,7 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 	fw := newFakeWG()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	eng1, err := New(cfg, Options{Log: log, WG: fw, Store: s})
+	eng1, err := New(cfg, Options{Log: log, WG: fw, Store: s, Responder: noopResponder{}})
 	if err != nil {
 		t.Fatalf("engine.New: %v", err)
 	}
@@ -229,7 +236,7 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 
 	// Restart: new engine with same store + new fake WG (state should rehydrate the peer).
 	fw2 := newFakeWG()
-	eng2, err := New(cfg, Options{Log: log, WG: fw2, Store: s})
+	eng2, err := New(cfg, Options{Log: log, WG: fw2, Store: s, Responder: noopResponder{}})
 	if err != nil {
 		t.Fatalf("engine.New restart: %v", err)
 	}
