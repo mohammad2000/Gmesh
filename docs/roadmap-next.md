@@ -10,20 +10,21 @@ below land on top of a stable gmesh.
 ## Delivery order
 
 ```
-Phase 11  Egress Profile          ─┐
-Phase 12  Ingress Profile          ├─  Tier 1: makes the 4 base scenarios possible
-Phase 13  Quota Manager           ─┘
-Phase 14  Path Monitor (active)   ─┐
-Phase 15  GeoIP Resolver           ├─  Tier 2: intelligent routing
-Phase 16  A/B Traffic Splitter     │
-Phase 17  Policy Engine (DSL)     ─┘
+Phase 11  Egress Profile          ✅ v0.4.0
+Phase 12  Ingress Profile          ✅ v0.4.0
+Phase 13  Quota Manager            ✅ v0.4.0
+Phase 13.5 Quota hard-stop + auto_rollback   ✅ v0.5.0
+Phase 14  Path Monitor (active)    ✅ v0.5.0   — includes auto-failover listener
+Phase 15  GeoIP Resolver           ✅ v0.6.0
+Phase 16  A/B Traffic Splitter     ✅ v0.6.0
+Phase 17  Policy Engine (skeleton) ✅ v0.6.0   — YAML + debounce
 Phase 18  eBPF L7 Classifier      ─┐
 Phase 19  Onion Circuit Manager    ├─  Tier 3: advanced features
 Phase 20  Zero-Trust mTLS          │
 Phase 21  Connection Anomaly      ─┘
 Phase 22  AI Topology Optimizer    — research track
 Phase 23  Bandwidth Marketplace    — product track (separate)
-Phase 10  GritivaCore migration    — done last, after Tier 1 is validated
+Phase 10  GritivaCore migration    — done last, after Tier 2 is validated
 ```
 
 ## Design decisions locked in

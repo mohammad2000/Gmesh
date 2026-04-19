@@ -87,6 +87,11 @@ service GMesh {
   // auto-syncs targets from the peer registry every 30s; this RPC is a
   // point-in-time snapshot of RTT, loss and up/down status.
   rpc ListPathStates (ListPathStatesRequest) returns (ListPathStatesResponse);
+
+  // ── Policies (Phase 17) ──────────────────────────────────────────────
+  // List the active policies and force a reload from disk.
+  rpc ListPolicies   (ListPoliciesRequest)   returns (ListPoliciesResponse);
+  rpc ReloadPolicies (ReloadPoliciesRequest) returns (ReloadPoliciesResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -390,12 +395,23 @@ message EgressProfile {
   // Exit
   int64            exit_peer_id    = 11;
 
-  // Phase 16 hook: load-balanced exit pool
+  // Phase 16: weighted exit pool. If exit_pool is non-empty, the Linux
+  // backend installs per-weight mark rules and the packet's numgen
+  // decides which exit peer it's routed to. When exit_pool is empty
+  // exit_peer_id is used directly.
   repeated int64   exit_pool       = 12;
-  repeated int32   exit_weights    = 13;  // same length; sums to 100
+  repeated int32   exit_weights    = 13;  // same length; weights need
+                                          // not sum to anything in
+                                          // particular — gmesh normalises
 
   int64            created_at_unix = 14;
   int64            updated_at_unix = 15;
+
+  // Phase 14: backup_exit_peer_id for path-monitor auto-failover. When
+  // pathmon publishes path_down for exit_peer_id, the engine's listener
+  // swaps to this peer. Zero disables failover. Independent of the
+  // quota BackupProfileID which is budget-driven, not health-driven.
+  int64            backup_exit_peer_id = 16;
 }
 
 message CreateEgressProfileRequest { EgressProfile profile = 1; }
@@ -498,6 +514,16 @@ message Quota {
   // matching traffic until the period rolls over or the quota is reset.
   // Default false keeps stop_at event-only so operators can decide.
   bool   hard_stop          = 19;
+
+  // auto_rollback restores the primary profile's exit_peer_id on period
+  // rollover or explicit reset when a shift happened during the period.
+  // Requires backup_profile_id to be meaningful. Default false leaves
+  // the profile on the backup until an operator reverts it.
+  bool   auto_rollback      = 20;
+
+  // Server-managed: previous exit_peer_id captured at shift time so
+  // auto_rollback can revert. 0 when no shift is active.
+  int64  shifted_from_peer_id = 21;
 }
 
 message CreateQuotaRequest { Quota quota = 1; }
@@ -534,3 +560,28 @@ message PathState {
 
 message ListPathStatesRequest  {}
 message ListPathStatesResponse { repeated PathState states = 1; }
+
+// ── Policies (Phase 17) ───────────────────────────────────────────────
+
+message Policy {
+  string name        = 1;
+  string source      = 2;
+  string event       = 3;  // path_up | path_down | quota_warning | quota_shift | quota_stop
+  int64  peer_id     = 4;
+  int64  profile_id  = 5;
+  int32  debounce_s  = 6;
+  int32  min_count   = 7;
+  string action      = 8;  // swap_exit_peer | enable_profile | disable_profile | reset_quota
+  int64  action_profile_id = 9;
+  int64  action_to_peer_id = 10;
+  int64  action_quota_id   = 11;
+}
+
+message ListPoliciesRequest  {}
+message ListPoliciesResponse { repeated Policy policies = 1; }
+
+message ReloadPoliciesRequest  {}
+message ReloadPoliciesResponse {
+  int64 loaded = 1;
+  repeated string errors = 2;
+}

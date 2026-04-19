@@ -86,7 +86,9 @@ func TestProfileValidate(t *testing.T) {
 		{"bad protocol", Profile{Name: "x", ExitPeerID: 1, Protocol: "sctp"}, true},
 		{"ok tcp", Profile{Name: "x", ExitPeerID: 1, Protocol: "tcp"}, false},
 		{"ok any", Profile{Name: "x", ExitPeerID: 1, Protocol: "any"}, false},
-		{"ok pool", Profile{Name: "x", ExitPool: []int64{1, 2}}, false},
+		{"ok pool", Profile{Name: "x", ExitPool: []int64{1, 2}, ExitWeights: []int32{50, 50}}, false},
+		{"pool weights mismatch", Profile{Name: "x", ExitPool: []int64{1, 2}, ExitWeights: []int32{50}}, true},
+		{"pool zero weights", Profile{Name: "x", ExitPool: []int64{1, 2}, ExitWeights: []int32{0, 0}}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

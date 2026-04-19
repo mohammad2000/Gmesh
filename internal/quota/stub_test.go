@@ -33,18 +33,24 @@ func (c *collector) byType(t string) []Event {
 	return out
 }
 
-// switcherRecorder captures SwapExitPeer calls.
+// switcherRecorder captures SwapExitPeer calls and returns a scripted
+// previous-peer value so auto_rollback tests can assert the capture.
 type switcherRecorder struct {
-	mu    sync.Mutex
-	calls []struct{ profile, backup int64 }
-	err   error
+	mu          sync.Mutex
+	calls       []struct{ profile, backup int64 }
+	currentPeer int64 // what SwapExitPeer reports as prev; updated on swap
+	err         error
 }
 
-func (s *switcherRecorder) SwapExitPeer(_ context.Context, profile, backup int64) error {
+func (s *switcherRecorder) SwapExitPeer(_ context.Context, profile, backup int64) (int64, error) {
 	s.mu.Lock()
+	prev := s.currentPeer
 	s.calls = append(s.calls, struct{ profile, backup int64 }{profile, backup})
+	if s.err == nil {
+		s.currentPeer = backup
+	}
 	s.mu.Unlock()
-	return s.err
+	return prev, s.err
 }
 
 func (s *switcherRecorder) count() int {
@@ -220,6 +226,80 @@ func TestHardStopFalseStaysEventOnly(t *testing.T) {
 	}
 	if n := len(p.byType("quota_stop")); n != 1 {
 		t.Errorf("stop event missing: %d", n)
+	}
+}
+
+func TestAutoRollbackOnReset(t *testing.T) {
+	p := &collector{}
+	sw := &switcherRecorder{currentPeer: 7}
+	m := NewStub(silent(), p, sw)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "daily", LimitBytes: 1000,
+		ShiftAt: 0.9, BackupProfileID: 99, AutoRollback: true,
+	})
+	m.Reader().Set(10, 950)
+	_ = m.Tick(ctx)
+	if sw.count() != 1 {
+		t.Fatalf("shift did not swap: calls=%d", sw.count())
+	}
+	if got, _ := m.Get(1); got.ShiftedFromPeerID != 7 {
+		t.Errorf("captured prev = %d; want 7", got.ShiftedFromPeerID)
+	}
+	if err := m.Reset(ctx, 1); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if sw.count() != 2 {
+		t.Errorf("rollback did not swap: calls=%d", sw.count())
+	}
+	sw.mu.Lock()
+	last := sw.calls[len(sw.calls)-1]
+	sw.mu.Unlock()
+	if last.backup != 7 {
+		t.Errorf("rollback peer = %d; want 7", last.backup)
+	}
+	if got, _ := m.Get(1); got.ShiftedFromPeerID != 0 {
+		t.Errorf("ShiftedFromPeerID not cleared: %d", got.ShiftedFromPeerID)
+	}
+}
+
+func TestAutoRollbackOffLeavesShifted(t *testing.T) {
+	p := &collector{}
+	sw := &switcherRecorder{currentPeer: 7}
+	m := NewStub(silent(), p, sw)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "daily", LimitBytes: 1000,
+		ShiftAt: 0.9, BackupProfileID: 99, AutoRollback: false,
+	})
+	m.Reader().Set(10, 950)
+	_ = m.Tick(ctx)
+	if err := m.Reset(ctx, 1); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if sw.count() != 1 {
+		t.Errorf("extra swap after reset without AutoRollback: %d", sw.count())
+	}
+}
+
+func TestShiftDoesNotRepeatEveryTick(t *testing.T) {
+	p := &collector{}
+	sw := &switcherRecorder{currentPeer: 5}
+	m := NewStub(silent(), p, sw)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "daily", LimitBytes: 1000,
+		ShiftAt: 0.9, BackupProfileID: 99,
+	})
+	m.Reader().Set(10, 950)
+	for i := 0; i < 5; i++ {
+		_ = m.Tick(ctx)
+	}
+	if sw.count() != 1 {
+		t.Errorf("switcher called %d times across 5 ticks; want 1", sw.count())
 	}
 }
 

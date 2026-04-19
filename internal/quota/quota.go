@@ -85,6 +85,19 @@ type Quota struct {
 	// to do. Reset/rollover automatically unblocks.
 	HardStop bool
 
+	// AutoRollback, when set together with BackupProfileID, makes the
+	// evaluator restore the primary profile's exit_peer_id on period
+	// rollover or explicit Reset. The original exit peer is captured at
+	// the moment of shift so the rollback is a deterministic revert rather
+	// than a guess. Without this flag, a shifted profile stays on the
+	// backup exit until an operator updates it manually.
+	AutoRollback bool
+
+	// ShiftedFromPeerID is set by the Manager at shift time to remember
+	// the primary's original exit_peer_id. Zero when no shift is active.
+	// Not user-settable via RPC; it's server-managed state.
+	ShiftedFromPeerID int64
+
 	// Per-period latches so we emit edge events once.
 	WarnFired  bool
 	ShiftFired bool
@@ -152,9 +165,12 @@ type CounterReader interface {
 }
 
 // Switcher swaps an egress profile's exit_peer_id. The quota package
-// doesn't know about engine internals — it just calls this.
+// doesn't know about engine internals — it just calls this. The returned
+// prevPeerID is the profile's exit_peer_id BEFORE the swap, so callers
+// that want auto-rollback can remember it. Implementations that can't
+// read the previous peer may return 0 — rollback is best-effort.
 type Switcher interface {
-	SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) error
+	SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) (prevPeerID int64, err error)
 }
 
 // Enforcer installs/removes nftables DROP rules keyed by an egress

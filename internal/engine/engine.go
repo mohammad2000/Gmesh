@@ -19,11 +19,13 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
+	"github.com/mohammad2000/Gmesh/internal/geoip"
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/policy"
 	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/routing"
@@ -59,6 +61,8 @@ type Engine struct {
 	Events    *events.Bus
 	Monitor   *health.Monitor
 	PathMon   *pathmon.Monitor
+	GeoIP     geoip.Resolver
+	Policies  *policy.Engine
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -67,6 +71,13 @@ type Engine struct {
 	fwMu      sync.Mutex
 	fwRules   []firewall.Rule
 	fwDefault string
+
+	// exitFailoverOriginal remembers each egress profile's original
+	// exit_peer_id at the moment pathmon auto-failover kicked in, so the
+	// pathUp listener can restore it when the original peer comes back.
+	// Keyed by egress profile ID; value is the original peer ID.
+	failoverMu           sync.Mutex
+	exitFailoverOriginal map[int64]int64
 
 	mu        sync.RWMutex
 	joined    bool
@@ -94,6 +105,7 @@ type Options struct {
 	Ingress   ingress.Manager   // nil → detect (Linux or stub)
 	Quota     quota.Manager     // nil → detect (Linux or stub)
 	PathMon   *pathmon.Monitor  // nil → auto-built with platform prober
+	GeoIP     geoip.Resolver    // nil → empty stub (no GeoIP profiles allowed)
 }
 
 // New wires an Engine together.
@@ -181,6 +193,28 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		pm = pathmon.New(log, pathmon.Config{}, pathmon.NewPlatformProber(), &pathmonBridgePublisher{bus: bus})
 	}
 
+	var pol *policy.Engine
+	// Policy engine is constructed here but its Actor is wired below —
+	// same two-step pattern as quota.Switcher.
+	pol = policy.New(nil, logShim{log})
+
+	gi := opts.GeoIP
+	if gi == nil {
+		if path := cfg.GeoIP.CIDRFile; path != "" {
+			csv := geoip.NewCSV(path)
+			if err := csv.Load(); err != nil {
+				log.Warn("geoip CSV load failed — GeoIP profiles will be rejected",
+					"path", path, "error", err)
+				gi = geoip.NewStub()
+			} else {
+				gi = csv
+				log.Info("geoip CSV loaded", "path", path, "countries", len(csv.Countries()))
+			}
+		} else {
+			gi = geoip.NewStub()
+		}
+	}
+
 	e := &Engine{
 		Config:        cfg,
 		Log:           log,
@@ -197,11 +231,14 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Ingress:       ig,
 		Quota:         qu,
 		PathMon:       pm,
+		GeoIP:         gi,
+		Policies:      pol,
 		Store:         store,
 		Events:        bus,
-		relaySessions: make(map[int64]*relay.Session),
-		wsTunnels:     make(map[int64]*relay.WSTunnel),
-		keepalive:     time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
+		relaySessions:        make(map[int64]*relay.Session),
+		wsTunnels:            make(map[int64]*relay.WSTunnel),
+		exitFailoverOriginal: make(map[int64]int64),
+		keepalive:            time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
 	}
 
 	if err := e.rehydrate(); err != nil {
@@ -213,6 +250,17 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	// the Engine didn't exist yet.
 	if setter, ok := e.Quota.(quota.SwitcherSetter); ok {
 		setter.SetSwitcher(&quotaSwitcher{e: e})
+	}
+
+	// Same pattern for the policy Actor — engine depends on itself.
+	pol.Actor = &policyActor{e: e}
+	if cfg.Policies.Dir != "" {
+		ps, errs := policy.LoadDir(cfg.Policies.Dir)
+		for _, err := range errs {
+			log.Warn("policy load error", "error", err)
+		}
+		pol.Replace(ps)
+		log.Info("policies loaded", "count", len(ps), "dir", cfg.Policies.Dir)
 	}
 
 	return e, nil
@@ -277,6 +325,10 @@ func (e *Engine) Start(ctx context.Context) error {
 		// peers pick up probing on the NEXT syncPathTargets call. We keep
 		// that call lightweight enough to run every Monitor.Interval tick.
 		e.syncPathTargets()
+		// Register the auto-failover listener: on path_down for an exit
+		// peer, swap any egress profile pointing at it to its
+		// BackupExitPeerID; on path_up, restore.
+		e.PathMon.AddListener(e.onPathTransition)
 		go e.PathMon.Run(ctx)
 		go e.pathTargetSyncLoop(ctx)
 	}
@@ -295,6 +347,10 @@ func (e *Engine) Start(ctx context.Context) error {
 		}
 	}
 	go e.Monitor.Run(ctx)
+
+	if e.Policies != nil {
+		go e.runPolicyBus(ctx)
+	}
 
 	return nil
 }
@@ -461,9 +517,9 @@ func (q *quotaBridgePublisher) Publish(ev quota.Event) {
 // quotaSwitcher is the engine-backed Switcher wired after engine.New.
 type quotaSwitcher struct{ e *Engine }
 
-// SwapExitPeer implements quota.Switcher by updating the egress profile
-// in place with the backup peer ID.
-func (s *quotaSwitcher) SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) error {
+// SwapExitPeer implements quota.Switcher. Returns the profile's previous
+// exit_peer_id so the quota Manager can remember it for auto_rollback.
+func (s *quotaSwitcher) SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) (int64, error) {
 	profs := s.e.Egress.List()
 	var target *egress.Profile
 	for _, p := range profs {
@@ -473,11 +529,15 @@ func (s *quotaSwitcher) SwapExitPeer(ctx context.Context, egressProfileID, newEx
 		}
 	}
 	if target == nil {
-		return fmt.Errorf("quota switcher: egress profile %d not found", egressProfileID)
+		return 0, fmt.Errorf("quota switcher: egress profile %d not found", egressProfileID)
 	}
+	prev := target.ExitPeerID
 	target.ExitPeerID = newExitPeerID
 	_, err := s.e.UpdateEgress(ctx, target)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return prev, nil
 }
 
 // marshalJSONSilent returns json.Marshal(v) or nil on error.
@@ -544,9 +604,19 @@ func (e *Engine) ListIngress() []*ingress.Profile { return e.Ingress.List() }
 // CreateEgress installs an egress profile. Looks up the exit peer's mesh
 // IP from the registry so the manager can build the route table.
 func (e *Engine) CreateEgress(ctx context.Context, p *egress.Profile) (*egress.Profile, error) {
-	exitIP, err := e.exitPeerMeshIP(p.ExitPeerID)
-	if err != nil {
+	if err := e.resolveGeoIP(p); err != nil {
 		return nil, err
+	}
+	if err := e.resolveExitPool(p); err != nil {
+		return nil, err
+	}
+	exitIP := ""
+	if len(p.ExitPool) == 0 {
+		ip, err := e.exitPeerMeshIP(p.ExitPeerID)
+		if err != nil {
+			return nil, err
+		}
+		exitIP = ip
 	}
 	iface := e.Interface()
 	if iface == "" {
@@ -568,9 +638,19 @@ func (e *Engine) CreateEgress(ctx context.Context, p *egress.Profile) (*egress.P
 
 // UpdateEgress re-installs an existing profile.
 func (e *Engine) UpdateEgress(ctx context.Context, p *egress.Profile) (*egress.Profile, error) {
-	exitIP, err := e.exitPeerMeshIP(p.ExitPeerID)
-	if err != nil {
+	if err := e.resolveGeoIP(p); err != nil {
 		return nil, err
+	}
+	if err := e.resolveExitPool(p); err != nil {
+		return nil, err
+	}
+	exitIP := ""
+	if len(p.ExitPool) == 0 {
+		ip, err := e.exitPeerMeshIP(p.ExitPeerID)
+		if err != nil {
+			return nil, err
+		}
+		exitIP = ip
 	}
 	iface := e.Interface()
 	if iface == "" {
@@ -1142,6 +1222,117 @@ var (
 	ErrPeerNotFound  = errors.New("engine: peer not found")
 )
 
+// policyActor adapts the engine to policy.Actor. Kept thin — each
+// method just delegates to an existing Engine verb.
+type policyActor struct{ e *Engine }
+
+func (a *policyActor) SwapExitPeer(ctx context.Context, profileID, newExitPeerID int64) error {
+	profs := a.e.Egress.List()
+	for _, p := range profs {
+		if p.ID == profileID {
+			p.ExitPeerID = newExitPeerID
+			_, err := a.e.UpdateEgress(ctx, p)
+			return err
+		}
+	}
+	return fmt.Errorf("policy actor: egress profile %d not found", profileID)
+}
+
+func (a *policyActor) SetProfileEnabled(ctx context.Context, profileID int64, enabled bool) error {
+	profs := a.e.Egress.List()
+	for _, p := range profs {
+		if p.ID == profileID {
+			p.Enabled = enabled
+			_, err := a.e.UpdateEgress(ctx, p)
+			return err
+		}
+	}
+	return fmt.Errorf("policy actor: egress profile %d not found", profileID)
+}
+
+func (a *policyActor) ResetQuota(ctx context.Context, quotaID int64) error {
+	return a.e.ResetQuota(ctx, quotaID)
+}
+
+// logShim adapts slog.Logger to policy.Logger. Keeps the policy package
+// free of a slog dependency.
+type logShim struct{ l *slog.Logger }
+
+func (s logShim) Debug(msg string, args ...any) { s.l.Debug(msg, args...) }
+func (s logShim) Info(msg string, args ...any)  { s.l.Info(msg, args...) }
+func (s logShim) Warn(msg string, args ...any)  { s.l.Warn(msg, args...) }
+
+// runPolicyBus subscribes to the event bus and feeds each event into
+// the policy engine. Runs until ctx is canceled.
+func (e *Engine) runPolicyBus(ctx context.Context) {
+	if e.Events == nil || e.Policies == nil {
+		return
+	}
+	// Subscribe to every type — the policy engine filters by When.Event.
+	ch, cancel := e.Events.Subscribe(nil, 64)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			pe := policy.Event{
+				Type:      ev.Type,
+				PeerID:    ev.PeerID,
+				Timestamp: ev.Timestamp,
+			}
+			// Best-effort extract of egress_profile_id from quota / path events.
+			if len(ev.Payload) > 0 {
+				var probe struct {
+					EgressProfileID int64 `json:"egress_profile_id"`
+				}
+				if err := json.Unmarshal(ev.Payload, &probe); err == nil {
+					pe.ProfileID = probe.EgressProfileID
+				}
+			}
+			e.Policies.OnEvent(ctx, pe)
+		}
+	}
+}
+
+// resolveExitPool fills ExitPoolMeshIPs from the peer registry so the
+// Linux backend can install one route table per pool entry. No-op when
+// the profile isn't using a pool.
+func (e *Engine) resolveExitPool(p *egress.Profile) error {
+	if len(p.ExitPool) == 0 {
+		return nil
+	}
+	p.ExitPoolMeshIPs = make([]string, len(p.ExitPool))
+	for i, peerID := range p.ExitPool {
+		ip, err := e.exitPeerMeshIP(peerID)
+		if err != nil {
+			return fmt.Errorf("resolve exit_pool[%d] peer=%d: %w", i, peerID, err)
+		}
+		p.ExitPoolMeshIPs[i] = ip
+	}
+	return nil
+}
+
+// resolveGeoIP fills p.GeoIPCIDRs from p.GeoIPCountries using e.GeoIP.
+// No-op when the profile doesn't use GeoIP. Returns an error if any
+// requested country is unknown to the resolver.
+func (e *Engine) resolveGeoIP(p *egress.Profile) error {
+	if len(p.GeoIPCountries) == 0 {
+		return nil
+	}
+	if e.GeoIP == nil {
+		return fmt.Errorf("egress: geoip_countries set but no GeoIP resolver configured")
+	}
+	if err := geoip.Validate(e.GeoIP, p.GeoIPCountries); err != nil {
+		return err
+	}
+	p.GeoIPCIDRs = geoip.CollectCIDRs(e.GeoIP, p.GeoIPCountries)
+	return nil
+}
+
 // maskFromCIDR extracts "16" from "10.200.0.0/16". Returns "" if parse fails.
 func maskFromCIDR(cidr string) string {
 	for i := len(cidr) - 1; i >= 0; i-- {
@@ -1187,6 +1378,124 @@ func (e *Engine) pathTargetSyncLoop(ctx context.Context) {
 			return
 		case <-t.C:
 			e.syncPathTargets()
+		}
+	}
+}
+
+// onPathTransition is wired as a PathMon listener. It drives health-based
+// egress failover using the BackupExitPeerID field on each profile:
+//
+//   - path_down(peer=P): for every egress profile whose ExitPeerID==P
+//     AND BackupExitPeerID!=0, swap ExitPeerID to BackupExitPeerID.
+//   - path_up(peer=P):   for every egress profile whose BackupExitPeerID==P?
+//     No — we need the INVERSE: find profiles that previously shifted
+//     AWAY from P and restore them. We detect that as ExitPeerID!=P and
+//     BackupExitPeerID==current_exit_peer (i.e. the two values are
+//     currently swapped). To avoid ambiguity the restore keys on an
+//     internal markmap we keep: shiftedAway[profileID] = originalPeer.
+//
+// The listener runs synchronously in the pathmon goroutine; we kick off
+// the actual Swap in a background goroutine to keep the listener fast
+// and avoid deadlocks with engine mutexes during egress Update.
+func (e *Engine) onPathTransition(_ context.Context, ev pathmon.Event) {
+	go func() {
+		tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		switch ev.Type {
+		case "path_down":
+			e.failoverDown(tctx, ev.PeerID)
+		case "path_up":
+			e.failoverUp(tctx, ev.PeerID)
+		}
+	}()
+}
+
+// failoverDown swaps any egress profile currently routing through
+// peerID to its BackupExitPeerID. Remembers the previous peer in
+// Engine.exitFailoverOriginal for later restore.
+func (e *Engine) failoverDown(ctx context.Context, peerID int64) {
+	profs := e.Egress.List()
+	for _, p := range profs {
+		if p.ExitPeerID != peerID || p.BackupExitPeerID == 0 {
+			continue
+		}
+		e.failoverMu.Lock()
+		e.exitFailoverOriginal[p.ID] = peerID
+		e.failoverMu.Unlock()
+
+		p.ExitPeerID = p.BackupExitPeerID
+		if _, err := e.UpdateEgress(ctx, p); err != nil {
+			e.Log.Warn("path failover swap failed",
+				"profile", p.ID, "from_peer", peerID,
+				"to_peer", p.BackupExitPeerID, "error", err)
+			continue
+		}
+		e.Log.Info("path failover engaged",
+			"profile", p.ID, "from_peer", peerID,
+			"to_peer", p.BackupExitPeerID)
+		if e.Events != nil {
+			e.Events.Publish(events.Event{
+				Type:   "path_failover",
+				PeerID: peerID,
+				Payload: marshalJSONSilent(map[string]any{
+					"egress_profile_id": p.ID,
+					"from_peer":         peerID,
+					"to_peer":           p.BackupExitPeerID,
+					"reason":            "path_down",
+				}),
+			})
+		}
+	}
+}
+
+// failoverUp restores any egress profile that had been failed-over
+// AWAY from peerID, bringing ExitPeerID back to peerID.
+func (e *Engine) failoverUp(ctx context.Context, peerID int64) {
+	e.failoverMu.Lock()
+	restores := make([]int64, 0)
+	for profID, orig := range e.exitFailoverOriginal {
+		if orig == peerID {
+			restores = append(restores, profID)
+		}
+	}
+	e.failoverMu.Unlock()
+	if len(restores) == 0 {
+		return
+	}
+	profs := e.Egress.List()
+	byID := make(map[int64]*egress.Profile, len(profs))
+	for _, p := range profs {
+		byID[p.ID] = p
+	}
+	for _, pid := range restores {
+		p, ok := byID[pid]
+		if !ok {
+			e.failoverMu.Lock()
+			delete(e.exitFailoverOriginal, pid)
+			e.failoverMu.Unlock()
+			continue
+		}
+		p.ExitPeerID = peerID
+		if _, err := e.UpdateEgress(ctx, p); err != nil {
+			e.Log.Warn("path failover restore failed",
+				"profile", pid, "to_peer", peerID, "error", err)
+			continue
+		}
+		e.failoverMu.Lock()
+		delete(e.exitFailoverOriginal, pid)
+		e.failoverMu.Unlock()
+		e.Log.Info("path failover restored",
+			"profile", pid, "to_peer", peerID)
+		if e.Events != nil {
+			e.Events.Publish(events.Event{
+				Type:   "path_restore",
+				PeerID: peerID,
+				Payload: marshalJSONSilent(map[string]any{
+					"egress_profile_id": pid,
+					"to_peer":           peerID,
+					"reason":            "path_up",
+				}),
+			})
 		}
 	}
 }

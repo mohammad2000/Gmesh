@@ -55,11 +55,30 @@ type Profile struct {
 	DestCIDR       string
 	DestPorts      string
 
-	GeoIPCountries []string // Phase 15 hook
+	GeoIPCountries []string // Phase 15: ISO-3166 codes requested by user
+
+	// GeoIPCIDRs is the resolver's expansion of GeoIPCountries into
+	// concrete IPv4 CIDRs. The Linux backend installs these into a
+	// per-profile nft set and matches `ip daddr @geoip_<id>`. Engine
+	// populates this field before calling Create — the egress package
+	// doesn't know about geoip internals.
+	GeoIPCIDRs []string
 
 	ExitPeerID     int64
-	ExitPool       []int64 // Phase 16 hook
-	ExitWeights    []int32 // Phase 16 hook
+	ExitPool       []int64 // Phase 16: weighted pool of exit peers
+	ExitWeights    []int32 // Phase 16: same length as ExitPool
+
+	// ExitPoolMeshIPs is the engine-resolved mesh IP for each ExitPool
+	// entry (same length as ExitPool). The Linux backend needs these to
+	// install one route table per pool entry; the egress package does
+	// not know about the peer registry.
+	ExitPoolMeshIPs []string
+
+	// Phase 14: health-driven failover. When pathmon publishes path_down
+	// for ExitPeerID, the engine's listener swaps ExitPeerID to this
+	// BackupExitPeerID. Zero means no failover. path_up on the primary
+	// restores it automatically.
+	BackupExitPeerID int64
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -76,10 +95,40 @@ func (p *Profile) Validate() error {
 	if p.ExitPeerID == 0 && len(p.ExitPool) == 0 {
 		return errors.New("egress: exit_peer_id or exit_pool required")
 	}
+	if len(p.ExitPool) > 0 {
+		if len(p.ExitPool) != len(p.ExitWeights) {
+			return errors.New("egress: exit_pool and exit_weights must have matching length")
+		}
+		var sum int32
+		for _, w := range p.ExitWeights {
+			if w < 0 {
+				return errors.New("egress: exit_weights entries must be >= 0")
+			}
+			sum += w
+		}
+		if sum == 0 {
+			return errors.New("egress: exit_weights sum must be > 0")
+		}
+	}
 	if p.Protocol != "" && p.Protocol != "any" && p.Protocol != "tcp" && p.Protocol != "udp" {
 		return errors.New(`egress: protocol must be "", "any", "tcp", or "udp"`)
 	}
 	return nil
+}
+
+// PoolTableID returns a stable routing table number for the i-th entry
+// in a weighted exit pool of profile p. Uses a disjoint range
+// (200..999 + variant) so per-peer pool tables never collide with the
+// single-exit table space (100..199).
+func PoolTableID(profileID int64, index int) int {
+	return 200 + int(profileID%500)*2 + index%2
+}
+
+// PoolFwMark returns a stable fwmark for the i-th pool entry. Uses the
+// existing egress-mark space but with a sub-byte offset so the per-pool
+// marks are distinct from the profile's headline mark.
+func PoolFwMark(profileID int64, index int) uint32 {
+	return FwMark(profileID) | (uint32(index)+1)<<16
 }
 
 // Source describes the match for logging + diff.

@@ -52,6 +52,7 @@ func main() {
 		ingressCmd(),
 		quotaCmd(),
 		pathCmd(),
+		policyCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -911,10 +912,14 @@ func egressCmd() *cobra.Command {
 func egressCreateCmd() *cobra.Command {
 	var (
 		id, exitPeer, sourceScope int64
+		backupExitPeer            int64
 		name, sourceCIDR, proto   string
 		destCIDR, destPorts       string
 		priority                  int32
 		enabled                   bool
+		exitPool                  []int64
+		exitWeights               []int32
+		geoipCountries            []string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -932,7 +937,11 @@ func egressCreateCmd() *cobra.Command {
 					Id: id, Name: name, Enabled: enabled, Priority: priority,
 					SourceScopeId: sourceScope, SourceCidr: sourceCIDR,
 					Protocol: proto, DestCidr: destCIDR, DestPorts: destPorts,
-					ExitPeerId: exitPeer,
+					ExitPeerId:       exitPeer,
+					BackupExitPeerId: backupExitPeer,
+					ExitPool:         exitPool,
+					ExitWeights:      exitWeights,
+					GeoipCountries:   geoipCountries,
 				},
 			})
 			if err != nil {
@@ -955,10 +964,13 @@ func egressCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&proto, "protocol", "", `"any" | "tcp" | "udp"`)
 	cmd.Flags().StringVar(&destCIDR, "dest", "0.0.0.0/0", "destination CIDR")
 	cmd.Flags().StringVar(&destPorts, "dest-ports", "", `e.g. "443" or "80,443"`)
-	cmd.Flags().Int64Var(&exitPeer, "exit-peer", 0, "mesh peer ID to use as exit (required)")
+	cmd.Flags().Int64Var(&exitPeer, "exit-peer", 0, "mesh peer ID to use as exit (required unless --exit-pool)")
+	cmd.Flags().Int64Var(&backupExitPeer, "backup-exit-peer", 0, "peer to swap to on path_down for exit-peer")
+	cmd.Flags().Int64SliceVar(&exitPool, "exit-pool", nil, "weighted pool of exit peer IDs (Phase 16); needs --exit-weights")
+	cmd.Flags().Int32SliceVar(&exitWeights, "exit-weights", nil, "weights matching --exit-pool (same length)")
+	cmd.Flags().StringSliceVar(&geoipCountries, "geoip-country", nil, "ISO-3166 country codes for GeoIP match (Phase 15)")
 	_ = cmd.MarkFlagRequired("id")
 	_ = cmd.MarkFlagRequired("name")
-	_ = cmd.MarkFlagRequired("exit-peer")
 	return cmd
 }
 
@@ -1203,7 +1215,7 @@ func quotaCreateCmd() *cobra.Command {
 		name, period            string
 		limit                   int64
 		warn, shift, stop       float64
-		enabled, hardStop       bool
+		enabled, hardStop, autoRollback bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -1225,6 +1237,7 @@ func quotaCreateCmd() *cobra.Command {
 					WarnAt:          warn, ShiftAt: shift, StopAt: stop,
 					BackupProfileId: backupID,
 					HardStop:        hardStop,
+					AutoRollback:    autoRollback,
 				},
 			})
 			if err != nil {
@@ -1249,6 +1262,7 @@ func quotaCreateCmd() *cobra.Command {
 	cmd.Flags().Float64Var(&stop, "stop-at", 0, "stop threshold fraction 0..1")
 	cmd.Flags().Int64Var(&backupID, "backup-profile", 0, "backup egress profile ID for auto-shift")
 	cmd.Flags().BoolVar(&hardStop, "hard-stop", false, "install nftables DROP rule when stop_at is crossed")
+	cmd.Flags().BoolVar(&autoRollback, "auto-rollback", false, "restore primary exit_peer on reset/rollover after a shift")
 	_ = cmd.MarkFlagRequired("id")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("profile")
@@ -1424,6 +1438,72 @@ func peerUpdateCmd() *cobra.Command {
 	cmd.Flags().Uint32Var(&keepalive, "keepalive", 0, "new keepalive seconds")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
+}
+
+// ── policy (Phase 17) ─────────────────────────────────────────────────
+
+func policyCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "policy", Short: "Event-driven rule engine (YAML)"}
+	cmd.AddCommand(policyListCmd(), policyReloadCmd())
+	return cmd
+}
+
+func policyListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "Show active policies",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListPolicies(ctx, &gmeshv1.ListPoliciesRequest{})
+			if err != nil {
+				return fmt.Errorf("policy list rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "NAME\tEVENT\tPEER\tPROFILE\tACTION\tSOURCE")
+			for _, p := range resp.Policies {
+				fmt.Fprintf(w, "%s\t%s\t%d\t%d\t%s\t%s\n",
+					p.Name, p.Event, p.PeerId, p.ProfileId, p.Action, p.Source)
+			}
+			return w.Flush()
+		},
+	}
+}
+
+func policyReloadCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reload",
+		Short: "Re-read the configured policies directory",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ReloadPolicies(ctx, &gmeshv1.ReloadPoliciesRequest{})
+			if err != nil {
+				return fmt.Errorf("policy reload rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("loaded %d policies\n", resp.Loaded)
+			for _, e := range resp.Errors {
+				fmt.Fprintf(os.Stderr, "  ERR: %s\n", e)
+			}
+			return nil
+		},
+	}
 }
 
 // ── path (Phase 14) ───────────────────────────────────────────────────

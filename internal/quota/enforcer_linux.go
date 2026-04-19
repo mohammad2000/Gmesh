@@ -59,6 +59,9 @@ func (e *LinuxEnforcer) ensure(ctx context.Context) error {
 	if e.ensured {
 		return nil
 	}
+	// Idempotent across daemon restarts: wipe-then-rebuild so stale DROP
+	// rules from a previous run don't silently outlive the process.
+	_ = e.runNft(ctx, fmt.Sprintf("delete table inet %s\n", e.Table))
 	script := fmt.Sprintf(`
 add table inet %[1]s
 add chain inet %[1]s quota_drop_out { type filter hook output priority filter; }

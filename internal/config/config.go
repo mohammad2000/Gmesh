@@ -22,6 +22,23 @@ type Config struct {
 	State     StateConfig     `yaml:"state"`
 	Metrics   MetricsConfig   `yaml:"metrics"`
 	Audit     AuditConfig     `yaml:"audit"`
+	GeoIP     GeoIPConfig     `yaml:"geoip"`
+	Policies  PoliciesConfig  `yaml:"policies"`
+}
+
+// GeoIPConfig controls the GeoIP resolver used by egress profiles with
+// a `geoip_countries` field (Phase 15).
+type GeoIPConfig struct {
+	// CIDRFile is a CSV of `country_code,cidr` lines. Leave empty to
+	// disable; GeoIP profiles will be rejected at create time.
+	CIDRFile string `yaml:"cidr_file"`
+}
+
+// PoliciesConfig controls the Phase-17 policy loader.
+type PoliciesConfig struct {
+	// Dir is scanned for *.yaml policy files at engine start and after
+	// explicit reloads. Leave empty to disable policy evaluation.
+	Dir string `yaml:"dir"`
 }
 
 // MetricsConfig controls the Prometheus HTTP endpoint.

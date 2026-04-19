@@ -56,6 +56,8 @@ const (
 	GMesh_GetQuotaUsage_FullMethodName        = "/gmesh.v1.GMesh/GetQuotaUsage"
 	GMesh_ResetQuota_FullMethodName           = "/gmesh.v1.GMesh/ResetQuota"
 	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
+	GMesh_ListPolicies_FullMethodName         = "/gmesh.v1.GMesh/ListPolicies"
+	GMesh_ReloadPolicies_FullMethodName       = "/gmesh.v1.GMesh/ReloadPolicies"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -133,6 +135,10 @@ type GMeshClient interface {
 	// auto-syncs targets from the peer registry every 30s; this RPC is a
 	// point-in-time snapshot of RTT, loss and up/down status.
 	ListPathStates(ctx context.Context, in *ListPathStatesRequest, opts ...grpc.CallOption) (*ListPathStatesResponse, error)
+	// ── Policies (Phase 17) ──────────────────────────────────────────────
+	// List the active policies and force a reload from disk.
+	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
+	ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error)
 }
 
 type gMeshClient struct {
@@ -522,6 +528,26 @@ func (c *gMeshClient) ListPathStates(ctx context.Context, in *ListPathStatesRequ
 	return out, nil
 }
 
+func (c *gMeshClient) ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPoliciesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListPolicies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReloadPoliciesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ReloadPolicies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -597,6 +623,10 @@ type GMeshServer interface {
 	// auto-syncs targets from the peer registry every 30s; this RPC is a
 	// point-in-time snapshot of RTT, loss and up/down status.
 	ListPathStates(context.Context, *ListPathStatesRequest) (*ListPathStatesResponse, error)
+	// ── Policies (Phase 17) ──────────────────────────────────────────────
+	// List the active policies and force a reload from disk.
+	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
+	ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -717,6 +747,12 @@ func (UnimplementedGMeshServer) ResetQuota(context.Context, *ResetQuotaRequest) 
 }
 func (UnimplementedGMeshServer) ListPathStates(context.Context, *ListPathStatesRequest) (*ListPathStatesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPathStates not implemented")
+}
+func (UnimplementedGMeshServer) ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPolicies not implemented")
+}
+func (UnimplementedGMeshServer) ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -1398,6 +1434,42 @@ func _GMesh_ListPathStates_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_ListPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPoliciesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListPolicies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListPolicies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListPolicies(ctx, req.(*ListPoliciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ReloadPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReloadPoliciesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ReloadPolicies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ReloadPolicies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ReloadPolicies(ctx, req.(*ReloadPoliciesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1548,6 +1620,14 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListPathStates",
 			Handler:    _GMesh_ListPathStates_Handler,
+		},
+		{
+			MethodName: "ListPolicies",
+			Handler:    _GMesh_ListPolicies_Handler,
+		},
+		{
+			MethodName: "ReloadPolicies",
+			Handler:    _GMesh_ReloadPolicies_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

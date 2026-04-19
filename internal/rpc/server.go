@@ -27,6 +27,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/policy"
 	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/scope"
@@ -463,6 +464,55 @@ func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequ
 	return &gmeshv1.ListPathStatesResponse{States: out}, nil
 }
 
+// ── Policies (Phase 17) ───────────────────────────────────────────────
+
+// ListPolicies returns every policy currently loaded.
+func (s *Server) ListPolicies(_ context.Context, _ *gmeshv1.ListPoliciesRequest) (*gmeshv1.ListPoliciesResponse, error) {
+	if s.Engine == nil || s.Engine.Policies == nil {
+		return &gmeshv1.ListPoliciesResponse{}, nil
+	}
+	ps := s.Engine.Policies.List()
+	out := make([]*gmeshv1.Policy, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, policyToProto(p))
+	}
+	return &gmeshv1.ListPoliciesResponse{Policies: out}, nil
+}
+
+// ReloadPolicies re-reads the configured directory.
+func (s *Server) ReloadPolicies(_ context.Context, _ *gmeshv1.ReloadPoliciesRequest) (*gmeshv1.ReloadPoliciesResponse, error) {
+	if s.Engine == nil || s.Engine.Policies == nil || s.Engine.Config == nil {
+		return &gmeshv1.ReloadPoliciesResponse{}, nil
+	}
+	dir := s.Engine.Config.Policies.Dir
+	if dir == "" {
+		return nil, status.Error(codes.FailedPrecondition, "policies.dir not configured")
+	}
+	ps, errs := policy.LoadDir(dir)
+	s.Engine.Policies.Replace(ps)
+	resp := &gmeshv1.ReloadPoliciesResponse{Loaded: int64(len(ps))}
+	for _, err := range errs {
+		resp.Errors = append(resp.Errors, err.Error())
+	}
+	return resp, nil
+}
+
+func policyToProto(p *policy.Policy) *gmeshv1.Policy {
+	return &gmeshv1.Policy{
+		Name:             p.Name,
+		Source:           p.Source(),
+		Event:            p.When.Event,
+		PeerId:           p.When.PeerID,
+		ProfileId:        p.When.ProfileID,
+		DebounceS:        int32(p.When.DebounceSeconds),
+		MinCount:         int32(p.When.MinCount),
+		Action:           p.Do.Action,
+		ActionProfileId:  p.Do.ProfileID,
+		ActionToPeerId:   p.Do.ToPeerID,
+		ActionQuotaId:    p.Do.QuotaID,
+	}
+}
+
 func pathStateToProto(st pathmon.State) *gmeshv1.PathState {
 	return &gmeshv1.PathState{
 		PeerId:           st.Target.PeerID,
@@ -488,6 +538,7 @@ func quotaFromProto(p *gmeshv1.Quota) *quota.Quota {
 		WarnAt:          p.WarnAt, ShiftAt: p.ShiftAt, StopAt: p.StopAt,
 		BackupProfileID: p.BackupProfileId,
 		HardStop:        p.HardStop,
+		AutoRollback:    p.AutoRollback,
 	}
 }
 
@@ -499,9 +550,11 @@ func quotaToProto(q *quota.Quota) *gmeshv1.Quota {
 		LimitBytes:      q.LimitBytes,
 		UsedBytes:       q.UsedBytes,
 		WarnAt:          q.WarnAt, ShiftAt: q.ShiftAt, StopAt: q.StopAt,
-		BackupProfileId: q.BackupProfileID,
-		HardStop:        q.HardStop,
-		WarnFired:       q.WarnFired,
+		BackupProfileId:     q.BackupProfileID,
+		HardStop:            q.HardStop,
+		AutoRollback:        q.AutoRollback,
+		ShiftedFromPeerId:   q.ShiftedFromPeerID,
+		WarnFired:           q.WarnFired,
 		ShiftFired:      q.ShiftFired,
 		StopFired:       q.StopFired,
 		PeriodStartUnix: q.PeriodStart.Unix(),
@@ -654,6 +707,7 @@ func (s *Server) DisableExit(ctx context.Context, _ *gmeshv1.DisableExitRequest)
 func egressFromProto(p *gmeshv1.EgressProfile) *egress.Profile {
 	return &egress.Profile{
 		ID: p.Id, Name: p.Name, Enabled: p.Enabled, Priority: p.Priority,
+		BackupExitPeerID: p.BackupExitPeerId,
 		SourceScopeID: p.SourceScopeId, SourceCIDR: p.SourceCidr,
 		Protocol: p.Protocol, DestCIDR: p.DestCidr, DestPorts: p.DestPorts,
 		GeoIPCountries: p.GeoipCountries,
@@ -668,8 +722,9 @@ func egressToProto(p *egress.Profile) *gmeshv1.EgressProfile {
 		Protocol: p.Protocol, DestCidr: p.DestCIDR, DestPorts: p.DestPorts,
 		GeoipCountries: p.GeoIPCountries,
 		ExitPeerId: p.ExitPeerID, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
-		CreatedAtUnix: p.CreatedAt.Unix(),
-		UpdatedAtUnix: p.UpdatedAt.Unix(),
+		BackupExitPeerId: p.BackupExitPeerID,
+		CreatedAtUnix:    p.CreatedAt.Unix(),
+		UpdatedAtUnix:    p.UpdatedAt.Unix(),
 	}
 }
 

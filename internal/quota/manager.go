@@ -149,6 +149,11 @@ func (m *coreManager) Reset(ctx context.Context, id int64) error {
 	q.WarnFired = false
 	q.ShiftFired = false
 	q.StopFired = false
+	rollbackTo := int64(0)
+	if q.AutoRollback && q.ShiftedFromPeerID != 0 {
+		rollbackTo = q.ShiftedFromPeerID
+		q.ShiftedFromPeerID = 0
+	}
 	q.PeriodStart, q.PeriodEnd = periodWindow(q.Period, time.Now())
 	q.UpdatedAt = time.Now()
 	m.mu.Unlock()
@@ -159,12 +164,24 @@ func (m *coreManager) Reset(ctx context.Context, id int64) error {
 	if m.Enforcer != nil && q.HardStop {
 		_ = m.Enforcer.Unblock(ctx, q.EgressProfileID)
 	}
+	if rollbackTo != 0 && m.Switcher != nil {
+		if _, err := m.Switcher.SwapExitPeer(ctx, q.EgressProfileID, rollbackTo); err != nil {
+			m.Log.Warn("quota auto_rollback failed",
+				"quota_id", id, "profile", q.EgressProfileID,
+				"restore_peer", rollbackTo, "error", err)
+		} else {
+			m.Log.Info("quota auto_rollback restored exit peer",
+				"quota_id", id, "profile", q.EgressProfileID,
+				"restore_peer", rollbackTo)
+		}
+	}
 	if m.Publisher != nil {
 		m.Publisher.Publish(Event{
 			Type: "quota_reset", QuotaID: id,
 			Payload: map[string]any{
 				"egress_profile_id": q.EgressProfileID,
 				"period":            string(q.Period),
+				"rollback_to_peer":  rollbackTo,
 			},
 		})
 	}
@@ -200,6 +217,11 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 		q.ShiftFired = false
 		wasStopped := q.StopFired
 		q.StopFired = false
+		rollbackTo := int64(0)
+		if q.AutoRollback && q.ShiftedFromPeerID != 0 {
+			rollbackTo = q.ShiftedFromPeerID
+			q.ShiftedFromPeerID = 0
+		}
 		q.PeriodStart, q.PeriodEnd = periodWindow(q.Period, now)
 		q.UpdatedAt = now
 		m.mu.Unlock()
@@ -210,10 +232,20 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 		if wasStopped && q.HardStop && m.Enforcer != nil {
 			_ = m.Enforcer.Unblock(ctx, q.EgressProfileID)
 		}
+		if rollbackTo != 0 && m.Switcher != nil {
+			if _, err := m.Switcher.SwapExitPeer(ctx, q.EgressProfileID, rollbackTo); err != nil {
+				m.Log.Warn("quota auto_rollback (rollover) failed",
+					"quota_id", q.ID, "profile", q.EgressProfileID,
+					"restore_peer", rollbackTo, "error", err)
+			}
+		}
 		if m.Publisher != nil {
 			m.Publisher.Publish(Event{
 				Type: "quota_reset", QuotaID: q.ID,
-				Payload: map[string]any{"reason": "period_rollover"},
+				Payload: map[string]any{
+					"reason":           "period_rollover",
+					"rollback_to_peer": rollbackTo,
+				},
 			})
 		}
 	}
@@ -268,18 +300,23 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 			},
 		})
 	}
+	// Only call the switcher on the rising edge of ShiftFired so we don't
+	// re-swap every tick for the rest of the period. Same reasoning for
+	// Block — once the DROP is in place, don't re-install it.
 	shiftTo := int64(0)
-	if q.ShiftFired && q.BackupProfileID != 0 && m.Switcher != nil {
-		shiftTo = q.BackupProfileID
-	}
-	// Block only on the rising edge of StopFired, so we don't retry Block
-	// every tick once the DROP rule is already in place.
 	blockProfile := int64(0)
 	var blockMark uint32
 	for _, ev := range fires {
-		if ev.Type == "quota_stop" && q.HardStop && m.Enforcer != nil {
-			blockProfile = q.EgressProfileID
-			blockMark = fwmarkForProfile(q.EgressProfileID)
+		switch ev.Type {
+		case "quota_shift":
+			if q.BackupProfileID != 0 && m.Switcher != nil {
+				shiftTo = q.BackupProfileID
+			}
+		case "quota_stop":
+			if q.HardStop && m.Enforcer != nil {
+				blockProfile = q.EgressProfileID
+				blockMark = fwmarkForProfile(q.EgressProfileID)
+			}
 		}
 	}
 	m.mu.Unlock()
@@ -292,13 +329,22 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 
 	// Automatic shift happens OUTSIDE the lock.
 	if shiftTo != 0 {
-		if err := m.Switcher.SwapExitPeer(ctx, q.EgressProfileID, shiftTo); err != nil {
+		prev, err := m.Switcher.SwapExitPeer(ctx, q.EgressProfileID, shiftTo)
+		if err != nil {
 			m.Log.Warn("quota shift swap failed",
 				"quota_id", q.ID, "profile", q.EgressProfileID,
 				"backup", shiftTo, "error", err)
 		} else {
 			m.Log.Info("quota auto-shifted egress profile",
-				"quota_id", q.ID, "profile", q.EgressProfileID, "backup", shiftTo)
+				"quota_id", q.ID, "profile", q.EgressProfileID,
+				"backup", shiftTo, "prev_peer", prev)
+			// Remember the original exit peer so auto_rollback can revert
+			// it on reset / period rollover.
+			m.mu.Lock()
+			if q2, ok := m.quotas[q.ID]; ok {
+				q2.ShiftedFromPeerID = prev
+			}
+			m.mu.Unlock()
 		}
 	}
 
