@@ -105,8 +105,12 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	}
 
 	trav := traversal.NewEngine()
+	punch := traversal.UDPPuncher{}
 	trav.Register(&traversal.DirectStrategy{Probe: &traversal.UDPProber{}, Log: log})
 	trav.Register(&traversal.UPnPStrategy{InternalPort: cfg.WireGuard.ListenPort, Log: log})
+	trav.Register(&traversal.StunHolePunchStrategy{Puncher: punch, Log: log})
+	trav.Register(&traversal.SimultaneousOpenStrategy{Puncher: punch, Log: log})
+	trav.Register(&traversal.BirthdayStrategy{Puncher: punch, Log: log})
 
 	e := &Engine{
 		Config:    cfg,
@@ -192,10 +196,20 @@ func (e *Engine) DiscoverNAT(ctx context.Context, forceRefresh bool) (*nat.Info,
 	return e.NAT.Discover(ctx, forceRefresh)
 }
 
-// HolePunch attempts the DIRECT strategy against remote. Richer hole-punch
-// methods (STUN-assisted, SimOpen, Birthday) land in Phase 3.
-func (e *Engine) HolePunch(ctx context.Context, pc *traversal.PeerContext) (*traversal.Outcome, []*traversal.Outcome, error) {
-	return e.Trav.Run(ctx, []traversal.Method{traversal.MethodDirect}, pc)
+// HolePunch runs the full strategy ladder selected from local + remote NAT.
+// If remoteNAT is nil, the ladder falls back to "both unknown" which tries
+// every method.
+func (e *Engine) HolePunch(ctx context.Context, pc *traversal.PeerContext, remoteNAT *nat.Info) (*traversal.Outcome, []*traversal.Outcome, error) {
+	local := nat.Unknown
+	if li := e.NAT.Cached(); li != nil {
+		local = li.Type
+	}
+	remote := nat.Unknown
+	if remoteNAT != nil {
+		remote = remoteNAT.Type
+	}
+	ladder := traversal.SelectLadder(traversal.Classification{Local: local, Remote: remote})
+	return e.Trav.Run(ctx, ladder, pc)
 }
 
 // IsJoined reports whether Join() has been called.

@@ -174,6 +174,11 @@ func (s *Server) AddPeer(ctx context.Context, in *gmeshv1.AddPeerRequest) (*gmes
 		AllowedIPs: allowed,
 		Status:     peer.StatusConnecting,
 	}
+	if in.RemoteNat != nil {
+		p.NATType = int(in.RemoteNat.NatType)
+		p.SupportsHolePunch = in.RemoteNat.SupportsHolePunch
+		p.IsRelayCapable = in.RemoteNat.IsRelayCapable
+	}
 	if err := s.Engine.AddPeer(ctx, p, time.Duration(in.Keepalive)*time.Second); err != nil {
 		if err == engine.ErrNotJoined {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
@@ -244,14 +249,21 @@ func (s *Server) DiscoverNAT(ctx context.Context, in *gmeshv1.DiscoverNATRequest
 	return &gmeshv1.DiscoverNATResponse{Nat: natToProto(info)}, nil
 }
 
-// HolePunch currently just runs the DIRECT strategy against remote_endpoint.
-// Richer hole-punch methods land in Phase 3.
+// HolePunch runs the strategy ladder against remote_endpoint. If peer_id is
+// set and known, the peer's stored remote NAT is used to pick the ladder.
 func (s *Server) HolePunch(ctx context.Context, in *gmeshv1.HolePunchRequest) (*gmeshv1.HolePunchResponse, error) {
-	out, _, err := s.Engine.HolePunch(ctx, &traversal.PeerContext{
-		PeerID:         in.PeerId,
-		RemoteEndpoint: in.RemoteEndpoint,
-		FireAtUnixMS:   in.FireAtUnixMs,
-	})
+	var remoteNAT *nat.Info
+	if p, ok := s.Engine.Peers.Get(in.PeerId); ok && p.NATType != 0 {
+		remoteNAT = &nat.Info{Type: nat.Type(p.NATType)}
+	}
+	out, _, err := s.Engine.HolePunch(ctx,
+		&traversal.PeerContext{
+			PeerID:         in.PeerId,
+			RemoteEndpoint: in.RemoteEndpoint,
+			FireAtUnixMS:   in.FireAtUnixMs,
+		},
+		remoteNAT,
+	)
 	if err != nil && out == nil {
 		return &gmeshv1.HolePunchResponse{Success: false, Error: err.Error()}, nil
 	}
