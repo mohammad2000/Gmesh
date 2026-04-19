@@ -182,9 +182,11 @@ add table inet %[1]s
 add set inet %[1]s protected_oif { type ifname; }
 add element inet %[1]s protected_oif { "wg-gmesh", "tailscale0" }
 add set inet %[1]s protected_daddr { type ipv4_addr; flags interval; }
-add element inet %[1]s protected_daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/4, 10.250.0.0/16 }
+add element inet %[1]s protected_daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 224.0.0.0/4 }
 add chain inet %[1]s egress_mark_pre { type filter hook prerouting priority mangle; }
 add chain inet %[1]s egress_mark_out { type route hook output priority mangle; }
+add rule inet %[1]s egress_mark_out oifname @protected_oif meta mark set 0x0
+add rule inet %[1]s egress_mark_out ip daddr @protected_daddr meta mark set 0x0
 `, m.NftTable)
 	if err := m.runNftInput(ctx, script); err != nil {
 		return fmt.Errorf("ensure nft table: %w", err)
@@ -242,6 +244,11 @@ func (m *LinuxManager) nftDeleteByComment(profileID int64) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("flush chain inet %s egress_mark_pre\n", m.NftTable))
 	b.WriteString(fmt.Sprintf("flush chain inet %s egress_mark_out\n", m.NftTable))
+	// Re-add the per-chain clear-mark guards that ensureNftTable installed.
+	// Flushing the chain wipes them along with profile rules, so restore
+	// them here before re-adding profile rules.
+	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out oifname @protected_oif meta mark set 0x0\n", m.NftTable))
+	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out ip daddr @protected_daddr meta mark set 0x0\n", m.NftTable))
 	// Reinstall remaining profiles (m.profiles already has the deleted one
 	// removed before this call).
 	for _, p := range m.profiles {
