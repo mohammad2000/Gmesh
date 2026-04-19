@@ -46,6 +46,8 @@ func main() {
 		relayCmd(),
 		firewallCmd(),
 		scopeCmd(),
+		eventsCmd(),
+		healthCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -815,6 +817,83 @@ func scopeDisconnectCmd() *cobra.Command {
 	cmd.Flags().Int64Var(&id, "id", 0, "scope ID")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
+}
+
+// ── Events + Health ───────────────────────────────────────────────────
+
+func eventsCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "events", Short: "Subscribe to gmeshd event stream"}
+	cmd.AddCommand(eventsTailCmd())
+	return cmd
+}
+
+func eventsTailCmd() *cobra.Command {
+	var types []string
+	cmd := &cobra.Command{
+		Use:   "tail",
+		Short: "Stream events as they happen (ctrl-c to stop)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			stream, err := c.SubscribeEvents(ctx, &gmeshv1.SubscribeEventsRequest{Types: types})
+			if err != nil {
+				return fmt.Errorf("subscribe: %w", err)
+			}
+			for {
+				ev, err := stream.Recv()
+				if err != nil {
+					return fmt.Errorf("recv: %w", err)
+				}
+				if outputJSON {
+					if err := writeJSON(ev); err != nil {
+						return err
+					}
+					continue
+				}
+				ts := time.UnixMilli(ev.TimestampUnixMs).Format(time.RFC3339)
+				fmt.Printf("%s  %-22s  peer=%s  %s\n", ts, ev.Type, ev.PeerId, ev.PayloadJson)
+			}
+		},
+	}
+	cmd.Flags().StringSliceVar(&types, "type", nil, "filter by event type(s); repeat or comma-separate")
+	return cmd
+}
+
+func healthCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "health",
+		Short: "Per-peer health snapshot",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.HealthCheck(ctx, &gmeshv1.HealthCheckRequest{})
+			if err != nil {
+				return fmt.Errorf("health rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "PEER\tSTATUS\tSCORE\tLATENCY\tHANDSHAKE_AGE\tLOSS")
+			for _, p := range resp.Peers {
+				fmt.Fprintf(w, "%d\t%s\t%d\t%d ms\t%d s\t%.3f\n",
+					p.PeerId, p.Status, p.Score, p.LatencyMs, p.HandshakeAgeS, p.PacketLoss)
+			}
+			return w.Flush()
+		},
+	}
 }
 
 func peerUpdateCmd() *cobra.Command {

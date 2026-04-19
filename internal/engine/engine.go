@@ -15,7 +15,9 @@ import (
 
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/crypto"
+	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
+	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -45,6 +47,8 @@ type Engine struct {
 	Routing   routing.Manager
 	Scope     scope.Manager
 	Store     *state.Store
+	Events    *events.Bus
+	Monitor   *health.Monitor
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -138,6 +142,8 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		rt = routing.New(log)
 	}
 
+	bus := events.NewBus(log)
+
 	e := &Engine{
 		Config:        cfg,
 		Log:           log,
@@ -150,6 +156,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Routing:       rt,
 		Scope:         sc,
 		Store:         store,
+		Events:        bus,
 		relaySessions: make(map[int64]*relay.Session),
 		wsTunnels:     make(map[int64]*relay.WSTunnel),
 		keepalive:     time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
@@ -209,8 +216,42 @@ func (e *Engine) Start(ctx context.Context) error {
 	if e.Firewall != nil {
 		go e.firewallScheduler(ctx)
 	}
-	// TODO Phase 7: health monitor, NAT refresher, event dispatcher.
+	// Health monitor: polls peers, emits health_update + peer_connected/
+	// peer_disconnected events.
+	e.Monitor = health.NewMonitor(&peerSourceAdapter{e: e}, e.Events, e.Log)
+	if e.Config != nil {
+		if v := e.Config.Health.CheckIntervalSeconds; v > 0 {
+			e.Monitor.Interval = time.Duration(v) * time.Second
+		}
+		if v := e.Config.Health.DegradedCheckIntervalSeconds; v > 0 {
+			e.Monitor.DegradedInterval = time.Duration(v) * time.Second
+		}
+		if v := e.Config.Health.ReconnectFailingThreshold; v > 0 {
+			e.Monitor.FailingTicksBeforeDisconnect = v
+		}
+	}
+	go e.Monitor.Run(ctx)
+
 	return nil
+}
+
+// emit is a small helper so we don't panic if Events is ever nil.
+func (e *Engine) emit(evType string, peerID int64, payload any) {
+	if e.Events != nil {
+		e.Events.Publish(events.New(evType, peerID, payload))
+	}
+}
+
+// peerSourceAdapter wires health.PeerSource to our engine without creating
+// an import cycle between health and engine.
+type peerSourceAdapter struct{ e *Engine }
+
+func (a *peerSourceAdapter) Snapshot() []*peer.Peer {
+	return a.e.Peers.Snapshot()
+}
+func (a *peerSourceAdapter) RefreshStats(ctx context.Context) error {
+	_, err := a.e.RefreshPeerStats(ctx)
+	return err
 }
 
 // Stop tears the engine down. Safe to call multiple times.
@@ -261,6 +302,12 @@ func (e *Engine) SetupRelay(ctx context.Context, peerID int64, relayAddr string,
 	e.relayMu.Lock()
 	e.relaySessions[peerID] = sess
 	e.relayMu.Unlock()
+
+	e.emit(events.TypeRelaySetup, peerID, map[string]any{
+		"relay":          relayAddr,
+		"local_endpoint": sess.LocalEndpoint().String(),
+		"kind":           "udp",
+	})
 
 	// If the peer is in the registry, repoint its WG endpoint to the local
 	// forwarder. Callers who pre-register the peer before calling SetupRelay
@@ -325,6 +372,12 @@ func (e *Engine) ScopeConnect(ctx context.Context, spec scope.Spec) (*scope.Peer
 			e.Log.Warn("scope route install failed", "error", err, "mesh_ip", spec.MeshIP)
 		}
 	}
+	e.emit(events.TypeScopeConnected, spec.ScopeID, map[string]any{
+		"mesh_ip":     spec.MeshIP,
+		"netns":       p.Netns,
+		"public_key":  p.PublicKey,
+		"listen_port": p.ListenPort,
+	})
 	return p, nil
 }
 
@@ -338,6 +391,7 @@ func (e *Engine) ScopeDisconnect(ctx context.Context, scopeID int64) error {
 		_ = e.Routing.Remove(ctx, p.MeshIP, e.Interface())
 	}
 	e.Peers.Remove(scopeID)
+	e.emit(events.TypeScopeDisconnected, scopeID, nil)
 	return nil
 }
 
@@ -367,7 +421,22 @@ func (e *Engine) ApplyFirewall(ctx context.Context, rules []firewall.Rule, defau
 	e.fwRules = append(e.fwRules[:0], rules...)
 	e.fwDefault = defaultPolicy
 	e.fwMu.Unlock()
-	return e.Firewall.Apply(ctx, rules, defaultPolicy)
+	applied, failed, errs := e.Firewall.Apply(ctx, rules, defaultPolicy)
+	errStrs := make([]string, 0, len(errs))
+	for _, er := range errs {
+		errStrs = append(errStrs, er.Error())
+	}
+	evType := events.TypeFirewallApplied
+	if failed > 0 {
+		evType = events.TypeFirewallError
+	}
+	e.emit(evType, 0, map[string]any{
+		"applied": applied,
+		"failed":  failed,
+		"errors":  errStrs,
+		"backend": e.Firewall.Name(),
+	})
+	return applied, failed, errs
 }
 
 // ResetFirewall flushes the gmesh table.
@@ -470,6 +539,12 @@ func (e *Engine) AllocateWSTunnel(ctx context.Context, peerID int64, url string,
 	e.relayMu.Lock()
 	e.wsTunnels[peerID] = t
 	e.relayMu.Unlock()
+
+	e.emit(events.TypeRelaySetup, peerID, map[string]any{
+		"url":            url,
+		"local_endpoint": t.LocalEndpoint().String(),
+		"kind":           "ws",
+	})
 
 	if p, ok := e.Peers.Get(peerID); ok && e.IsJoined() {
 		p.Endpoint = t.LocalEndpoint().String()
@@ -588,6 +663,13 @@ func (e *Engine) Join(ctx context.Context, meshIP, iface string, listenPort uint
 		"public_key", kp.Public,
 	)
 
+	e.emit(events.TypeMeshJoined, 0, map[string]any{
+		"mesh_ip":     meshIP,
+		"interface":   iface,
+		"listen_port": listenPort,
+		"public_key":  kp.Public,
+		"node_id":     nodeID,
+	})
 	return &JoinResult{PublicKey: kp.Public, PrivateKey: kp.Private}, nil
 }
 
@@ -624,6 +706,7 @@ func (e *Engine) Leave(ctx context.Context, reason string) error {
 	}
 
 	e.Log.Info("left mesh", "reason", reason)
+	e.emit(events.TypeMeshLeft, 0, map[string]any{"reason": reason})
 	return nil
 }
 
@@ -655,6 +738,11 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	if err := e.persist(); err != nil {
 		e.Log.Warn("persist after AddPeer failed", "error", err)
 	}
+	e.emit(events.TypePeerAdded, p.ID, map[string]any{
+		"mesh_ip":    p.MeshIP,
+		"endpoint":   p.Endpoint,
+		"public_key": p.PublicKey,
+	})
 	return nil
 }
 
@@ -674,6 +762,7 @@ func (e *Engine) RemovePeer(ctx context.Context, peerID int64) error {
 	if err := e.persist(); err != nil {
 		e.Log.Warn("persist after RemovePeer failed", "error", err)
 	}
+	e.emit(events.TypePeerRemoved, peerID, map[string]any{"mesh_ip": p.MeshIP})
 	return nil
 }
 

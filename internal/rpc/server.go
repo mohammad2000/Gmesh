@@ -19,6 +19,7 @@ import (
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/engine"
+	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
@@ -241,6 +242,140 @@ func (s *Server) GetPeerStats(ctx context.Context, in *gmeshv1.GetPeerStatsReque
 	}
 	return &gmeshv1.GetPeerStatsResponse{Peer: peerToProto(p)}, nil
 }
+
+// ── Health ────────────────────────────────────────────────────────────
+
+// HealthCheck returns a snapshot of every peer's current health (or a
+// specific peer if peer_id != 0).
+func (s *Server) HealthCheck(_ context.Context, in *gmeshv1.HealthCheckRequest) (*gmeshv1.HealthCheckResponse, error) {
+	resp := &gmeshv1.HealthCheckResponse{}
+	for _, p := range s.Engine.Peers.Snapshot() {
+		if in.PeerId != 0 && p.ID != in.PeerId {
+			continue
+		}
+		score := healthScoreForPeer(p)
+		resp.Peers = append(resp.Peers, &gmeshv1.HealthCheckResponse_PeerHealth{
+			PeerId:        p.ID,
+			Status:        gmeshv1.HealthStatus(healthStatusFromScore(score)),
+			Score:         int32(score), //nolint:gosec // 0..100
+			LatencyMs:     p.LatencyMS,
+			PacketLoss:    p.PacketLoss,
+			HandshakeAgeS: int64(time.Since(p.LastHandshake).Seconds()),
+		})
+	}
+	return resp, nil
+}
+
+// healthScoreForPeer is a simple point-in-time scorer for the HealthCheck
+// RPC. The persistent health.Monitor uses a weighted formula; this one is
+// intentionally coarser and cheaper.
+func healthScoreForPeer(p *peer.Peer) int {
+	score := methodWeight(p.Method)
+	score += int(50 - min(int64(50), p.LatencyMS/4)) // fresher latency = more points
+	if !p.LastHandshake.IsZero() {
+		age := time.Since(p.LastHandshake).Seconds()
+		switch {
+		case age < 150:
+			score += 20
+		case age < 600:
+			score += 10
+		}
+	}
+	if score > 100 {
+		score = 100
+	}
+	if score < 0 {
+		score = 0
+	}
+	return score
+}
+
+func methodWeight(m int) int {
+	switch m {
+	case 1:
+		return 50 // direct
+	case 2:
+		return 45 // upnp
+	case 3, 4, 5:
+		return 35 // hole-punched
+	case 6, 7, 8:
+		return 15 // relay / ws tunnel
+	default:
+		return 25
+	}
+}
+
+func healthStatusFromScore(score int) int {
+	switch {
+	case score > 90:
+		return 1 // excellent
+	case score > 70:
+		return 2 // good
+	case score > 50:
+		return 3 // degraded
+	case score > 30:
+		return 4 // poor
+	default:
+		return 5 // failing
+	}
+}
+
+func min(a, b int64) int64 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// ── Event stream ──────────────────────────────────────────────────────
+
+// SubscribeEvents is a server-streaming RPC: subscribers get a live feed
+// of every engine event whose type matches the filter (empty = all).
+// The stream closes when the client disconnects or the engine's context
+// is canceled.
+func (s *Server) SubscribeEvents(in *gmeshv1.SubscribeEventsRequest, stream gmeshv1.GMesh_SubscribeEventsServer) error {
+	ch, cancel := s.Engine.Events.Subscribe(in.Types, 256)
+	defer cancel()
+
+	ctx := stream.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			wire := &gmeshv1.Event{
+				TimestampUnixMs: ev.Timestamp.UnixMilli(),
+				Type:            ev.Type,
+				PeerId:          formatPeerID(ev.PeerID),
+				PayloadJson:     string(ev.Payload),
+			}
+			if err := stream.Send(wire); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func formatPeerID(id int64) string {
+	if id == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d", id)
+}
+
+// subscriberCount is a small helper for diagnostics/tests.
+func (s *Server) subscriberCount() int {
+	if s.Engine == nil || s.Engine.Events == nil {
+		return 0
+	}
+	return s.Engine.Events.SubscriberCount()
+}
+
+// eventsBus exposes the bus for in-process consumers.
+func (s *Server) eventsBus() *events.Bus { return s.Engine.Events }
 
 // ── Scope ─────────────────────────────────────────────────────────────
 
