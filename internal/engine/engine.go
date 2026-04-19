@@ -48,6 +48,10 @@ type Engine struct {
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
 	wsTunnels     map[int64]*relay.WSTunnel
 
+	fwMu      sync.Mutex
+	fwRules   []firewall.Rule
+	fwDefault string
+
 	mu        sync.RWMutex
 	joined    bool
 	meshIP    string
@@ -66,6 +70,7 @@ type Options struct {
 	Store     *state.Store      // nil → auto-create from cfg.State
 	Responder Responder         // nil → real nat.Responder
 	NAT       *nat.Discoverer   // nil → default with configured STUN servers
+	Firewall  firewall.Backend  // nil → detect (nft → iptables → memory)
 }
 
 // New wires an Engine together.
@@ -116,6 +121,11 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	trav.Register(&traversal.SimultaneousOpenStrategy{Puncher: punch, Log: log})
 	trav.Register(&traversal.BirthdayStrategy{Puncher: punch, Log: log})
 
+	fw := opts.Firewall
+	if fw == nil {
+		fw = firewall.Detect(cfg.Firewall.UseNftables, cfg.Firewall.Table, cfg.Firewall.Chain, log)
+	}
+
 	e := &Engine{
 		Config:        cfg,
 		Log:           log,
@@ -124,6 +134,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Responder:     responder,
 		Trav:          trav,
 		WG:            wg,
+		Firewall:      fw,
 		Routing:       routing.NewInMemory(),
 		Store:         store,
 		relaySessions: make(map[int64]*relay.Session),
@@ -181,6 +192,9 @@ func (e *Engine) Start(ctx context.Context) error {
 		if err := e.Responder.Start(ctx); err != nil {
 			return fmt.Errorf("start udp responder: %w", err)
 		}
+	}
+	if e.Firewall != nil {
+		go e.firewallScheduler(ctx)
 	}
 	// TODO Phase 7: health monitor, NAT refresher, event dispatcher.
 	return nil
@@ -268,6 +282,101 @@ func (e *Engine) TeardownRelay(peerID int64) {
 	if sess != nil {
 		_ = sess.Close()
 	}
+}
+
+// ── Firewall ──────────────────────────────────────────────────────────
+
+// ApplyFirewall installs rules via the active backend. Remembers them in
+// engine state so scheduled re-evaluation can re-apply when windows change.
+func (e *Engine) ApplyFirewall(ctx context.Context, rules []firewall.Rule, defaultPolicy string, forceReset bool) (int, int, []error) {
+	if e.Firewall == nil {
+		return 0, 0, []error{errors.New("engine: firewall backend not configured")}
+	}
+	if forceReset {
+		_ = e.Firewall.Reset(ctx)
+	}
+	if err := e.Firewall.Ensure(ctx); err != nil {
+		return 0, len(rules), []error{err}
+	}
+	e.fwMu.Lock()
+	e.fwRules = append(e.fwRules[:0], rules...)
+	e.fwDefault = defaultPolicy
+	e.fwMu.Unlock()
+	return e.Firewall.Apply(ctx, rules, defaultPolicy)
+}
+
+// ResetFirewall flushes the gmesh table.
+func (e *Engine) ResetFirewall(ctx context.Context) error {
+	if e.Firewall == nil {
+		return errors.New("engine: firewall backend not configured")
+	}
+	e.fwMu.Lock()
+	e.fwRules = nil
+	e.fwDefault = ""
+	e.fwMu.Unlock()
+	return e.Firewall.Reset(ctx)
+}
+
+// FirewallStatus returns (backend name, live rules, hit counts).
+func (e *Engine) FirewallStatus(ctx context.Context) (string, []firewall.Rule, map[int64]int64, error) {
+	if e.Firewall == nil {
+		return "", nil, nil, errors.New("engine: firewall backend not configured")
+	}
+	rules, err := e.Firewall.List(ctx)
+	if err != nil {
+		return e.Firewall.Name(), nil, nil, err
+	}
+	hits, _ := e.Firewall.HitCounts(ctx)
+	return e.Firewall.Name(), rules, hits, nil
+}
+
+// firewallScheduler periodically re-applies the ruleset so rules with
+// scheduled windows flip on and off at the right times. Cheap: only
+// triggers re-apply when the set of live IDs changes.
+func (e *Engine) firewallScheduler(ctx context.Context) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	var lastLive map[int64]bool
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			e.fwMu.Lock()
+			rules := append([]firewall.Rule(nil), e.fwRules...)
+			policy := e.fwDefault
+			e.fwMu.Unlock()
+			if len(rules) == 0 {
+				continue
+			}
+			live := firewall.FilterLive(rules, now)
+			cur := make(map[int64]bool, len(live))
+			for _, r := range live {
+				cur[r.ID] = true
+			}
+			if sameSet(cur, lastLive) {
+				continue
+			}
+			if _, _, errs := e.Firewall.Apply(ctx, rules, policy); len(errs) > 0 {
+				e.Log.Warn("firewall schedule re-apply failed", "errors", len(errs))
+			} else {
+				e.Log.Info("firewall schedule re-applied", "live", len(live))
+			}
+			lastLive = cur
+		}
+	}
+}
+
+func sameSet(a, b map[int64]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if !b[k] {
+			return false
+		}
+	}
+	return true
 }
 
 // AllocateWSTunnel opens a WebSocket tunnel through the backend's

@@ -19,6 +19,7 @@ import (
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/engine"
+	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -238,6 +239,106 @@ func (s *Server) GetPeerStats(ctx context.Context, in *gmeshv1.GetPeerStatsReque
 		return nil, status.Error(codes.NotFound, "peer not found")
 	}
 	return &gmeshv1.GetPeerStatsResponse{Peer: peerToProto(p)}, nil
+}
+
+// ── Firewall ──────────────────────────────────────────────────────────
+
+// ApplyFirewall installs the provided rules atomically.
+func (s *Server) ApplyFirewall(ctx context.Context, in *gmeshv1.ApplyFirewallRequest) (*gmeshv1.ApplyFirewallResponse, error) {
+	rules := make([]firewall.Rule, 0, len(in.Rules))
+	for _, r := range in.Rules {
+		rules = append(rules, protoToRule(r))
+	}
+	applied, failed, errs := s.Engine.ApplyFirewall(ctx, rules, in.DefaultPolicy, in.ForceReset)
+	resp := &gmeshv1.ApplyFirewallResponse{
+		AppliedCount: int32(applied), //nolint:gosec // bounded
+		FailedCount:  int32(failed),  //nolint:gosec
+	}
+	for _, e := range errs {
+		resp.Errors = append(resp.Errors, e.Error())
+	}
+	return resp, nil
+}
+
+// ResetFirewall flushes gmesh rules.
+func (s *Server) ResetFirewall(ctx context.Context, _ *gmeshv1.ResetFirewallRequest) (*gmeshv1.ResetFirewallResponse, error) {
+	if err := s.Engine.ResetFirewall(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "reset firewall: %v", err)
+	}
+	return &gmeshv1.ResetFirewallResponse{}, nil
+}
+
+// GetFirewallStatus returns active rules + hit counts.
+func (s *Server) GetFirewallStatus(ctx context.Context, _ *gmeshv1.GetFirewallStatusRequest) (*gmeshv1.GetFirewallStatusResponse, error) {
+	backend, rules, hits, err := s.Engine.FirewallStatus(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "firewall status: %v", err)
+	}
+	resp := &gmeshv1.GetFirewallStatusResponse{
+		Backend:     backend,
+		ActiveRules: int32(len(rules)), //nolint:gosec
+		HitCounts:   hits,
+	}
+	for _, r := range rules {
+		resp.Rules = append(resp.Rules, ruleToProto(r))
+	}
+	return resp, nil
+}
+
+// protoToRule converts the wire format to the internal firewall.Rule.
+func protoToRule(p *gmeshv1.FirewallRule) firewall.Rule {
+	if p == nil {
+		return firewall.Rule{}
+	}
+	return firewall.Rule{
+		ID:          p.Id,
+		Name:        p.Name,
+		Enabled:     p.Enabled,
+		Priority:    p.Priority,
+		Action:      firewall.Action(p.Action),
+		Protocol:    firewall.Protocol(p.Protocol),
+		Source:      p.Source,
+		Destination: p.Destination,
+		PortRange:   p.PortRange,
+		Direction:   firewall.ParseDirection(p.Direction),
+		TCPFlags:    p.TcpFlags,
+		ConnState:   p.ConnState,
+		RateLimit:   p.RateLimit,
+		RateBurst:   p.RateBurst,
+		ScheduleRaw: p.Schedule,
+		ExpiresAt:   p.ExpiresAt,
+		Tags:        p.Tags,
+	}
+}
+
+// ruleToProto goes the other direction.
+func ruleToProto(r firewall.Rule) *gmeshv1.FirewallRule {
+	dir := "inbound"
+	switch r.Direction {
+	case firewall.DirectionOutbound:
+		dir = "outbound"
+	case firewall.DirectionBoth:
+		dir = "both"
+	}
+	return &gmeshv1.FirewallRule{
+		Id:          r.ID,
+		Name:        r.Name,
+		Enabled:     r.Enabled,
+		Priority:    r.Priority,
+		Action:      gmeshv1.FirewallAction(r.Action),
+		Protocol:    gmeshv1.FirewallProtocol(r.Protocol),
+		Source:      r.Source,
+		Destination: r.Destination,
+		PortRange:   r.PortRange,
+		Direction:   dir,
+		TcpFlags:    r.TCPFlags,
+		ConnState:   r.ConnState,
+		RateLimit:   r.RateLimit,
+		RateBurst:   r.RateBurst,
+		Schedule:    r.ScheduleRaw,
+		ExpiresAt:   r.ExpiresAt,
+		Tags:        r.Tags,
+	}
 }
 
 // ── Relay ──────────────────────────────────────────────────────────────

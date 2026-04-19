@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
+	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
@@ -43,6 +44,7 @@ func main() {
 		natCmd(),
 		holePunchCmd(),
 		relayCmd(),
+		firewallCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -519,6 +521,214 @@ func wsTunnelCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("peer-id")
 	_ = cmd.MarkFlagRequired("url")
 	return cmd
+}
+
+// ── Firewall ──────────────────────────────────────────────────────────
+
+func firewallCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "firewall", Short: "Firewall (nftables/iptables) management"}
+	cmd.AddCommand(
+		firewallStatusCmd(),
+		firewallApplyCmd(),
+		firewallResetCmd(),
+		firewallTemplatesCmd(),
+	)
+	return cmd
+}
+
+func firewallStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show active backend + rule count + hit counters",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.GetFirewallStatus(ctx, &gmeshv1.GetFirewallStatusRequest{})
+			if err != nil {
+				return fmt.Errorf("firewall status rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("backend:     %s\n", resp.Backend)
+			fmt.Printf("active:      %d rules\n", resp.ActiveRules)
+			if len(resp.HitCounts) > 0 {
+				fmt.Println("hits:")
+				for id, n := range resp.HitCounts {
+					fmt.Printf("  rule %d: %d\n", id, n)
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func firewallApplyCmd() *cobra.Command {
+	var (
+		file   string
+		policy string
+		reset  bool
+	)
+	cmd := &cobra.Command{
+		Use:   "apply",
+		Short: "Apply a JSON rule file (replace-all)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			raw, err := os.ReadFile(file)
+			if err != nil {
+				return fmt.Errorf("read rules: %w", err)
+			}
+			var wireRules []*gmeshv1.FirewallRule
+			if err := json.Unmarshal(raw, &wireRules); err != nil {
+				return fmt.Errorf("parse rules: %w", err)
+			}
+
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			resp, err := c.ApplyFirewall(ctx, &gmeshv1.ApplyFirewallRequest{
+				Rules:         wireRules,
+				ForceReset:    reset,
+				DefaultPolicy: policy,
+			})
+			if err != nil {
+				return fmt.Errorf("apply firewall rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("applied: %d\nfailed:  %d\n", resp.AppliedCount, resp.FailedCount)
+			for _, e := range resp.Errors {
+				fmt.Printf("  ! %s\n", e)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "path to JSON rules file")
+	cmd.Flags().StringVar(&policy, "policy", "accept", "default chain policy: accept|deny")
+	cmd.Flags().BoolVar(&reset, "reset", false, "flush before apply")
+	_ = cmd.MarkFlagRequired("file")
+	return cmd
+}
+
+func firewallResetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reset",
+		Short: "Flush all gmesh-managed firewall rules",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.ResetFirewall(ctx, &gmeshv1.ResetFirewallRequest{}); err != nil {
+				return fmt.Errorf("reset firewall rpc: %w", err)
+			}
+			fmt.Println("firewall reset")
+			return nil
+		},
+	}
+}
+
+func firewallTemplatesCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "templates", Short: "List and apply canned rule templates"}
+
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "Show available templates",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			// Templates are compiled into the binary; list from our package.
+			fmt.Println("available templates:")
+			for _, n := range firewallTemplateNames() {
+				fmt.Printf("  %s\n", n)
+			}
+			return nil
+		},
+	}
+
+	var (
+		name   string
+		policy string
+		reset  bool
+	)
+	apply := &cobra.Command{
+		Use:   "apply",
+		Short: "Apply a named template",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			rules, ok := firewallGetTemplate(name)
+			if !ok {
+				return fmt.Errorf("template %q not found", name)
+			}
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.ApplyFirewall(ctx, &gmeshv1.ApplyFirewallRequest{
+				Rules:         rules,
+				ForceReset:    reset,
+				DefaultPolicy: policy,
+			})
+			if err != nil {
+				return fmt.Errorf("apply template rpc: %w", err)
+			}
+			fmt.Printf("template %q: applied=%d failed=%d\n", name, resp.AppliedCount, resp.FailedCount)
+			return nil
+		},
+	}
+	apply.Flags().StringVar(&name, "name", "", "template name (see 'templates list')")
+	apply.Flags().StringVar(&policy, "policy", "accept", "default policy: accept|deny")
+	apply.Flags().BoolVar(&reset, "reset", false, "flush before apply")
+	_ = apply.MarkFlagRequired("name")
+
+	cmd.AddCommand(list, apply)
+	return cmd
+}
+
+// firewallTemplateNames returns the compiled-in template list.
+func firewallTemplateNames() []string { return firewall.TemplateNames() }
+
+// firewallGetTemplate returns the named template as gRPC wire rules.
+func firewallGetTemplate(name string) ([]*gmeshv1.FirewallRule, bool) {
+	rules, ok := firewall.GetTemplate(name)
+	if !ok {
+		return nil, false
+	}
+	out := make([]*gmeshv1.FirewallRule, 0, len(rules))
+	for _, r := range rules {
+		out = append(out, firewallRuleToProto(r))
+	}
+	return out, true
+}
+
+func firewallRuleToProto(r firewall.Rule) *gmeshv1.FirewallRule {
+	dir := "inbound"
+	switch r.Direction {
+	case firewall.DirectionOutbound:
+		dir = "outbound"
+	case firewall.DirectionBoth:
+		dir = "both"
+	}
+	return &gmeshv1.FirewallRule{
+		Id: r.ID, Name: r.Name, Enabled: r.Enabled, Priority: r.Priority,
+		Action: gmeshv1.FirewallAction(r.Action), Protocol: gmeshv1.FirewallProtocol(r.Protocol),
+		Source: r.Source, Destination: r.Destination, PortRange: r.PortRange,
+		Direction: dir, TcpFlags: r.TCPFlags, ConnState: r.ConnState,
+		RateLimit: r.RateLimit, RateBurst: r.RateBurst,
+		Schedule: r.ScheduleRaw, ExpiresAt: r.ExpiresAt, Tags: r.Tags,
+	}
 }
 
 func peerUpdateCmd() *cobra.Command {
