@@ -21,7 +21,7 @@ Phase 17  Policy Engine (skeleton) ✅ v0.6.0   — YAML + debounce
 Phase 18  eBPF L7 Classifier          ─┐  Tier 3: advanced features
 Phase 19  Onion Circuit Manager        │  ✅ v0.8.0 (multi-hop source-routed path; NOT Tor-style)
 Phase 20  Zero-Trust mTLS              │  ✅ v0.7.0 (CA + SPIFFE peer certs + revocation)
-Phase 21  Connection Anomaly          ─┘
+Phase 21  Connection Anomaly          ─┘  ✅ v0.9.0 (bandwidth_z + handshake_storm + peer_flap)
 Phase 22  AI Topology Optimizer    — research track
 Phase 23  Bandwidth Marketplace    — product track (separate)
 Phase 10  GritivaCore migration    ✅ v0.7.0 (bridge shim wired into agent; per-VM cutover via USE_GMESH=1)

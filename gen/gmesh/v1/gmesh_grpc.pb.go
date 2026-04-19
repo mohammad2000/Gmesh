@@ -58,6 +58,7 @@ const (
 	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
 	GMesh_ListPolicies_FullMethodName         = "/gmesh.v1.GMesh/ListPolicies"
 	GMesh_ReloadPolicies_FullMethodName       = "/gmesh.v1.GMesh/ReloadPolicies"
+	GMesh_ListAnomalies_FullMethodName        = "/gmesh.v1.GMesh/ListAnomalies"
 	GMesh_CreateCircuit_FullMethodName        = "/gmesh.v1.GMesh/CreateCircuit"
 	GMesh_UpdateCircuit_FullMethodName        = "/gmesh.v1.GMesh/UpdateCircuit"
 	GMesh_DeleteCircuit_FullMethodName        = "/gmesh.v1.GMesh/DeleteCircuit"
@@ -149,6 +150,11 @@ type GMeshClient interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(ctx context.Context, in *ListPoliciesRequest, opts ...grpc.CallOption) (*ListPoliciesResponse, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequest, opts ...grpc.CallOption) (*ReloadPoliciesResponse, error)
+	// ── Anomaly alerts (Phase 21) ────────────────────────────────────────
+	// Recent alerts produced by the built-in detectors (bandwidth z-score,
+	// handshake storm, peer flap). Full live stream is available on the
+	// event bus as type `anomaly_alert`.
+	ListAnomalies(ctx context.Context, in *ListAnomaliesRequest, opts ...grpc.CallOption) (*ListAnomaliesResponse, error)
 	// ── Circuits / onion paths (Phase 19) ────────────────────────────────
 	// A multi-hop source-routed path through the mesh. See docs/circuit.md
 	// for the role model (source/transit/exit) and security posture.
@@ -575,6 +581,16 @@ func (c *gMeshClient) ReloadPolicies(ctx context.Context, in *ReloadPoliciesRequ
 	return out, nil
 }
 
+func (c *gMeshClient) ListAnomalies(ctx context.Context, in *ListAnomaliesRequest, opts ...grpc.CallOption) (*ListAnomaliesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAnomaliesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListAnomalies_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gMeshClient) CreateCircuit(ctx context.Context, in *CreateCircuitRequest, opts ...grpc.CallOption) (*CircuitResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CircuitResponse)
@@ -754,6 +770,11 @@ type GMeshServer interface {
 	// List the active policies and force a reload from disk.
 	ListPolicies(context.Context, *ListPoliciesRequest) (*ListPoliciesResponse, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error)
+	// ── Anomaly alerts (Phase 21) ────────────────────────────────────────
+	// Recent alerts produced by the built-in detectors (bandwidth z-score,
+	// handshake storm, peer flap). Full live stream is available on the
+	// event bus as type `anomaly_alert`.
+	ListAnomalies(context.Context, *ListAnomaliesRequest) (*ListAnomaliesResponse, error)
 	// ── Circuits / onion paths (Phase 19) ────────────────────────────────
 	// A multi-hop source-routed path through the mesh. See docs/circuit.md
 	// for the role model (source/transit/exit) and security posture.
@@ -897,6 +918,9 @@ func (UnimplementedGMeshServer) ListPolicies(context.Context, *ListPoliciesReque
 }
 func (UnimplementedGMeshServer) ReloadPolicies(context.Context, *ReloadPoliciesRequest) (*ReloadPoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReloadPolicies not implemented")
+}
+func (UnimplementedGMeshServer) ListAnomalies(context.Context, *ListAnomaliesRequest) (*ListAnomaliesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAnomalies not implemented")
 }
 func (UnimplementedGMeshServer) CreateCircuit(context.Context, *CreateCircuitRequest) (*CircuitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCircuit not implemented")
@@ -1644,6 +1668,24 @@ func _GMesh_ReloadPolicies_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_ListAnomalies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAnomaliesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListAnomalies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListAnomalies_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListAnomalies(ctx, req.(*ListAnomaliesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GMesh_CreateCircuit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateCircuitRequest)
 	if err := dec(in); err != nil {
@@ -1982,6 +2024,10 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReloadPolicies",
 			Handler:    _GMesh_ReloadPolicies_Handler,
+		},
+		{
+			MethodName: "ListAnomalies",
+			Handler:    _GMesh_ListAnomalies_Handler,
 		},
 		{
 			MethodName: "CreateCircuit",

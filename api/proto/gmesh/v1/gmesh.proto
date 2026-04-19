@@ -93,6 +93,12 @@ service GMesh {
   rpc ListPolicies   (ListPoliciesRequest)   returns (ListPoliciesResponse);
   rpc ReloadPolicies (ReloadPoliciesRequest) returns (ReloadPoliciesResponse);
 
+  // ── Anomaly alerts (Phase 21) ────────────────────────────────────────
+  // Recent alerts produced by the built-in detectors (bandwidth z-score,
+  // handshake storm, peer flap). Full live stream is available on the
+  // event bus as type `anomaly_alert`.
+  rpc ListAnomalies (ListAnomaliesRequest) returns (ListAnomaliesResponse);
+
   // ── Circuits / onion paths (Phase 19) ────────────────────────────────
   // A multi-hop source-routed path through the mesh. See docs/circuit.md
   // for the role model (source/transit/exit) and security posture.
@@ -604,6 +610,23 @@ message ReloadPoliciesResponse {
   int64 loaded = 1;
   repeated string errors = 2;
 }
+
+// ── Anomaly alerts (Phase 21) ────────────────────────────────────────
+
+message Anomaly {
+  string detector    = 1;  // "bandwidth_z" | "handshake_storm" | "peer_flap"
+  int64  peer_id     = 2;
+  string severity    = 3;  // "info" | "warn" | "critical"
+  string message     = 4;
+  map<string, double> metrics = 5;
+  int64  observed_unix = 6;
+}
+
+message ListAnomaliesRequest {
+  int64  peer_id = 1; // 0 = all
+  int32  limit   = 2; // 0 = all
+}
+message ListAnomaliesResponse { repeated Anomaly alerts = 1; }
 
 // ── Circuits / onion paths (Phase 19) ────────────────────────────────
 

@@ -5199,6 +5199,186 @@ func (x *ReloadPoliciesResponse) GetErrors() []string {
 	return nil
 }
 
+type Anomaly struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Detector      string                 `protobuf:"bytes,1,opt,name=detector,proto3" json:"detector,omitempty"` // "bandwidth_z" | "handshake_storm" | "peer_flap"
+	PeerId        int64                  `protobuf:"varint,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"` // "info" | "warn" | "critical"
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	Metrics       map[string]float64     `protobuf:"bytes,5,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed64,2,opt,name=value"`
+	ObservedUnix  int64                  `protobuf:"varint,6,opt,name=observed_unix,json=observedUnix,proto3" json:"observed_unix,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Anomaly) Reset() {
+	*x = Anomaly{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Anomaly) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Anomaly) ProtoMessage() {}
+
+func (x *Anomaly) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Anomaly.ProtoReflect.Descriptor instead.
+func (*Anomaly) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *Anomaly) GetDetector() string {
+	if x != nil {
+		return x.Detector
+	}
+	return ""
+}
+
+func (x *Anomaly) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *Anomaly) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *Anomaly) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *Anomaly) GetMetrics() map[string]float64 {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+func (x *Anomaly) GetObservedUnix() int64 {
+	if x != nil {
+		return x.ObservedUnix
+	}
+	return 0
+}
+
+type ListAnomaliesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"` // 0 = all
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`                 // 0 = all
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAnomaliesRequest) Reset() {
+	*x = ListAnomaliesRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAnomaliesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAnomaliesRequest) ProtoMessage() {}
+
+func (x *ListAnomaliesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAnomaliesRequest.ProtoReflect.Descriptor instead.
+func (*ListAnomaliesRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *ListAnomaliesRequest) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *ListAnomaliesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type ListAnomaliesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Alerts        []*Anomaly             `protobuf:"bytes,1,rep,name=alerts,proto3" json:"alerts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAnomaliesResponse) Reset() {
+	*x = ListAnomaliesResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAnomaliesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAnomaliesResponse) ProtoMessage() {}
+
+func (x *ListAnomaliesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAnomaliesResponse.ProtoReflect.Descriptor instead.
+func (*ListAnomaliesResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *ListAnomaliesResponse) GetAlerts() []*Anomaly {
+	if x != nil {
+		return x.Alerts
+	}
+	return nil
+}
+
 type Circuit struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -5218,7 +5398,7 @@ type Circuit struct {
 
 func (x *Circuit) Reset() {
 	*x = Circuit{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5230,7 +5410,7 @@ func (x *Circuit) String() string {
 func (*Circuit) ProtoMessage() {}
 
 func (x *Circuit) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5243,7 +5423,7 @@ func (x *Circuit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Circuit.ProtoReflect.Descriptor instead.
 func (*Circuit) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{83}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *Circuit) GetId() int64 {
@@ -5332,7 +5512,7 @@ type CreateCircuitRequest struct {
 
 func (x *CreateCircuitRequest) Reset() {
 	*x = CreateCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5344,7 +5524,7 @@ func (x *CreateCircuitRequest) String() string {
 func (*CreateCircuitRequest) ProtoMessage() {}
 
 func (x *CreateCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5357,7 +5537,7 @@ func (x *CreateCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCircuitRequest.ProtoReflect.Descriptor instead.
 func (*CreateCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{84}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *CreateCircuitRequest) GetCircuit() *Circuit {
@@ -5376,7 +5556,7 @@ type UpdateCircuitRequest struct {
 
 func (x *UpdateCircuitRequest) Reset() {
 	*x = UpdateCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5388,7 +5568,7 @@ func (x *UpdateCircuitRequest) String() string {
 func (*UpdateCircuitRequest) ProtoMessage() {}
 
 func (x *UpdateCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5401,7 +5581,7 @@ func (x *UpdateCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCircuitRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{85}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *UpdateCircuitRequest) GetCircuit() *Circuit {
@@ -5420,7 +5600,7 @@ type CircuitResponse struct {
 
 func (x *CircuitResponse) Reset() {
 	*x = CircuitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5432,7 +5612,7 @@ func (x *CircuitResponse) String() string {
 func (*CircuitResponse) ProtoMessage() {}
 
 func (x *CircuitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5445,7 +5625,7 @@ func (x *CircuitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitResponse.ProtoReflect.Descriptor instead.
 func (*CircuitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{86}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *CircuitResponse) GetCircuit() *Circuit {
@@ -5464,7 +5644,7 @@ type DeleteCircuitRequest struct {
 
 func (x *DeleteCircuitRequest) Reset() {
 	*x = DeleteCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5476,7 +5656,7 @@ func (x *DeleteCircuitRequest) String() string {
 func (*DeleteCircuitRequest) ProtoMessage() {}
 
 func (x *DeleteCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5489,7 +5669,7 @@ func (x *DeleteCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCircuitRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{87}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *DeleteCircuitRequest) GetId() int64 {
@@ -5507,7 +5687,7 @@ type DeleteCircuitResponse struct {
 
 func (x *DeleteCircuitResponse) Reset() {
 	*x = DeleteCircuitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5519,7 +5699,7 @@ func (x *DeleteCircuitResponse) String() string {
 func (*DeleteCircuitResponse) ProtoMessage() {}
 
 func (x *DeleteCircuitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5532,7 +5712,7 @@ func (x *DeleteCircuitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCircuitResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCircuitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{88}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{91}
 }
 
 type ListCircuitsRequest struct {
@@ -5543,7 +5723,7 @@ type ListCircuitsRequest struct {
 
 func (x *ListCircuitsRequest) Reset() {
 	*x = ListCircuitsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5555,7 +5735,7 @@ func (x *ListCircuitsRequest) String() string {
 func (*ListCircuitsRequest) ProtoMessage() {}
 
 func (x *ListCircuitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5568,7 +5748,7 @@ func (x *ListCircuitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCircuitsRequest.ProtoReflect.Descriptor instead.
 func (*ListCircuitsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{89}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{92}
 }
 
 type ListCircuitsResponse struct {
@@ -5580,7 +5760,7 @@ type ListCircuitsResponse struct {
 
 func (x *ListCircuitsResponse) Reset() {
 	*x = ListCircuitsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5592,7 +5772,7 @@ func (x *ListCircuitsResponse) String() string {
 func (*ListCircuitsResponse) ProtoMessage() {}
 
 func (x *ListCircuitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5605,7 +5785,7 @@ func (x *ListCircuitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCircuitsResponse.ProtoReflect.Descriptor instead.
 func (*ListCircuitsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{90}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *ListCircuitsResponse) GetCircuits() []*Circuit {
@@ -5625,7 +5805,7 @@ type InitCARequest struct {
 
 func (x *InitCARequest) Reset() {
 	*x = InitCARequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5637,7 +5817,7 @@ func (x *InitCARequest) String() string {
 func (*InitCARequest) ProtoMessage() {}
 
 func (x *InitCARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5650,7 +5830,7 @@ func (x *InitCARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitCARequest.ProtoReflect.Descriptor instead.
 func (*InitCARequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{91}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *InitCARequest) GetTrustDomain() string {
@@ -5677,7 +5857,7 @@ type InitCAResponse struct {
 
 func (x *InitCAResponse) Reset() {
 	*x = InitCAResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5689,7 +5869,7 @@ func (x *InitCAResponse) String() string {
 func (*InitCAResponse) ProtoMessage() {}
 
 func (x *InitCAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5702,7 +5882,7 @@ func (x *InitCAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitCAResponse.ProtoReflect.Descriptor instead.
 func (*InitCAResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{92}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *InitCAResponse) GetCaPem() string {
@@ -5727,7 +5907,7 @@ type CAStatusRequest struct {
 
 func (x *CAStatusRequest) Reset() {
 	*x = CAStatusRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5739,7 +5919,7 @@ func (x *CAStatusRequest) String() string {
 func (*CAStatusRequest) ProtoMessage() {}
 
 func (x *CAStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5752,7 +5932,7 @@ func (x *CAStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAStatusRequest.ProtoReflect.Descriptor instead.
 func (*CAStatusRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{93}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{96}
 }
 
 type CAStatusResponse struct {
@@ -5768,7 +5948,7 @@ type CAStatusResponse struct {
 
 func (x *CAStatusResponse) Reset() {
 	*x = CAStatusResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5780,7 +5960,7 @@ func (x *CAStatusResponse) String() string {
 func (*CAStatusResponse) ProtoMessage() {}
 
 func (x *CAStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5793,7 +5973,7 @@ func (x *CAStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAStatusResponse.ProtoReflect.Descriptor instead.
 func (*CAStatusResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{94}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *CAStatusResponse) GetLoaded() bool {
@@ -5845,7 +6025,7 @@ type IssueCertRequest struct {
 
 func (x *IssueCertRequest) Reset() {
 	*x = IssueCertRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5857,7 +6037,7 @@ func (x *IssueCertRequest) String() string {
 func (*IssueCertRequest) ProtoMessage() {}
 
 func (x *IssueCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5870,7 +6050,7 @@ func (x *IssueCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssueCertRequest.ProtoReflect.Descriptor instead.
 func (*IssueCertRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{95}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *IssueCertRequest) GetPeerId() int64 {
@@ -5932,7 +6112,7 @@ type IssuedCert struct {
 
 func (x *IssuedCert) Reset() {
 	*x = IssuedCert{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5944,7 +6124,7 @@ func (x *IssuedCert) String() string {
 func (*IssuedCert) ProtoMessage() {}
 
 func (x *IssuedCert) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5957,7 +6137,7 @@ func (x *IssuedCert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssuedCert.ProtoReflect.Descriptor instead.
 func (*IssuedCert) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{96}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *IssuedCert) GetSerial() string {
@@ -6032,7 +6212,7 @@ type IssueCertResponse struct {
 
 func (x *IssueCertResponse) Reset() {
 	*x = IssueCertResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6044,7 +6224,7 @@ func (x *IssueCertResponse) String() string {
 func (*IssueCertResponse) ProtoMessage() {}
 
 func (x *IssueCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6057,7 +6237,7 @@ func (x *IssueCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssueCertResponse.ProtoReflect.Descriptor instead.
 func (*IssueCertResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{97}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *IssueCertResponse) GetCert() *IssuedCert {
@@ -6084,7 +6264,7 @@ type CertSummary struct {
 
 func (x *CertSummary) Reset() {
 	*x = CertSummary{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6096,7 +6276,7 @@ func (x *CertSummary) String() string {
 func (*CertSummary) ProtoMessage() {}
 
 func (x *CertSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6109,7 +6289,7 @@ func (x *CertSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertSummary.ProtoReflect.Descriptor instead.
 func (*CertSummary) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{98}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *CertSummary) GetSerial() string {
@@ -6184,7 +6364,7 @@ type ListCertsRequest struct {
 
 func (x *ListCertsRequest) Reset() {
 	*x = ListCertsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6196,7 +6376,7 @@ func (x *ListCertsRequest) String() string {
 func (*ListCertsRequest) ProtoMessage() {}
 
 func (x *ListCertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6209,7 +6389,7 @@ func (x *ListCertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCertsRequest.ProtoReflect.Descriptor instead.
 func (*ListCertsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{99}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *ListCertsRequest) GetPeerId() int64 {
@@ -6228,7 +6408,7 @@ type ListCertsResponse struct {
 
 func (x *ListCertsResponse) Reset() {
 	*x = ListCertsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6240,7 +6420,7 @@ func (x *ListCertsResponse) String() string {
 func (*ListCertsResponse) ProtoMessage() {}
 
 func (x *ListCertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6253,7 +6433,7 @@ func (x *ListCertsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCertsResponse.ProtoReflect.Descriptor instead.
 func (*ListCertsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{100}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ListCertsResponse) GetCerts() []*CertSummary {
@@ -6273,7 +6453,7 @@ type RevokeCertRequest struct {
 
 func (x *RevokeCertRequest) Reset() {
 	*x = RevokeCertRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6285,7 +6465,7 @@ func (x *RevokeCertRequest) String() string {
 func (*RevokeCertRequest) ProtoMessage() {}
 
 func (x *RevokeCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6298,7 +6478,7 @@ func (x *RevokeCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertRequest.ProtoReflect.Descriptor instead.
 func (*RevokeCertRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{101}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *RevokeCertRequest) GetSerial() string {
@@ -6323,7 +6503,7 @@ type RevokeCertResponse struct {
 
 func (x *RevokeCertResponse) Reset() {
 	*x = RevokeCertResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6335,7 +6515,7 @@ func (x *RevokeCertResponse) String() string {
 func (*RevokeCertResponse) ProtoMessage() {}
 
 func (x *RevokeCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6348,7 +6528,7 @@ func (x *RevokeCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertResponse.ProtoReflect.Descriptor instead.
 func (*RevokeCertResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{102}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{105}
 }
 
 type ExportTrustRequest struct {
@@ -6359,7 +6539,7 @@ type ExportTrustRequest struct {
 
 func (x *ExportTrustRequest) Reset() {
 	*x = ExportTrustRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6371,7 +6551,7 @@ func (x *ExportTrustRequest) String() string {
 func (*ExportTrustRequest) ProtoMessage() {}
 
 func (x *ExportTrustRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6384,7 +6564,7 @@ func (x *ExportTrustRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportTrustRequest.ProtoReflect.Descriptor instead.
 func (*ExportTrustRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{103}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{106}
 }
 
 type ExportTrustResponse struct {
@@ -6397,7 +6577,7 @@ type ExportTrustResponse struct {
 
 func (x *ExportTrustResponse) Reset() {
 	*x = ExportTrustResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6409,7 +6589,7 @@ func (x *ExportTrustResponse) String() string {
 func (*ExportTrustResponse) ProtoMessage() {}
 
 func (x *ExportTrustResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6422,7 +6602,7 @@ func (x *ExportTrustResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportTrustResponse.ProtoReflect.Descriptor instead.
 func (*ExportTrustResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{104}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *ExportTrustResponse) GetCaPem() string {
@@ -6453,7 +6633,7 @@ type HealthCheckResponse_PeerHealth struct {
 
 func (x *HealthCheckResponse_PeerHealth) Reset() {
 	*x = HealthCheckResponse_PeerHealth{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6465,7 +6645,7 @@ func (x *HealthCheckResponse_PeerHealth) String() string {
 func (*HealthCheckResponse_PeerHealth) ProtoMessage() {}
 
 func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6888,7 +7068,22 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x15ReloadPoliciesRequest\"H\n" +
 	"\x16ReloadPoliciesResponse\x12\x16\n" +
 	"\x06loaded\x18\x01 \x01(\x03R\x06loaded\x12\x16\n" +
-	"\x06errors\x18\x02 \x03(\tR\x06errors\"\xb7\x02\n" +
+	"\x06errors\x18\x02 \x03(\tR\x06errors\"\x8f\x02\n" +
+	"\aAnomaly\x12\x1a\n" +
+	"\bdetector\x18\x01 \x01(\tR\bdetector\x12\x17\n" +
+	"\apeer_id\x18\x02 \x01(\x03R\x06peerId\x12\x1a\n" +
+	"\bseverity\x18\x03 \x01(\tR\bseverity\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x128\n" +
+	"\ametrics\x18\x05 \x03(\v2\x1e.gmesh.v1.Anomaly.MetricsEntryR\ametrics\x12#\n" +
+	"\robserved_unix\x18\x06 \x01(\x03R\fobservedUnix\x1a:\n" +
+	"\fMetricsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\"E\n" +
+	"\x14ListAnomaliesRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"B\n" +
+	"\x15ListAnomaliesResponse\x12)\n" +
+	"\x06alerts\x18\x01 \x03(\v2\x11.gmesh.v1.AnomalyR\x06alerts\"\xb7\x02\n" +
 	"\aCircuit\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -7021,7 +7216,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fFW_PROTO_TCP\x10\x02\x12\x10\n" +
 	"\fFW_PROTO_UDP\x10\x03\x12\x11\n" +
 	"\rFW_PROTO_ICMP\x10\x04\x12\x13\n" +
-	"\x0fFW_PROTO_ICMPV6\x10\x052\x81\x1e\n" +
+	"\x0fFW_PROTO_ICMPV6\x10\x052\xd3\x1e\n" +
 	"\x05GMesh\x125\n" +
 	"\x04Join\x12\x15.gmesh.v1.JoinRequest\x1a\x16.gmesh.v1.JoinResponse\x128\n" +
 	"\x05Leave\x12\x16.gmesh.v1.LeaveRequest\x1a\x17.gmesh.v1.LeaveResponse\x12;\n" +
@@ -7067,7 +7262,8 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"ResetQuota\x12\x1b.gmesh.v1.ResetQuotaRequest\x1a\x1c.gmesh.v1.ResetQuotaResponse\x12S\n" +
 	"\x0eListPathStates\x12\x1f.gmesh.v1.ListPathStatesRequest\x1a .gmesh.v1.ListPathStatesResponse\x12M\n" +
 	"\fListPolicies\x12\x1d.gmesh.v1.ListPoliciesRequest\x1a\x1e.gmesh.v1.ListPoliciesResponse\x12S\n" +
-	"\x0eReloadPolicies\x12\x1f.gmesh.v1.ReloadPoliciesRequest\x1a .gmesh.v1.ReloadPoliciesResponse\x12J\n" +
+	"\x0eReloadPolicies\x12\x1f.gmesh.v1.ReloadPoliciesRequest\x1a .gmesh.v1.ReloadPoliciesResponse\x12P\n" +
+	"\rListAnomalies\x12\x1e.gmesh.v1.ListAnomaliesRequest\x1a\x1f.gmesh.v1.ListAnomaliesResponse\x12J\n" +
 	"\rCreateCircuit\x12\x1e.gmesh.v1.CreateCircuitRequest\x1a\x19.gmesh.v1.CircuitResponse\x12J\n" +
 	"\rUpdateCircuit\x12\x1e.gmesh.v1.UpdateCircuitRequest\x1a\x19.gmesh.v1.CircuitResponse\x12P\n" +
 	"\rDeleteCircuit\x12\x1e.gmesh.v1.DeleteCircuitRequest\x1a\x1f.gmesh.v1.DeleteCircuitResponse\x12M\n" +
@@ -7093,7 +7289,7 @@ func file_gmesh_v1_gmesh_proto_rawDescGZIP() []byte {
 }
 
 var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 107)
+var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 111)
 var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(PeerType)(0),                          // 0: gmesh.v1.PeerType
 	(PeerStatus)(0),                        // 1: gmesh.v1.PeerStatus
@@ -7185,30 +7381,34 @@ var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(*ListPoliciesResponse)(nil),           // 87: gmesh.v1.ListPoliciesResponse
 	(*ReloadPoliciesRequest)(nil),          // 88: gmesh.v1.ReloadPoliciesRequest
 	(*ReloadPoliciesResponse)(nil),         // 89: gmesh.v1.ReloadPoliciesResponse
-	(*Circuit)(nil),                        // 90: gmesh.v1.Circuit
-	(*CreateCircuitRequest)(nil),           // 91: gmesh.v1.CreateCircuitRequest
-	(*UpdateCircuitRequest)(nil),           // 92: gmesh.v1.UpdateCircuitRequest
-	(*CircuitResponse)(nil),                // 93: gmesh.v1.CircuitResponse
-	(*DeleteCircuitRequest)(nil),           // 94: gmesh.v1.DeleteCircuitRequest
-	(*DeleteCircuitResponse)(nil),          // 95: gmesh.v1.DeleteCircuitResponse
-	(*ListCircuitsRequest)(nil),            // 96: gmesh.v1.ListCircuitsRequest
-	(*ListCircuitsResponse)(nil),           // 97: gmesh.v1.ListCircuitsResponse
-	(*InitCARequest)(nil),                  // 98: gmesh.v1.InitCARequest
-	(*InitCAResponse)(nil),                 // 99: gmesh.v1.InitCAResponse
-	(*CAStatusRequest)(nil),                // 100: gmesh.v1.CAStatusRequest
-	(*CAStatusResponse)(nil),               // 101: gmesh.v1.CAStatusResponse
-	(*IssueCertRequest)(nil),               // 102: gmesh.v1.IssueCertRequest
-	(*IssuedCert)(nil),                     // 103: gmesh.v1.IssuedCert
-	(*IssueCertResponse)(nil),              // 104: gmesh.v1.IssueCertResponse
-	(*CertSummary)(nil),                    // 105: gmesh.v1.CertSummary
-	(*ListCertsRequest)(nil),               // 106: gmesh.v1.ListCertsRequest
-	(*ListCertsResponse)(nil),              // 107: gmesh.v1.ListCertsResponse
-	(*RevokeCertRequest)(nil),              // 108: gmesh.v1.RevokeCertRequest
-	(*RevokeCertResponse)(nil),             // 109: gmesh.v1.RevokeCertResponse
-	(*ExportTrustRequest)(nil),             // 110: gmesh.v1.ExportTrustRequest
-	(*ExportTrustResponse)(nil),            // 111: gmesh.v1.ExportTrustResponse
-	(*HealthCheckResponse_PeerHealth)(nil), // 112: gmesh.v1.HealthCheckResponse.PeerHealth
-	nil,                                    // 113: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	(*Anomaly)(nil),                        // 90: gmesh.v1.Anomaly
+	(*ListAnomaliesRequest)(nil),           // 91: gmesh.v1.ListAnomaliesRequest
+	(*ListAnomaliesResponse)(nil),          // 92: gmesh.v1.ListAnomaliesResponse
+	(*Circuit)(nil),                        // 93: gmesh.v1.Circuit
+	(*CreateCircuitRequest)(nil),           // 94: gmesh.v1.CreateCircuitRequest
+	(*UpdateCircuitRequest)(nil),           // 95: gmesh.v1.UpdateCircuitRequest
+	(*CircuitResponse)(nil),                // 96: gmesh.v1.CircuitResponse
+	(*DeleteCircuitRequest)(nil),           // 97: gmesh.v1.DeleteCircuitRequest
+	(*DeleteCircuitResponse)(nil),          // 98: gmesh.v1.DeleteCircuitResponse
+	(*ListCircuitsRequest)(nil),            // 99: gmesh.v1.ListCircuitsRequest
+	(*ListCircuitsResponse)(nil),           // 100: gmesh.v1.ListCircuitsResponse
+	(*InitCARequest)(nil),                  // 101: gmesh.v1.InitCARequest
+	(*InitCAResponse)(nil),                 // 102: gmesh.v1.InitCAResponse
+	(*CAStatusRequest)(nil),                // 103: gmesh.v1.CAStatusRequest
+	(*CAStatusResponse)(nil),               // 104: gmesh.v1.CAStatusResponse
+	(*IssueCertRequest)(nil),               // 105: gmesh.v1.IssueCertRequest
+	(*IssuedCert)(nil),                     // 106: gmesh.v1.IssuedCert
+	(*IssueCertResponse)(nil),              // 107: gmesh.v1.IssueCertResponse
+	(*CertSummary)(nil),                    // 108: gmesh.v1.CertSummary
+	(*ListCertsRequest)(nil),               // 109: gmesh.v1.ListCertsRequest
+	(*ListCertsResponse)(nil),              // 110: gmesh.v1.ListCertsResponse
+	(*RevokeCertRequest)(nil),              // 111: gmesh.v1.RevokeCertRequest
+	(*RevokeCertResponse)(nil),             // 112: gmesh.v1.RevokeCertResponse
+	(*ExportTrustRequest)(nil),             // 113: gmesh.v1.ExportTrustRequest
+	(*ExportTrustResponse)(nil),            // 114: gmesh.v1.ExportTrustResponse
+	(*HealthCheckResponse_PeerHealth)(nil), // 115: gmesh.v1.HealthCheckResponse.PeerHealth
+	nil,                                    // 116: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	nil,                                    // 117: gmesh.v1.Anomaly.MetricsEntry
 }
 var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	0,   // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
@@ -7227,13 +7427,13 @@ var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	7,   // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
 	8,   // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
 	3,   // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
-	112, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
+	115, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
 	7,   // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
 	5,   // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
 	6,   // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
 	41,  // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
 	41,  // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
-	113, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	116, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
 	50,  // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
 	50,  // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
 	50,  // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
@@ -7249,116 +7449,120 @@ var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	70,  // 35: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
 	82,  // 36: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
 	85,  // 37: gmesh.v1.ListPoliciesResponse.policies:type_name -> gmesh.v1.Policy
-	90,  // 38: gmesh.v1.CreateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
-	90,  // 39: gmesh.v1.UpdateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
-	90,  // 40: gmesh.v1.CircuitResponse.circuit:type_name -> gmesh.v1.Circuit
-	90,  // 41: gmesh.v1.ListCircuitsResponse.circuits:type_name -> gmesh.v1.Circuit
-	103, // 42: gmesh.v1.IssueCertResponse.cert:type_name -> gmesh.v1.IssuedCert
-	105, // 43: gmesh.v1.ListCertsResponse.certs:type_name -> gmesh.v1.CertSummary
-	4,   // 44: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
-	9,   // 45: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
-	11,  // 46: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
-	13,  // 47: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
-	15,  // 48: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
-	17,  // 49: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
-	19,  // 50: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
-	21,  // 51: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
-	23,  // 52: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
-	25,  // 53: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
-	27,  // 54: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
-	29,  // 55: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
-	31,  // 56: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
-	33,  // 57: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
-	35,  // 58: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
-	37,  // 59: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
-	39,  // 60: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
-	42,  // 61: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
-	44,  // 62: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
-	46,  // 63: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
-	48,  // 64: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
-	51,  // 65: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
-	52,  // 66: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
-	54,  // 67: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
-	56,  // 68: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
-	58,  // 69: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
-	60,  // 70: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
-	63,  // 71: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
-	64,  // 72: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
-	66,  // 73: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
-	68,  // 74: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
-	71,  // 75: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
-	72,  // 76: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
-	74,  // 77: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
-	76,  // 78: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
-	78,  // 79: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
-	80,  // 80: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
-	83,  // 81: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
-	86,  // 82: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
-	88,  // 83: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
-	91,  // 84: gmesh.v1.GMesh.CreateCircuit:input_type -> gmesh.v1.CreateCircuitRequest
-	92,  // 85: gmesh.v1.GMesh.UpdateCircuit:input_type -> gmesh.v1.UpdateCircuitRequest
-	94,  // 86: gmesh.v1.GMesh.DeleteCircuit:input_type -> gmesh.v1.DeleteCircuitRequest
-	96,  // 87: gmesh.v1.GMesh.ListCircuits:input_type -> gmesh.v1.ListCircuitsRequest
-	98,  // 88: gmesh.v1.GMesh.InitCA:input_type -> gmesh.v1.InitCARequest
-	100, // 89: gmesh.v1.GMesh.CAStatus:input_type -> gmesh.v1.CAStatusRequest
-	102, // 90: gmesh.v1.GMesh.IssueCert:input_type -> gmesh.v1.IssueCertRequest
-	106, // 91: gmesh.v1.GMesh.ListCerts:input_type -> gmesh.v1.ListCertsRequest
-	108, // 92: gmesh.v1.GMesh.RevokeCert:input_type -> gmesh.v1.RevokeCertRequest
-	110, // 93: gmesh.v1.GMesh.ExportTrust:input_type -> gmesh.v1.ExportTrustRequest
-	10,  // 94: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
-	12,  // 95: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
-	14,  // 96: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
-	16,  // 97: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
-	18,  // 98: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
-	20,  // 99: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
-	22,  // 100: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
-	24,  // 101: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
-	26,  // 102: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
-	28,  // 103: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
-	30,  // 104: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
-	32,  // 105: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
-	34,  // 106: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
-	36,  // 107: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
-	38,  // 108: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
-	40,  // 109: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
-	43,  // 110: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
-	45,  // 111: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
-	47,  // 112: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
-	49,  // 113: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
-	53,  // 114: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	53,  // 115: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	55,  // 116: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
-	57,  // 117: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
-	59,  // 118: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
-	61,  // 119: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
-	65,  // 120: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	65,  // 121: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	67,  // 122: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
-	69,  // 123: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
-	73,  // 124: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
-	73,  // 125: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
-	75,  // 126: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
-	77,  // 127: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
-	79,  // 128: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
-	81,  // 129: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
-	84,  // 130: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
-	87,  // 131: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
-	89,  // 132: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
-	93,  // 133: gmesh.v1.GMesh.CreateCircuit:output_type -> gmesh.v1.CircuitResponse
-	93,  // 134: gmesh.v1.GMesh.UpdateCircuit:output_type -> gmesh.v1.CircuitResponse
-	95,  // 135: gmesh.v1.GMesh.DeleteCircuit:output_type -> gmesh.v1.DeleteCircuitResponse
-	97,  // 136: gmesh.v1.GMesh.ListCircuits:output_type -> gmesh.v1.ListCircuitsResponse
-	99,  // 137: gmesh.v1.GMesh.InitCA:output_type -> gmesh.v1.InitCAResponse
-	101, // 138: gmesh.v1.GMesh.CAStatus:output_type -> gmesh.v1.CAStatusResponse
-	104, // 139: gmesh.v1.GMesh.IssueCert:output_type -> gmesh.v1.IssueCertResponse
-	107, // 140: gmesh.v1.GMesh.ListCerts:output_type -> gmesh.v1.ListCertsResponse
-	109, // 141: gmesh.v1.GMesh.RevokeCert:output_type -> gmesh.v1.RevokeCertResponse
-	111, // 142: gmesh.v1.GMesh.ExportTrust:output_type -> gmesh.v1.ExportTrustResponse
-	94,  // [94:143] is the sub-list for method output_type
-	45,  // [45:94] is the sub-list for method input_type
-	45,  // [45:45] is the sub-list for extension type_name
-	45,  // [45:45] is the sub-list for extension extendee
-	0,   // [0:45] is the sub-list for field type_name
+	117, // 38: gmesh.v1.Anomaly.metrics:type_name -> gmesh.v1.Anomaly.MetricsEntry
+	90,  // 39: gmesh.v1.ListAnomaliesResponse.alerts:type_name -> gmesh.v1.Anomaly
+	93,  // 40: gmesh.v1.CreateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
+	93,  // 41: gmesh.v1.UpdateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
+	93,  // 42: gmesh.v1.CircuitResponse.circuit:type_name -> gmesh.v1.Circuit
+	93,  // 43: gmesh.v1.ListCircuitsResponse.circuits:type_name -> gmesh.v1.Circuit
+	106, // 44: gmesh.v1.IssueCertResponse.cert:type_name -> gmesh.v1.IssuedCert
+	108, // 45: gmesh.v1.ListCertsResponse.certs:type_name -> gmesh.v1.CertSummary
+	4,   // 46: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
+	9,   // 47: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
+	11,  // 48: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
+	13,  // 49: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
+	15,  // 50: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
+	17,  // 51: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
+	19,  // 52: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
+	21,  // 53: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
+	23,  // 54: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
+	25,  // 55: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
+	27,  // 56: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
+	29,  // 57: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
+	31,  // 58: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
+	33,  // 59: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
+	35,  // 60: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
+	37,  // 61: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
+	39,  // 62: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
+	42,  // 63: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
+	44,  // 64: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
+	46,  // 65: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
+	48,  // 66: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
+	51,  // 67: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
+	52,  // 68: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
+	54,  // 69: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
+	56,  // 70: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
+	58,  // 71: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
+	60,  // 72: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
+	63,  // 73: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
+	64,  // 74: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
+	66,  // 75: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
+	68,  // 76: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
+	71,  // 77: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
+	72,  // 78: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
+	74,  // 79: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
+	76,  // 80: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
+	78,  // 81: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
+	80,  // 82: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
+	83,  // 83: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
+	86,  // 84: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
+	88,  // 85: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
+	91,  // 86: gmesh.v1.GMesh.ListAnomalies:input_type -> gmesh.v1.ListAnomaliesRequest
+	94,  // 87: gmesh.v1.GMesh.CreateCircuit:input_type -> gmesh.v1.CreateCircuitRequest
+	95,  // 88: gmesh.v1.GMesh.UpdateCircuit:input_type -> gmesh.v1.UpdateCircuitRequest
+	97,  // 89: gmesh.v1.GMesh.DeleteCircuit:input_type -> gmesh.v1.DeleteCircuitRequest
+	99,  // 90: gmesh.v1.GMesh.ListCircuits:input_type -> gmesh.v1.ListCircuitsRequest
+	101, // 91: gmesh.v1.GMesh.InitCA:input_type -> gmesh.v1.InitCARequest
+	103, // 92: gmesh.v1.GMesh.CAStatus:input_type -> gmesh.v1.CAStatusRequest
+	105, // 93: gmesh.v1.GMesh.IssueCert:input_type -> gmesh.v1.IssueCertRequest
+	109, // 94: gmesh.v1.GMesh.ListCerts:input_type -> gmesh.v1.ListCertsRequest
+	111, // 95: gmesh.v1.GMesh.RevokeCert:input_type -> gmesh.v1.RevokeCertRequest
+	113, // 96: gmesh.v1.GMesh.ExportTrust:input_type -> gmesh.v1.ExportTrustRequest
+	10,  // 97: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
+	12,  // 98: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
+	14,  // 99: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
+	16,  // 100: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
+	18,  // 101: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
+	20,  // 102: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
+	22,  // 103: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
+	24,  // 104: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
+	26,  // 105: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
+	28,  // 106: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
+	30,  // 107: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
+	32,  // 108: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
+	34,  // 109: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
+	36,  // 110: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
+	38,  // 111: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
+	40,  // 112: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
+	43,  // 113: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
+	45,  // 114: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
+	47,  // 115: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
+	49,  // 116: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
+	53,  // 117: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	53,  // 118: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	55,  // 119: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
+	57,  // 120: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
+	59,  // 121: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
+	61,  // 122: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
+	65,  // 123: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	65,  // 124: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	67,  // 125: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
+	69,  // 126: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
+	73,  // 127: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
+	73,  // 128: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
+	75,  // 129: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
+	77,  // 130: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
+	79,  // 131: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
+	81,  // 132: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
+	84,  // 133: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
+	87,  // 134: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
+	89,  // 135: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
+	92,  // 136: gmesh.v1.GMesh.ListAnomalies:output_type -> gmesh.v1.ListAnomaliesResponse
+	96,  // 137: gmesh.v1.GMesh.CreateCircuit:output_type -> gmesh.v1.CircuitResponse
+	96,  // 138: gmesh.v1.GMesh.UpdateCircuit:output_type -> gmesh.v1.CircuitResponse
+	98,  // 139: gmesh.v1.GMesh.DeleteCircuit:output_type -> gmesh.v1.DeleteCircuitResponse
+	100, // 140: gmesh.v1.GMesh.ListCircuits:output_type -> gmesh.v1.ListCircuitsResponse
+	102, // 141: gmesh.v1.GMesh.InitCA:output_type -> gmesh.v1.InitCAResponse
+	104, // 142: gmesh.v1.GMesh.CAStatus:output_type -> gmesh.v1.CAStatusResponse
+	107, // 143: gmesh.v1.GMesh.IssueCert:output_type -> gmesh.v1.IssueCertResponse
+	110, // 144: gmesh.v1.GMesh.ListCerts:output_type -> gmesh.v1.ListCertsResponse
+	112, // 145: gmesh.v1.GMesh.RevokeCert:output_type -> gmesh.v1.RevokeCertResponse
+	114, // 146: gmesh.v1.GMesh.ExportTrust:output_type -> gmesh.v1.ExportTrustResponse
+	97,  // [97:147] is the sub-list for method output_type
+	47,  // [47:97] is the sub-list for method input_type
+	47,  // [47:47] is the sub-list for extension type_name
+	47,  // [47:47] is the sub-list for extension extendee
+	0,   // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_gmesh_v1_gmesh_proto_init() }
@@ -7372,7 +7576,7 @@ func file_gmesh_v1_gmesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gmesh_v1_gmesh_proto_rawDesc), len(file_gmesh_v1_gmesh_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   107,
+			NumMessages:   111,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -24,6 +24,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
+	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
@@ -464,6 +465,38 @@ func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequ
 		out = append(out, pathStateToProto(st))
 	}
 	return &gmeshv1.ListPathStatesResponse{States: out}, nil
+}
+
+// ── Anomaly (Phase 21) ────────────────────────────────────────────────
+
+func (s *Server) ListAnomalies(_ context.Context, in *gmeshv1.ListAnomaliesRequest) (*gmeshv1.ListAnomaliesResponse, error) {
+	if s.Engine == nil || s.Engine.Anomaly == nil {
+		return &gmeshv1.ListAnomaliesResponse{}, nil
+	}
+	var alerts []anomaly.Alert
+	if in.PeerId != 0 {
+		alerts = s.Engine.Anomaly.ForPeer(in.PeerId)
+	} else {
+		alerts = s.Engine.Anomaly.Recent(int(in.Limit))
+	}
+	out := make([]*gmeshv1.Anomaly, 0, len(alerts))
+	for _, a := range alerts {
+		out = append(out, anomalyToProto(a))
+	}
+	return &gmeshv1.ListAnomaliesResponse{Alerts: out}, nil
+}
+
+func anomalyToProto(a anomaly.Alert) *gmeshv1.Anomaly {
+	metrics := make(map[string]float64, len(a.Metrics))
+	for k, v := range a.Metrics {
+		metrics[k] = v
+	}
+	return &gmeshv1.Anomaly{
+		Detector: a.Detector, PeerId: a.PeerID,
+		Severity: a.Severity.String(), Message: a.Message,
+		Metrics:      metrics,
+		ObservedUnix: a.Observed.Unix(),
+	}
 }
 
 // ── Circuits (Phase 19) ───────────────────────────────────────────────

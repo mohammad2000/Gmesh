@@ -56,6 +56,7 @@ func main() {
 		policyCmd(),
 		mtlsCmd(),
 		circuitCmd(),
+		anomalyCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1918,4 +1919,50 @@ func circuitListCmd() *cobra.Command {
 			return w.Flush()
 		},
 	}
+}
+
+// ── anomaly (Phase 21) ────────────────────────────────────────────────
+
+func anomalyCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "anomaly", Short: "Statistical anomaly alerts"}
+	cmd.AddCommand(anomalyListCmd())
+	return cmd
+}
+
+func anomalyListCmd() *cobra.Command {
+	var peerID int64
+	var limit int32
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "Show recent anomaly alerts (newest first)",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListAnomalies(ctx, &gmeshv1.ListAnomaliesRequest{
+				PeerId: peerID, Limit: limit,
+			})
+			if err != nil {
+				return fmt.Errorf("list anomalies rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "OBSERVED\tDETECTOR\tSEVERITY\tPEER\tMESSAGE")
+			for _, a := range resp.Alerts {
+				ts := time.Unix(a.ObservedUnix, 0).UTC().Format(time.RFC3339)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
+					ts, a.Detector, a.Severity, a.PeerId, a.Message)
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "filter by peer (0 = all)")
+	cmd.Flags().Int32Var(&limit, "limit", 50, "max alerts (0 = all)")
+	return cmd
 }

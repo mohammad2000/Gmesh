@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/crypto"
@@ -67,6 +68,7 @@ type Engine struct {
 	Policies  *policy.Engine
 	MTLS      mtls.Manager
 	Circuit   circuit.Manager
+	Anomaly   *anomaly.Monitor
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -209,6 +211,9 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		cir = circuit.New(log)
 	}
 
+	// Anomaly monitor with a shared publisher into the event bus.
+	anMon := anomaly.New(log, anomaly.Config{}, &anomalyBridgePublisher{bus: bus})
+
 	var mm mtls.Manager
 	if opts.MTLS != nil {
 		mm = opts.MTLS
@@ -260,6 +265,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Policies:      pol,
 		MTLS:          mm,
 		Circuit:       cir,
+		Anomaly:       anMon,
 		Store:         store,
 		Events:        bus,
 		relaySessions:        make(map[int64]*relay.Session),
@@ -379,7 +385,59 @@ func (e *Engine) Start(ctx context.Context) error {
 		go e.runPolicyBus(ctx)
 	}
 
+	if e.Anomaly != nil {
+		go e.runAnomalyFeed(ctx)
+	}
+
 	return nil
+}
+
+// runAnomalyFeed polls peer stats every 10s, computes per-peer
+// bandwidth deltas, and feeds them into the Bandwidth detector.
+// Handshake anomalies are fed on every peer-stats refresh that
+// observes a newer LastHandshake timestamp than the previous tick.
+// The loop stops when ctx is canceled.
+func (e *Engine) runAnomalyFeed(ctx context.Context) {
+	const interval = 10 * time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	// Remember per-peer previous RX/TX bytes and handshake timestamps
+	// so we can compute deltas between ticks.
+	prev := map[int64]peerSample{}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		stats, err := e.RefreshPeerStats(ctx)
+		if err != nil {
+			continue
+		}
+		now := time.Now()
+		for _, p := range stats {
+			last, ok := prev[p.ID]
+			cur := peerSample{
+				rx: p.RxBytes, tx: p.TxBytes,
+				handshake: p.LastHandshake,
+			}
+			if ok {
+				bps := anomaly.BandwidthSampleFor(cur.rx-last.rx, cur.tx-last.tx, interval)
+				e.Anomaly.Bandwidth.Observe(anomaly.BandwidthSample{
+					PeerID: p.ID, BytesPerS: bps, At: now,
+				})
+				if !cur.handshake.IsZero() && cur.handshake.After(last.handshake) {
+					e.Anomaly.Storm.Observe(p.ID, cur.handshake)
+				}
+			}
+			prev[p.ID] = cur
+		}
+	}
+}
+
+type peerSample struct {
+	rx, tx    int64
+	handshake time.Time
 }
 
 // emit is a small helper so we don't panic if Events is ever nil.
@@ -589,6 +647,25 @@ func (p *pathmonBridgePublisher) Publish(ev pathmon.Event) {
 			"rtt_ms":   ev.RTT.Milliseconds(),
 			"loss_pct": ev.LossPct,
 			"at_unix":  ev.At.Unix(),
+		}),
+	})
+}
+
+// anomalyBridgePublisher adapts events.Bus to anomaly.Publisher so a
+// detector's Alert becomes a generic "anomaly_alert" event the rest of
+// the system (UI, policy engine, external automation) can subscribe to.
+type anomalyBridgePublisher struct{ bus *events.Bus }
+
+func (p *anomalyBridgePublisher) Publish(a anomaly.Alert) {
+	p.bus.Publish(events.Event{
+		Type:   "anomaly_alert",
+		PeerID: a.PeerID,
+		Payload: marshalJSONSilent(map[string]any{
+			"detector": a.Detector,
+			"severity": a.Severity.String(),
+			"message":  a.Message,
+			"metrics":  a.Metrics,
+			"at_unix":  a.Observed.Unix(),
 		}),
 	})
 }
@@ -1502,6 +1579,10 @@ func (e *Engine) pathTargetSyncLoop(ctx context.Context) {
 // the actual Swap in a background goroutine to keep the listener fast
 // and avoid deadlocks with engine mutexes during egress Update.
 func (e *Engine) onPathTransition(_ context.Context, ev pathmon.Event) {
+	// Anomaly: feed every transition into the PeerFlap detector.
+	if e.Anomaly != nil {
+		e.Anomaly.Flap.Observe(ev.PeerID, ev.At)
+	}
 	go func() {
 		tctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
