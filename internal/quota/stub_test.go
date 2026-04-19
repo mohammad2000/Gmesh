@@ -169,6 +169,86 @@ func TestTickFiresStop(t *testing.T) {
 	}
 }
 
+func TestHardStopBlocksAndResetUnblocks(t *testing.T) {
+	p := &collector{}
+	m := NewStub(silent(), p, nil)
+	enf := NewStubEnforcer(silent())
+	m.SetEnforcer(enf)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "daily", LimitBytes: 1000, StopAt: 1.0, HardStop: true,
+	})
+	m.Reader().Set(10, 1100)
+	_ = m.Tick(ctx)
+	if !enf.IsBlocked(10) {
+		t.Fatal("hard-stop Block not called")
+	}
+	wantMark := fwmarkForProfile(10)
+	if got := enf.Snapshot()[10]; got != wantMark {
+		t.Errorf("block mark = 0x%x; want 0x%x", got, wantMark)
+	}
+	// Ticking again must not double-call Block (latch prevents it).
+	_ = m.Tick(ctx)
+	if n := len(p.byType("quota_stop")); n != 1 {
+		t.Errorf("stop re-fired: %d", n)
+	}
+
+	if err := m.Reset(ctx, 1); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if enf.IsBlocked(10) {
+		t.Error("reset did not unblock")
+	}
+}
+
+func TestHardStopFalseStaysEventOnly(t *testing.T) {
+	p := &collector{}
+	m := NewStub(silent(), p, nil)
+	enf := NewStubEnforcer(silent())
+	m.SetEnforcer(enf)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "daily", LimitBytes: 1000, StopAt: 1.0,
+		// HardStop left false — default behaviour.
+	})
+	m.Reader().Set(10, 1100)
+	_ = m.Tick(ctx)
+	if enf.IsBlocked(10) {
+		t.Error("Block was called without HardStop=true")
+	}
+	if n := len(p.byType("quota_stop")); n != 1 {
+		t.Errorf("stop event missing: %d", n)
+	}
+}
+
+func TestHardStopAutoReleaseOnPeriodRollover(t *testing.T) {
+	p := &collector{}
+	m := NewStub(silent(), p, nil)
+	enf := NewStubEnforcer(silent())
+	m.SetEnforcer(enf)
+	ctx := context.Background()
+	_, _ = m.Create(ctx, &Quota{
+		ID: 1, Name: "q", Enabled: true, EgressProfileID: 10,
+		Period: "hourly", LimitBytes: 1000, StopAt: 1.0, HardStop: true,
+	})
+	m.Reader().Set(10, 1100)
+	_ = m.Tick(ctx)
+	if !enf.IsBlocked(10) {
+		t.Fatal("Block not called")
+	}
+	// Force period end into the past and tick again.
+	m.mu.Lock()
+	m.quotas[1].PeriodEnd = time.Now().Add(-time.Second)
+	m.mu.Unlock()
+	m.Reader().Set(10, 0)
+	_ = m.Tick(ctx)
+	if enf.IsBlocked(10) {
+		t.Error("hard-stop not released on period rollover")
+	}
+}
+
 func TestResetZeroesCounterAndLatches(t *testing.T) {
 	p := &collector{}
 	m := NewStub(silent(), p, nil)

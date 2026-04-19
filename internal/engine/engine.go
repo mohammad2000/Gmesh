@@ -22,6 +22,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
+	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -57,6 +58,7 @@ type Engine struct {
 	Store     *state.Store
 	Events    *events.Bus
 	Monitor   *health.Monitor
+	PathMon   *pathmon.Monitor
 
 	relayMu       sync.Mutex
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
@@ -91,6 +93,7 @@ type Options struct {
 	Exit      egress.ExitManager // nil → detect (Linux or stub)
 	Ingress   ingress.Manager   // nil → detect (Linux or stub)
 	Quota     quota.Manager     // nil → detect (Linux or stub)
+	PathMon   *pathmon.Monitor  // nil → auto-built with platform prober
 }
 
 // New wires an Engine together.
@@ -173,6 +176,11 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		qu = quota.New(log, &quotaBridgePublisher{bus: bus}, nil /* Switcher set after engine ready */)
 	}
 
+	pm := opts.PathMon
+	if pm == nil {
+		pm = pathmon.New(log, pathmon.Config{}, pathmon.NewPlatformProber(), &pathmonBridgePublisher{bus: bus})
+	}
+
 	e := &Engine{
 		Config:        cfg,
 		Log:           log,
@@ -188,6 +196,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Exit:          ex,
 		Ingress:       ig,
 		Quota:         qu,
+		PathMon:       pm,
 		Store:         store,
 		Events:        bus,
 		relaySessions: make(map[int64]*relay.Session),
@@ -260,6 +269,16 @@ func (e *Engine) Start(ctx context.Context) error {
 	if e.Quota != nil {
 		// 10s tick default; matches docs/roadmap-next.md.
 		go e.Quota.Run(ctx, 10*time.Second)
+	}
+	if e.PathMon != nil {
+		// Populate targets from the current peer registry and then run the
+		// monitor loop. The engine does not track peer add/remove for path
+		// monitoring yet — the health monitor's tick wakes it up, and new
+		// peers pick up probing on the NEXT syncPathTargets call. We keep
+		// that call lightweight enough to run every Monitor.Interval tick.
+		e.syncPathTargets()
+		go e.PathMon.Run(ctx)
+		go e.pathTargetSyncLoop(ctx)
 	}
 	// Health monitor: polls peers, emits health_update + peer_connected/
 	// peer_disconnected events.
@@ -468,6 +487,23 @@ func marshalJSONSilent(v any) []byte {
 		return nil
 	}
 	return b
+}
+
+// pathmonBridgePublisher adapts events.Bus to pathmon.Publisher so the
+// path monitor's path_up / path_down events land on the main bus.
+type pathmonBridgePublisher struct{ bus *events.Bus }
+
+func (p *pathmonBridgePublisher) Publish(ev pathmon.Event) {
+	p.bus.Publish(events.Event{
+		Type:   ev.Type, // "path_up" | "path_down"
+		PeerID: ev.PeerID,
+		Payload: marshalJSONSilent(map[string]any{
+			"mesh_ip":  ev.MeshIP,
+			"rtt_ms":   ev.RTT.Milliseconds(),
+			"loss_pct": ev.LossPct,
+			"at_unix":  ev.At.Unix(),
+		}),
+	})
 }
 
 // ── Ingress profiles (Phase 12) ───────────────────────────────────────
@@ -1114,4 +1150,43 @@ func maskFromCIDR(cidr string) string {
 		}
 	}
 	return ""
+}
+
+// syncPathTargets copies the current peer registry into the PathMon
+// target list. Called at Start and on every health interval so newly
+// added peers show up in the monitor without us wiring a subscription.
+func (e *Engine) syncPathTargets() {
+	if e.PathMon == nil || e.Peers == nil {
+		return
+	}
+	wanted := make(map[int64]bool)
+	for _, p := range e.Peers.Snapshot() {
+		if p.MeshIP == "" {
+			continue
+		}
+		wanted[p.ID] = true
+		_ = e.PathMon.AddTarget(pathmon.Target{
+			PeerID: p.ID, Name: p.MeshIP, MeshIP: p.MeshIP, Kind: "peer",
+		})
+	}
+	for _, st := range e.PathMon.List() {
+		if !wanted[st.Target.PeerID] {
+			e.PathMon.RemoveTarget(st.Target.PeerID)
+		}
+	}
+}
+
+// pathTargetSyncLoop keeps PathMon's target set in line with the peer
+// registry. Runs at 30s — new-peer latency is acceptable at that rate.
+func (e *Engine) pathTargetSyncLoop(ctx context.Context) {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			e.syncPathTargets()
+		}
+	}
 }

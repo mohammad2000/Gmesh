@@ -81,6 +81,12 @@ service GMesh {
   rpc ListQuotas    (ListQuotasRequest)    returns (ListQuotasResponse);
   rpc GetQuotaUsage (GetQuotaUsageRequest) returns (GetQuotaUsageResponse);
   rpc ResetQuota    (ResetQuotaRequest)    returns (ResetQuotaResponse);
+
+  // ── Path Monitor (Phase 14) ──────────────────────────────────────────
+  // Reads the active path-probe state maintained by pathmon. The monitor
+  // auto-syncs targets from the peer registry every 30s; this RPC is a
+  // point-in-time snapshot of RTT, loss and up/down status.
+  rpc ListPathStates (ListPathStatesRequest) returns (ListPathStatesResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -486,6 +492,12 @@ message Quota {
 
   int64  created_at_unix    = 17;
   int64  updated_at_unix    = 18;
+
+  // Hard stop: when stop_at is crossed, install an nftables DROP rule
+  // for the profile's fwmark in table `gmesh-quota`, blocking all
+  // matching traffic until the period rolls over or the quota is reset.
+  // Default false keeps stop_at event-only so operators can decide.
+  bool   hard_stop          = 19;
 }
 
 message CreateQuotaRequest { Quota quota = 1; }
@@ -503,3 +515,22 @@ message GetQuotaUsageResponse { repeated Quota quotas = 1; }
 
 message ResetQuotaRequest  { int64 id = 1; }
 message ResetQuotaResponse {}
+
+// ── Path Monitor (Phase 14) ───────────────────────────────────────────
+
+message PathState {
+  int64  peer_id            = 1;
+  string mesh_ip            = 2;
+  string status             = 3; // "up" | "down" | "unknown"
+  int64  consecutive_ok     = 4;
+  int64  consecutive_fail   = 5;
+  int64  last_rtt_us        = 6; // microseconds
+  double loss_pct           = 7;
+  int64  samples            = 8;
+  int64  last_sample_unix   = 9;
+  int64  last_up_unix       = 10;
+  int64  last_down_unix     = 11;
+}
+
+message ListPathStatesRequest  {}
+message ListPathStatesResponse { repeated PathState states = 1; }

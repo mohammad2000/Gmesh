@@ -55,6 +55,7 @@ const (
 	GMesh_ListQuotas_FullMethodName           = "/gmesh.v1.GMesh/ListQuotas"
 	GMesh_GetQuotaUsage_FullMethodName        = "/gmesh.v1.GMesh/GetQuotaUsage"
 	GMesh_ResetQuota_FullMethodName           = "/gmesh.v1.GMesh/ResetQuota"
+	GMesh_ListPathStates_FullMethodName       = "/gmesh.v1.GMesh/ListPathStates"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -127,6 +128,11 @@ type GMeshClient interface {
 	ListQuotas(ctx context.Context, in *ListQuotasRequest, opts ...grpc.CallOption) (*ListQuotasResponse, error)
 	GetQuotaUsage(ctx context.Context, in *GetQuotaUsageRequest, opts ...grpc.CallOption) (*GetQuotaUsageResponse, error)
 	ResetQuota(ctx context.Context, in *ResetQuotaRequest, opts ...grpc.CallOption) (*ResetQuotaResponse, error)
+	// ── Path Monitor (Phase 14) ──────────────────────────────────────────
+	// Reads the active path-probe state maintained by pathmon. The monitor
+	// auto-syncs targets from the peer registry every 30s; this RPC is a
+	// point-in-time snapshot of RTT, loss and up/down status.
+	ListPathStates(ctx context.Context, in *ListPathStatesRequest, opts ...grpc.CallOption) (*ListPathStatesResponse, error)
 }
 
 type gMeshClient struct {
@@ -506,6 +512,16 @@ func (c *gMeshClient) ResetQuota(ctx context.Context, in *ResetQuotaRequest, opt
 	return out, nil
 }
 
+func (c *gMeshClient) ListPathStates(ctx context.Context, in *ListPathStatesRequest, opts ...grpc.CallOption) (*ListPathStatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListPathStatesResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListPathStates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -576,6 +592,11 @@ type GMeshServer interface {
 	ListQuotas(context.Context, *ListQuotasRequest) (*ListQuotasResponse, error)
 	GetQuotaUsage(context.Context, *GetQuotaUsageRequest) (*GetQuotaUsageResponse, error)
 	ResetQuota(context.Context, *ResetQuotaRequest) (*ResetQuotaResponse, error)
+	// ── Path Monitor (Phase 14) ──────────────────────────────────────────
+	// Reads the active path-probe state maintained by pathmon. The monitor
+	// auto-syncs targets from the peer registry every 30s; this RPC is a
+	// point-in-time snapshot of RTT, loss and up/down status.
+	ListPathStates(context.Context, *ListPathStatesRequest) (*ListPathStatesResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -693,6 +714,9 @@ func (UnimplementedGMeshServer) GetQuotaUsage(context.Context, *GetQuotaUsageReq
 }
 func (UnimplementedGMeshServer) ResetQuota(context.Context, *ResetQuotaRequest) (*ResetQuotaResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetQuota not implemented")
+}
+func (UnimplementedGMeshServer) ListPathStates(context.Context, *ListPathStatesRequest) (*ListPathStatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPathStates not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -1356,6 +1380,24 @@ func _GMesh_ResetQuota_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_ListPathStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPathStatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListPathStates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListPathStates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListPathStates(ctx, req.(*ListPathStatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1502,6 +1544,10 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetQuota",
 			Handler:    _GMesh_ResetQuota_Handler,
+		},
+		{
+			MethodName: "ListPathStates",
+			Handler:    _GMesh_ListPathStates_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

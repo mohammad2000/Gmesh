@@ -19,19 +19,46 @@ message Quota {
 
   double warn_at           = 7;   // 0..1 → emit quota_warning
   double shift_at          = 8;   // 0..1 → emit quota_shift + auto-swap
-  double stop_at           = 9;   // 0..1 → emit quota_stop (Phase 13.5 adds DROP)
+  double stop_at           = 9;   // 0..1 → emit quota_stop (+DROP if hard_stop)
 
   int64  backup_profile_id = 10;  // required if shift_at > 0
+
+  bool   hard_stop         = 19;  // install DROP rule when stop_at is crossed
 }
 ```
 
 Thresholds are fractions of `limit_bytes`. Typical settings:
 
 ```
-warn_at  = 0.80    # alert at 80 %
-shift_at = 0.95    # flip to backup at 95 %
-stop_at  = 1.00    # event only, for now
+warn_at   = 0.80    # alert at 80 %
+shift_at  = 0.95    # flip to backup at 95 %
+stop_at   = 1.00    # event only
+hard_stop = false   # set true to also install nftables DROP at stop_at
 ```
+
+### Hard stop (Phase 13.5)
+
+When `hard_stop=true` and `stop_at` is crossed, the quota Manager calls
+into a Linux Enforcer that installs this rule into a separate
+`gmesh-quota` table:
+
+```
+add rule inet gmesh-quota quota_drop_out meta mark 0x1000000a counter drop comment "quota-drop-10"
+add rule inet gmesh-quota quota_drop_fwd meta mark 0x1000000a counter drop comment "quota-drop-10"
+```
+
+The DROP is keyed by the profile's fwmark (the same 0x10000000-prefixed
+value `egress.FwMark(profileID)` stamps onto packets), so it blocks
+exactly the flows the profile was routing and nothing else.
+
+The rule is automatically removed when:
+
+- the quota is reset explicitly (`gmeshctl quota reset --id N`), or
+- the period rolls over and the evaluator zeroes `used_bytes`.
+
+Keep `hard_stop=false` for soft policy (alerting only); set
+`hard_stop=true` when the billing consequence of going over is worse
+than the UX consequence of blocked traffic.
 
 ## Evaluator loop
 

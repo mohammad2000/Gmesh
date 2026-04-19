@@ -161,3 +161,31 @@ gmeshctl egress exit disable
 the exit. If the exit peer was restarted after the flow started,
 conntrack state is gone; the flow dies. New connections work; no
 zero-drop failover yet (Phase 14).
+
+## Bare-host `dest=0/0` and nested overlays (fixed in v0.5.0)
+
+Earlier versions could route the OUTER WireGuard packet through
+wg-gmesh if a user installed a bare-host `dest=0/0` profile on a node
+that also ran another overlay (Tailscale, a second WG). The packet
+would inherit the profile's fwmark, re-enter the output hook, and loop.
+
+As of v0.5.0 the `egress_mark_out` chain carries two early-return
+guards before the per-profile rules:
+
+```
+meta mark and 0xF0000000 == 0x10000000 return
+ct mark and 0xF0000000 == 0x10000000 meta mark set ct mark return
+```
+
+The first rule stops re-queued packets from being marked twice; the
+second inherits the mark from conntrack so every subsequent packet of a
+flow avoids re-evaluating the full rule body. Per-profile rules now end
+with `ct mark set 0x1_______` so the first packet saves its mark onto
+the ct entry.
+
+Combined with the pre-existing `@protected_oif` (wg-gmesh, tailscale0)
+and `@protected_daddr` (RFC1918, CGNAT, link-local, mesh range)
+guards, a bare-host `dest=0/0` profile on a node with a nested overlay
+now behaves correctly — management traffic and already-tunneled outer
+packets skip marking while inner application traffic still routes to
+the exit peer.

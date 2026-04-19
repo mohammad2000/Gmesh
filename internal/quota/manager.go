@@ -15,6 +15,7 @@ type coreManager struct {
 	Reader    CounterReader
 	Switcher  Switcher
 	Publisher Publisher
+	Enforcer  Enforcer // optional; nil → hard-stop DROP is a no-op
 	// Label used in Name() — "stub" or "linux".
 	name string
 
@@ -32,6 +33,13 @@ func newCore(name string, log *slog.Logger, r CounterReader, s Switcher, p Publi
 	}
 }
 
+// SetEnforcer attaches an Enforcer. Safe to call after construction.
+func (m *coreManager) SetEnforcer(e Enforcer) {
+	m.mu.Lock()
+	m.Enforcer = e
+	m.mu.Unlock()
+}
+
 func (m *coreManager) Name() string { return m.name }
 
 // SetSwitcher wires the engine-level Switcher once the engine is fully
@@ -45,6 +53,11 @@ func (m *coreManager) SetSwitcher(sw Switcher) {
 // Switch-setter is exposed on the Manager interface for the engine.
 type SwitcherSetter interface {
 	SetSwitcher(Switcher)
+}
+
+// EnforcerSetter lets the engine wire an Enforcer after construction.
+type EnforcerSetter interface {
+	SetEnforcer(Enforcer)
 }
 
 func (m *coreManager) Create(_ context.Context, q *Quota) (*Quota, error) {
@@ -143,6 +156,9 @@ func (m *coreManager) Reset(ctx context.Context, id int64) error {
 	if m.Reader != nil {
 		_ = m.Reader.Reset(ctx, q.EgressProfileID)
 	}
+	if m.Enforcer != nil && q.HardStop {
+		_ = m.Enforcer.Unblock(ctx, q.EgressProfileID)
+	}
 	if m.Publisher != nil {
 		m.Publisher.Publish(Event{
 			Type: "quota_reset", QuotaID: id,
@@ -182,12 +198,17 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 		q.UsedBytes = 0
 		q.WarnFired = false
 		q.ShiftFired = false
+		wasStopped := q.StopFired
 		q.StopFired = false
 		q.PeriodStart, q.PeriodEnd = periodWindow(q.Period, now)
 		q.UpdatedAt = now
 		m.mu.Unlock()
 		if m.Reader != nil {
 			_ = m.Reader.Reset(ctx, q.EgressProfileID)
+		}
+		// Auto-release hard-stop on rollover so the new period starts open.
+		if wasStopped && q.HardStop && m.Enforcer != nil {
+			_ = m.Enforcer.Unblock(ctx, q.EgressProfileID)
 		}
 		if m.Publisher != nil {
 			m.Publisher.Publish(Event{
@@ -251,6 +272,16 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 	if q.ShiftFired && q.BackupProfileID != 0 && m.Switcher != nil {
 		shiftTo = q.BackupProfileID
 	}
+	// Block only on the rising edge of StopFired, so we don't retry Block
+	// every tick once the DROP rule is already in place.
+	blockProfile := int64(0)
+	var blockMark uint32
+	for _, ev := range fires {
+		if ev.Type == "quota_stop" && q.HardStop && m.Enforcer != nil {
+			blockProfile = q.EgressProfileID
+			blockMark = fwmarkForProfile(q.EgressProfileID)
+		}
+	}
 	m.mu.Unlock()
 
 	for _, ev := range fires {
@@ -268,6 +299,18 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 		} else {
 			m.Log.Info("quota auto-shifted egress profile",
 				"quota_id", q.ID, "profile", q.EgressProfileID, "backup", shiftTo)
+		}
+	}
+
+	if blockProfile != 0 {
+		if err := m.Enforcer.Block(ctx, blockProfile, blockMark); err != nil {
+			m.Log.Warn("quota hard-stop Block failed",
+				"quota_id", q.ID, "profile", blockProfile,
+				"mark", blockMark, "error", err)
+		} else {
+			m.Log.Info("quota hard-stop engaged",
+				"quota_id", q.ID, "profile", blockProfile,
+				"mark", blockMark)
 		}
 	}
 }

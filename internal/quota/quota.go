@@ -79,6 +79,12 @@ type Quota struct {
 
 	BackupProfileID int64
 
+	// HardStop asks the Enforcer to install a DROP rule for the profile's
+	// fwmark once StopAt is crossed. When false (the default) crossing
+	// StopAt remains event-only, so operator automation can decide what
+	// to do. Reset/rollover automatically unblocks.
+	HardStop bool
+
 	// Per-period latches so we emit edge events once.
 	WarnFired  bool
 	ShiftFired bool
@@ -149,6 +155,24 @@ type CounterReader interface {
 // doesn't know about engine internals — it just calls this.
 type Switcher interface {
 	SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) error
+}
+
+// Enforcer installs/removes nftables DROP rules keyed by an egress
+// profile's fwmark. Quota Manager calls Block when StopAt is crossed
+// on a quota with HardStop=true, and Unblock on reset/rollover. The
+// package-level fwmarkForProfile helper produces the mark value; the
+// enforcer uses it verbatim so egress and quota layers stay in sync.
+type Enforcer interface {
+	Block(ctx context.Context, egressProfileID int64, mark uint32) error
+	Unblock(ctx context.Context, egressProfileID int64) error
+	Name() string
+}
+
+// fwmarkForProfile mirrors egress.FwMark. Duplicated to avoid an
+// import cycle between internal/quota and internal/egress. Must stay
+// in lock-step with egress.FwMark.
+func fwmarkForProfile(profileID int64) uint32 {
+	return 0x10000000 | uint32(profileID&0x0FFFFFFF)
 }
 
 // Event is what the Manager publishes. Wrap into events.Event at the

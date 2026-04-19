@@ -64,10 +64,12 @@ func (r *nftReader) Reset(ctx context.Context, profileID int64) error {
 	return err
 }
 
-// parseEgressCounter walks the JSON blob and finds the rule whose comment
-// matches "egress-<id>", returning its (packets+bytes) counter. If the
-// rule doesn't carry a counter yet, returns 0 with no error (quota will
-// simply see no usage until the next egress rebuild adds a counter).
+// parseEgressCounter walks the JSON blob, finds every rule whose comment
+// matches "egress-<id>", and returns the sum of their counter bytes.
+// We sum because the egress translator installs the same rule in two
+// chains (egress_mark_pre for forwarded traffic, egress_mark_out for
+// locally-originated traffic) — a given flow only matches one of the
+// two, but both belong to the same profile's budget.
 func parseEgressCounter(jsonBlob string, profileID int64) (int64, error) {
 	var top struct {
 		Nftables []map[string]json.RawMessage `json:"nftables"`
@@ -76,6 +78,7 @@ func parseEgressCounter(jsonBlob string, profileID int64) (int64, error) {
 		return 0, fmt.Errorf("parse nft json: %w", err)
 	}
 	wantComment := fmt.Sprintf("egress-%d", profileID)
+	var total int64
 	for _, entry := range top.Nftables {
 		raw, ok := entry["rule"]
 		if !ok {
@@ -92,10 +95,10 @@ func parseEgressCounter(jsonBlob string, profileID int64) (int64, error) {
 			continue
 		}
 		if bytes := extractBytes(rule.Expr); bytes >= 0 {
-			return bytes, nil
+			total += bytes
 		}
 	}
-	return 0, nil
+	return total, nil
 }
 
 func extractBytes(exprRaw json.RawMessage) int64 {

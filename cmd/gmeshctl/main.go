@@ -51,6 +51,7 @@ func main() {
 		egressCmd(),
 		ingressCmd(),
 		quotaCmd(),
+		pathCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1202,7 +1203,7 @@ func quotaCreateCmd() *cobra.Command {
 		name, period            string
 		limit                   int64
 		warn, shift, stop       float64
-		enabled                 bool
+		enabled, hardStop       bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -1223,6 +1224,7 @@ func quotaCreateCmd() *cobra.Command {
 					LimitBytes:      limit,
 					WarnAt:          warn, ShiftAt: shift, StopAt: stop,
 					BackupProfileId: backupID,
+					HardStop:        hardStop,
 				},
 			})
 			if err != nil {
@@ -1246,6 +1248,7 @@ func quotaCreateCmd() *cobra.Command {
 	cmd.Flags().Float64Var(&shift, "shift-at", 0, "shift-to-backup threshold fraction 0..1")
 	cmd.Flags().Float64Var(&stop, "stop-at", 0, "stop threshold fraction 0..1")
 	cmd.Flags().Int64Var(&backupID, "backup-profile", 0, "backup egress profile ID for auto-shift")
+	cmd.Flags().BoolVar(&hardStop, "hard-stop", false, "install nftables DROP rule when stop_at is crossed")
 	_ = cmd.MarkFlagRequired("id")
 	_ = cmd.MarkFlagRequired("name")
 	_ = cmd.MarkFlagRequired("profile")
@@ -1421,4 +1424,44 @@ func peerUpdateCmd() *cobra.Command {
 	cmd.Flags().Uint32Var(&keepalive, "keepalive", 0, "new keepalive seconds")
 	_ = cmd.MarkFlagRequired("id")
 	return cmd
+}
+
+// ── path (Phase 14) ───────────────────────────────────────────────────
+
+func pathCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "path", Short: "Path monitor (RTT / loss / up-down)"}
+	cmd.AddCommand(pathListCmd())
+	return cmd
+}
+
+func pathListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "Show active-probe status for every peer",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListPathStates(ctx, &gmeshv1.ListPathStatesRequest{})
+			if err != nil {
+				return fmt.Errorf("path list rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "PEER\tMESH_IP\tSTATUS\tRTT_MS\tLOSS%\tOK\tFAIL\tSAMPLES")
+			for _, s := range resp.States {
+				rtt := float64(s.LastRttUs) / 1000.0
+				fmt.Fprintf(w, "%d\t%s\t%s\t%.2f\t%.1f\t%d\t%d\t%d\n",
+					s.PeerId, s.MeshIp, s.Status, rtt, s.LossPct,
+					s.ConsecutiveOk, s.ConsecutiveFail, s.Samples)
+			}
+			return w.Flush()
+		},
+	}
 }

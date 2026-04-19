@@ -25,6 +25,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
+	"github.com/mohammad2000/Gmesh/internal/pathmon"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -448,6 +449,36 @@ func (s *Server) ResetQuota(ctx context.Context, in *gmeshv1.ResetQuotaRequest) 
 	return &gmeshv1.ResetQuotaResponse{}, nil
 }
 
+// ListPathStates exposes the active-probe state the engine's PathMon
+// tracks for every peer target.
+func (s *Server) ListPathStates(_ context.Context, _ *gmeshv1.ListPathStatesRequest) (*gmeshv1.ListPathStatesResponse, error) {
+	if s.Engine == nil || s.Engine.PathMon == nil {
+		return &gmeshv1.ListPathStatesResponse{}, nil
+	}
+	states := s.Engine.PathMon.List()
+	out := make([]*gmeshv1.PathState, 0, len(states))
+	for _, st := range states {
+		out = append(out, pathStateToProto(st))
+	}
+	return &gmeshv1.ListPathStatesResponse{States: out}, nil
+}
+
+func pathStateToProto(st pathmon.State) *gmeshv1.PathState {
+	return &gmeshv1.PathState{
+		PeerId:           st.Target.PeerID,
+		MeshIp:           st.Target.MeshIP,
+		Status:           st.Status.String(),
+		ConsecutiveOk:    int64(st.ConsecutiveOK),
+		ConsecutiveFail:  int64(st.ConsecutiveFail),
+		LastRttUs:        st.LastRTT.Microseconds(),
+		LossPct:          st.LossPct,
+		Samples:          int64(st.Samples),
+		LastSampleUnix:   st.LastSampleAt.Unix(),
+		LastUpUnix:       st.LastUpAt.Unix(),
+		LastDownUnix:     st.LastDownAt.Unix(),
+	}
+}
+
 func quotaFromProto(p *gmeshv1.Quota) *quota.Quota {
 	return &quota.Quota{
 		ID: p.Id, Name: p.Name, Enabled: p.Enabled,
@@ -456,6 +487,7 @@ func quotaFromProto(p *gmeshv1.Quota) *quota.Quota {
 		LimitBytes:      p.LimitBytes,
 		WarnAt:          p.WarnAt, ShiftAt: p.ShiftAt, StopAt: p.StopAt,
 		BackupProfileID: p.BackupProfileId,
+		HardStop:        p.HardStop,
 	}
 }
 
@@ -468,6 +500,7 @@ func quotaToProto(q *quota.Quota) *gmeshv1.Quota {
 		UsedBytes:       q.UsedBytes,
 		WarnAt:          q.WarnAt, ShiftAt: q.ShiftAt, StopAt: q.StopAt,
 		BackupProfileId: q.BackupProfileID,
+		HardStop:        q.HardStop,
 		WarnFired:       q.WarnFired,
 		ShiftFired:      q.ShiftFired,
 		StopFired:       q.StopFired,

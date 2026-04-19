@@ -6,7 +6,11 @@ import "log/slog"
 
 func newPlatformManager(log *slog.Logger, pub Publisher, sw Switcher) Manager {
 	if binaryAvailable("nft") {
-		return NewLinux(log, pub, sw)
+		m := NewLinux(log, pub, sw)
+		m.SetEnforcer(NewLinuxEnforcer(log))
+		return m
 	}
-	return NewStub(log, pub, sw)
+	m := NewStub(log, pub, sw)
+	m.SetEnforcer(NewStubEnforcer(log))
+	return m
 }

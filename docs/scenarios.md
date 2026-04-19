@@ -174,18 +174,40 @@ the counter counting up and the automatic shift at threshold.
 
 ## Known limitations (deferred)
 
-1. **Bare-host `dest=0/0` egress on nodes with nested overlays.**
-   Outer WG packets can inherit the egress fwmark and re-route
-   through wg-gmesh causing an encapsulation loop. Phase 11 guards
-   protect management traffic (Tailscale, LAN) but the edge case
-   remains. Scope-based or port-specific profiles avoid it.
-   Real fix: conntrack-aware mark in Phase 14 + Path Monitor's
-   kill-switch.
+1. ~~**Bare-host `dest=0/0` egress on nodes with nested overlays.**~~
+   **Fixed in v0.5.0.** `egress_mark_out` now carries two early-return
+   guards (`meta mark` + `ct mark` of 0x1_______) and every per-profile
+   rule does `ct mark set meta mark` so the first packet's mark lands
+   on the conntrack entry. Outer WG packets re-queued through the
+   output hook are detected and skipped instead of re-routed. Scope /
+   port-specific profiles still behave the same.
 
-2. **Quota hard DROP.** `quota_stop` is an event only. Automatic DROP
-   rule at the stop threshold lands in Phase 13.5.
+2. ~~**Quota hard DROP.**~~ **Fixed in v0.5.0 (Phase 13.5).** A new
+   `hard_stop` flag on Quota installs an nftables DROP rule for the
+   egress profile's fwmark in table `gmesh-quota` when `stop_at` is
+   crossed. Auto-releases on reset or period rollover. Leaving
+   `hard_stop=false` keeps the old event-only behaviour.
 
 3. **Quota rollback on reset.** At period rollover, the backup-shifted
    profile stays shifted. Operators listen for `quota_reset` and
-   manually `UpdateEgressProfile` to restore. Phase 13.5 adds an
-   optional `auto_rollback` flag.
+   manually `UpdateEgressProfile` to restore. A future change may add
+   an optional `auto_rollback` flag.
+
+## Phase 14 — Path Monitor
+
+Landed in v0.5.0. `internal/pathmon` actively probes every peer and
+emits `path_up` / `path_down` events on the event bus with hysteresis
+(3 consecutive fails to trip, 2 successes to restore by default).
+
+```
+$ gmeshctl path list
+PEER  MESH_IP       STATUS  RTT_MS  LOSS%  OK  FAIL  SAMPLES
+1     10.250.0.1    up      0.18    0.0    8   0     8
+3     10.250.0.20   up      105.22  0.0    8   0     8
+```
+
+See [pathmon.md](pathmon.md) for details. External automation can
+subscribe to the bus and invoke `UpdateEgressProfile` or
+`UpdateQuota` in response — in-engine auto-failover is wired up as a
+listener hook but the listener itself is a follow-up task (so far
+the engine publishes, automation decides).

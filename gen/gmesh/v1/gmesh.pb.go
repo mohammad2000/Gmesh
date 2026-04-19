@@ -4034,6 +4034,11 @@ type Quota struct {
 	StopFired     bool  `protobuf:"varint,16,opt,name=stop_fired,json=stopFired,proto3" json:"stop_fired,omitempty"`
 	CreatedAtUnix int64 `protobuf:"varint,17,opt,name=created_at_unix,json=createdAtUnix,proto3" json:"created_at_unix,omitempty"`
 	UpdatedAtUnix int64 `protobuf:"varint,18,opt,name=updated_at_unix,json=updatedAtUnix,proto3" json:"updated_at_unix,omitempty"`
+	// Hard stop: when stop_at is crossed, install an nftables DROP rule
+	// for the profile's fwmark in table `gmesh-quota`, blocking all
+	// matching traffic until the period rolls over or the quota is reset.
+	// Default false keeps stop_at event-only so operators can decide.
+	HardStop      bool `protobuf:"varint,19,opt,name=hard_stop,json=hardStop,proto3" json:"hard_stop,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4192,6 +4197,13 @@ func (x *Quota) GetUpdatedAtUnix() int64 {
 		return x.UpdatedAtUnix
 	}
 	return 0
+}
+
+func (x *Quota) GetHardStop() bool {
+	if x != nil {
+		return x.HardStop
+	}
+	return false
 }
 
 type CreateQuotaRequest struct {
@@ -4654,6 +4666,210 @@ func (*ResetQuotaResponse) Descriptor() ([]byte, []int) {
 	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{74}
 }
 
+type PathState struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PeerId          int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	MeshIp          string                 `protobuf:"bytes,2,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"`
+	Status          string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"` // "up" | "down" | "unknown"
+	ConsecutiveOk   int64                  `protobuf:"varint,4,opt,name=consecutive_ok,json=consecutiveOk,proto3" json:"consecutive_ok,omitempty"`
+	ConsecutiveFail int64                  `protobuf:"varint,5,opt,name=consecutive_fail,json=consecutiveFail,proto3" json:"consecutive_fail,omitempty"`
+	LastRttUs       int64                  `protobuf:"varint,6,opt,name=last_rtt_us,json=lastRttUs,proto3" json:"last_rtt_us,omitempty"` // microseconds
+	LossPct         float64                `protobuf:"fixed64,7,opt,name=loss_pct,json=lossPct,proto3" json:"loss_pct,omitempty"`
+	Samples         int64                  `protobuf:"varint,8,opt,name=samples,proto3" json:"samples,omitempty"`
+	LastSampleUnix  int64                  `protobuf:"varint,9,opt,name=last_sample_unix,json=lastSampleUnix,proto3" json:"last_sample_unix,omitempty"`
+	LastUpUnix      int64                  `protobuf:"varint,10,opt,name=last_up_unix,json=lastUpUnix,proto3" json:"last_up_unix,omitempty"`
+	LastDownUnix    int64                  `protobuf:"varint,11,opt,name=last_down_unix,json=lastDownUnix,proto3" json:"last_down_unix,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *PathState) Reset() {
+	*x = PathState{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PathState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PathState) ProtoMessage() {}
+
+func (x *PathState) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PathState.ProtoReflect.Descriptor instead.
+func (*PathState) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *PathState) GetPeerId() int64 {
+	if x != nil {
+		return x.PeerId
+	}
+	return 0
+}
+
+func (x *PathState) GetMeshIp() string {
+	if x != nil {
+		return x.MeshIp
+	}
+	return ""
+}
+
+func (x *PathState) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *PathState) GetConsecutiveOk() int64 {
+	if x != nil {
+		return x.ConsecutiveOk
+	}
+	return 0
+}
+
+func (x *PathState) GetConsecutiveFail() int64 {
+	if x != nil {
+		return x.ConsecutiveFail
+	}
+	return 0
+}
+
+func (x *PathState) GetLastRttUs() int64 {
+	if x != nil {
+		return x.LastRttUs
+	}
+	return 0
+}
+
+func (x *PathState) GetLossPct() float64 {
+	if x != nil {
+		return x.LossPct
+	}
+	return 0
+}
+
+func (x *PathState) GetSamples() int64 {
+	if x != nil {
+		return x.Samples
+	}
+	return 0
+}
+
+func (x *PathState) GetLastSampleUnix() int64 {
+	if x != nil {
+		return x.LastSampleUnix
+	}
+	return 0
+}
+
+func (x *PathState) GetLastUpUnix() int64 {
+	if x != nil {
+		return x.LastUpUnix
+	}
+	return 0
+}
+
+func (x *PathState) GetLastDownUnix() int64 {
+	if x != nil {
+		return x.LastDownUnix
+	}
+	return 0
+}
+
+type ListPathStatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPathStatesRequest) Reset() {
+	*x = ListPathStatesRequest{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPathStatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPathStatesRequest) ProtoMessage() {}
+
+func (x *ListPathStatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPathStatesRequest.ProtoReflect.Descriptor instead.
+func (*ListPathStatesRequest) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{76}
+}
+
+type ListPathStatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	States        []*PathState           `protobuf:"bytes,1,rep,name=states,proto3" json:"states,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListPathStatesResponse) Reset() {
+	*x = ListPathStatesResponse{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListPathStatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListPathStatesResponse) ProtoMessage() {}
+
+func (x *ListPathStatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListPathStatesResponse.ProtoReflect.Descriptor instead.
+func (*ListPathStatesResponse) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *ListPathStatesResponse) GetStates() []*PathState {
+	if x != nil {
+		return x.States
+	}
+	return nil
+}
+
 type HealthCheckResponse_PeerHealth struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
@@ -4668,7 +4884,7 @@ type HealthCheckResponse_PeerHealth struct {
 
 func (x *HealthCheckResponse_PeerHealth) Reset() {
 	*x = HealthCheckResponse_PeerHealth{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4680,7 +4896,7 @@ func (x *HealthCheckResponse_PeerHealth) String() string {
 func (*HealthCheckResponse_PeerHealth) ProtoMessage() {}
 
 func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5016,7 +5232,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x1cDeleteIngressProfileResponse\"\x1c\n" +
 	"\x1aListIngressProfilesRequest\"S\n" +
 	"\x1bListIngressProfilesResponse\x124\n" +
-	"\bprofiles\x18\x01 \x03(\v2\x18.gmesh.v1.IngressProfileR\bprofiles\"\xc5\x04\n" +
+	"\bprofiles\x18\x01 \x03(\v2\x18.gmesh.v1.IngressProfileR\bprofiles\"\xe2\x04\n" +
 	"\x05Quota\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -5041,7 +5257,8 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\n" +
 	"stop_fired\x18\x10 \x01(\bR\tstopFired\x12&\n" +
 	"\x0fcreated_at_unix\x18\x11 \x01(\x03R\rcreatedAtUnix\x12&\n" +
-	"\x0fupdated_at_unix\x18\x12 \x01(\x03R\rupdatedAtUnix\";\n" +
+	"\x0fupdated_at_unix\x18\x12 \x01(\x03R\rupdatedAtUnix\x12\x1b\n" +
+	"\thard_stop\x18\x13 \x01(\bR\bhardStop\";\n" +
 	"\x12CreateQuotaRequest\x12%\n" +
 	"\x05quota\x18\x01 \x01(\v2\x0f.gmesh.v1.QuotaR\x05quota\";\n" +
 	"\x12UpdateQuotaRequest\x12%\n" +
@@ -5060,7 +5277,24 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x06quotas\x18\x01 \x03(\v2\x0f.gmesh.v1.QuotaR\x06quotas\"#\n" +
 	"\x11ResetQuotaRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"\x14\n" +
-	"\x12ResetQuotaResponse*L\n" +
+	"\x12ResetQuotaResponse\"\xee\x02\n" +
+	"\tPathState\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x17\n" +
+	"\amesh_ip\x18\x02 \x01(\tR\x06meshIp\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12%\n" +
+	"\x0econsecutive_ok\x18\x04 \x01(\x03R\rconsecutiveOk\x12)\n" +
+	"\x10consecutive_fail\x18\x05 \x01(\x03R\x0fconsecutiveFail\x12\x1e\n" +
+	"\vlast_rtt_us\x18\x06 \x01(\x03R\tlastRttUs\x12\x19\n" +
+	"\bloss_pct\x18\a \x01(\x01R\alossPct\x12\x18\n" +
+	"\asamples\x18\b \x01(\x03R\asamples\x12(\n" +
+	"\x10last_sample_unix\x18\t \x01(\x03R\x0elastSampleUnix\x12 \n" +
+	"\flast_up_unix\x18\n" +
+	" \x01(\x03R\n" +
+	"lastUpUnix\x12$\n" +
+	"\x0elast_down_unix\x18\v \x01(\x03R\flastDownUnix\"\x17\n" +
+	"\x15ListPathStatesRequest\"E\n" +
+	"\x16ListPathStatesResponse\x12+\n" +
+	"\x06states\x18\x01 \x03(\v2\x13.gmesh.v1.PathStateR\x06states*L\n" +
 	"\bPeerType\x12\x19\n" +
 	"\x15PEER_TYPE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fPEER_TYPE_VM\x10\x01\x12\x13\n" +
@@ -5109,7 +5343,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fFW_PROTO_TCP\x10\x02\x12\x10\n" +
 	"\fFW_PROTO_UDP\x10\x03\x12\x11\n" +
 	"\rFW_PROTO_ICMP\x10\x04\x12\x13\n" +
-	"\x0fFW_PROTO_ICMPV6\x10\x052\xae\x16\n" +
+	"\x0fFW_PROTO_ICMPV6\x10\x052\x83\x17\n" +
 	"\x05GMesh\x125\n" +
 	"\x04Join\x12\x15.gmesh.v1.JoinRequest\x1a\x16.gmesh.v1.JoinResponse\x128\n" +
 	"\x05Leave\x12\x16.gmesh.v1.LeaveRequest\x1a\x17.gmesh.v1.LeaveResponse\x12;\n" +
@@ -5152,7 +5386,8 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"ListQuotas\x12\x1b.gmesh.v1.ListQuotasRequest\x1a\x1c.gmesh.v1.ListQuotasResponse\x12P\n" +
 	"\rGetQuotaUsage\x12\x1e.gmesh.v1.GetQuotaUsageRequest\x1a\x1f.gmesh.v1.GetQuotaUsageResponse\x12G\n" +
 	"\n" +
-	"ResetQuota\x12\x1b.gmesh.v1.ResetQuotaRequest\x1a\x1c.gmesh.v1.ResetQuotaResponseB4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
+	"ResetQuota\x12\x1b.gmesh.v1.ResetQuotaRequest\x1a\x1c.gmesh.v1.ResetQuotaResponse\x12S\n" +
+	"\x0eListPathStates\x12\x1f.gmesh.v1.ListPathStatesRequest\x1a .gmesh.v1.ListPathStatesResponseB4Z2github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1b\x06proto3"
 
 var (
 	file_gmesh_v1_gmesh_proto_rawDescOnce sync.Once
@@ -5167,7 +5402,7 @@ func file_gmesh_v1_gmesh_proto_rawDescGZIP() []byte {
 }
 
 var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
+var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
 var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(PeerType)(0),                          // 0: gmesh.v1.PeerType
 	(PeerStatus)(0),                        // 1: gmesh.v1.PeerStatus
@@ -5251,8 +5486,11 @@ var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(*GetQuotaUsageResponse)(nil),          // 79: gmesh.v1.GetQuotaUsageResponse
 	(*ResetQuotaRequest)(nil),              // 80: gmesh.v1.ResetQuotaRequest
 	(*ResetQuotaResponse)(nil),             // 81: gmesh.v1.ResetQuotaResponse
-	(*HealthCheckResponse_PeerHealth)(nil), // 82: gmesh.v1.HealthCheckResponse.PeerHealth
-	nil,                                    // 83: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	(*PathState)(nil),                      // 82: gmesh.v1.PathState
+	(*ListPathStatesRequest)(nil),          // 83: gmesh.v1.ListPathStatesRequest
+	(*ListPathStatesResponse)(nil),         // 84: gmesh.v1.ListPathStatesResponse
+	(*HealthCheckResponse_PeerHealth)(nil), // 85: gmesh.v1.HealthCheckResponse.PeerHealth
+	nil,                                    // 86: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
 }
 var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	0,  // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
@@ -5271,13 +5509,13 @@ var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	7,  // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
 	8,  // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
 	3,  // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
-	82, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
+	85, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
 	7,  // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
 	5,  // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
 	6,  // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
 	41, // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
 	41, // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
-	83, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	86, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
 	50, // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
 	50, // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
 	50, // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
@@ -5291,84 +5529,87 @@ var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	70, // 33: gmesh.v1.QuotaResponse.quota:type_name -> gmesh.v1.Quota
 	70, // 34: gmesh.v1.ListQuotasResponse.quotas:type_name -> gmesh.v1.Quota
 	70, // 35: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
-	4,  // 36: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
-	9,  // 37: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
-	11, // 38: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
-	13, // 39: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
-	15, // 40: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
-	17, // 41: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
-	19, // 42: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
-	21, // 43: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
-	23, // 44: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
-	25, // 45: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
-	27, // 46: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
-	29, // 47: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
-	31, // 48: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
-	33, // 49: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
-	35, // 50: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
-	37, // 51: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
-	39, // 52: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
-	42, // 53: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
-	44, // 54: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
-	46, // 55: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
-	48, // 56: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
-	51, // 57: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
-	52, // 58: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
-	54, // 59: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
-	56, // 60: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
-	58, // 61: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
-	60, // 62: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
-	63, // 63: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
-	64, // 64: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
-	66, // 65: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
-	68, // 66: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
-	71, // 67: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
-	72, // 68: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
-	74, // 69: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
-	76, // 70: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
-	78, // 71: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
-	80, // 72: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
-	10, // 73: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
-	12, // 74: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
-	14, // 75: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
-	16, // 76: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
-	18, // 77: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
-	20, // 78: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
-	22, // 79: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
-	24, // 80: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
-	26, // 81: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
-	28, // 82: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
-	30, // 83: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
-	32, // 84: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
-	34, // 85: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
-	36, // 86: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
-	38, // 87: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
-	40, // 88: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
-	43, // 89: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
-	45, // 90: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
-	47, // 91: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
-	49, // 92: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
-	53, // 93: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	53, // 94: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	55, // 95: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
-	57, // 96: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
-	59, // 97: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
-	61, // 98: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
-	65, // 99: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	65, // 100: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	67, // 101: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
-	69, // 102: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
-	73, // 103: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
-	73, // 104: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
-	75, // 105: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
-	77, // 106: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
-	79, // 107: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
-	81, // 108: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
-	73, // [73:109] is the sub-list for method output_type
-	37, // [37:73] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	82, // 36: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
+	4,  // 37: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
+	9,  // 38: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
+	11, // 39: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
+	13, // 40: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
+	15, // 41: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
+	17, // 42: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
+	19, // 43: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
+	21, // 44: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
+	23, // 45: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
+	25, // 46: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
+	27, // 47: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
+	29, // 48: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
+	31, // 49: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
+	33, // 50: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
+	35, // 51: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
+	37, // 52: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
+	39, // 53: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
+	42, // 54: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
+	44, // 55: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
+	46, // 56: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
+	48, // 57: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
+	51, // 58: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
+	52, // 59: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
+	54, // 60: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
+	56, // 61: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
+	58, // 62: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
+	60, // 63: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
+	63, // 64: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
+	64, // 65: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
+	66, // 66: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
+	68, // 67: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
+	71, // 68: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
+	72, // 69: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
+	74, // 70: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
+	76, // 71: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
+	78, // 72: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
+	80, // 73: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
+	83, // 74: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
+	10, // 75: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
+	12, // 76: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
+	14, // 77: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
+	16, // 78: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
+	18, // 79: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
+	20, // 80: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
+	22, // 81: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
+	24, // 82: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
+	26, // 83: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
+	28, // 84: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
+	30, // 85: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
+	32, // 86: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
+	34, // 87: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
+	36, // 88: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
+	38, // 89: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
+	40, // 90: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
+	43, // 91: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
+	45, // 92: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
+	47, // 93: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
+	49, // 94: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
+	53, // 95: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	53, // 96: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	55, // 97: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
+	57, // 98: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
+	59, // 99: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
+	61, // 100: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
+	65, // 101: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	65, // 102: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	67, // 103: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
+	69, // 104: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
+	73, // 105: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
+	73, // 106: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
+	75, // 107: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
+	77, // 108: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
+	79, // 109: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
+	81, // 110: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
+	84, // 111: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
+	75, // [75:112] is the sub-list for method output_type
+	38, // [38:75] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_gmesh_v1_gmesh_proto_init() }
@@ -5382,7 +5623,7 @@ func file_gmesh_v1_gmesh_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gmesh_v1_gmesh_proto_rawDesc), len(file_gmesh_v1_gmesh_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   77,
+			NumMessages:   80,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

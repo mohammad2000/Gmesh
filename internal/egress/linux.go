@@ -177,6 +177,23 @@ func (m *LinuxManager) ensureNftTable(ctx context.Context) error {
 	//     oifname != @protected_oif ip daddr != @protected_daddr
 	// so no matter how broad the user's filter is, management traffic and
 	// LAN access keep working.
+	// Conntrack-aware marking strategy:
+	//
+	//   1. First packet of a new flow is evaluated by the profile rule
+	//      and marked with fwmark if it matches.
+	//   2. `ct mark set meta mark` saves that mark onto the conntrack
+	//      entry. Every subsequent packet of this flow inherits from ct.
+	//   3. WireGuard encapsulates the inner packet → generates an OUTER
+	//      UDP packet to the peer's underlay endpoint. That outer packet
+	//      is a brand-new flow: distinct 5-tuple, distinct ct entry, no
+	//      inherited mark. It only gets marked if its OWN 5-tuple matches
+	//      the profile — which it won't, because the guard excludes
+	//      @protected_daddr (Tailscale CGNAT) and @protected_oif
+	//      (wg-gmesh / tailscale0).
+	//   4. To be safe, we also add an early "skip marking for packets
+	//      that already carry the gmesh mark OR come from a ct entry
+	//      with a gmesh mark" rule — this stops a re-queued packet from
+	//      re-triggering routing + encap.
 	script := fmt.Sprintf(`
 add table inet %[1]s
 add set inet %[1]s protected_oif { type ifname; }
@@ -187,6 +204,8 @@ add chain inet %[1]s egress_mark_pre { type filter hook prerouting priority mang
 add chain inet %[1]s egress_mark_out { type route hook output priority mangle; }
 add rule inet %[1]s egress_mark_out oifname @protected_oif meta mark set 0x0
 add rule inet %[1]s egress_mark_out ip daddr @protected_daddr meta mark set 0x0
+add rule inet %[1]s egress_mark_out meta mark and 0xF0000000 == 0x10000000 return
+add rule inet %[1]s egress_mark_out ct mark and 0xF0000000 == 0x10000000 meta mark set ct mark return
 `, m.NftTable)
 	if err := m.runNftInput(ctx, script); err != nil {
 		return fmt.Errorf("ensure nft table: %w", err)
@@ -232,6 +251,11 @@ func (m *LinuxManager) nftMarkRule(p *Profile, mark uint32) string {
 	// stays 0 forever.
 	body = append(body, "counter")
 	body = append(body, fmt.Sprintf(`meta mark set 0x%x`, mark))
+	// Save the mark onto conntrack so subsequent packets of the same flow
+	// inherit it via the early `ct mark` return rule in egress_mark_out.
+	// This makes fwmark evaluation happen once per flow instead of per
+	// packet and decouples it from the packet payload.
+	body = append(body, fmt.Sprintf(`ct mark set 0x%x`, mark))
 	body = append(body, fmt.Sprintf(`comment "egress-%d"`, p.ID))
 
 	line := strings.Join(body, " ")
@@ -250,9 +274,12 @@ func (m *LinuxManager) nftDeleteByComment(profileID int64) string {
 	b.WriteString(fmt.Sprintf("flush chain inet %s egress_mark_out\n", m.NftTable))
 	// Re-add the per-chain clear-mark guards that ensureNftTable installed.
 	// Flushing the chain wipes them along with profile rules, so restore
-	// them here before re-adding profile rules.
+	// them here before re-adding profile rules. Keep this list in sync with
+	// ensureNftTable's initial rule set.
 	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out oifname @protected_oif meta mark set 0x0\n", m.NftTable))
 	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out ip daddr @protected_daddr meta mark set 0x0\n", m.NftTable))
+	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out meta mark and 0xF0000000 == 0x10000000 return\n", m.NftTable))
+	b.WriteString(fmt.Sprintf("add rule inet %s egress_mark_out ct mark and 0xF0000000 == 0x10000000 meta mark set ct mark return\n", m.NftTable))
 	// Reinstall remaining profiles (m.profiles already has the deleted one
 	// removed before this call).
 	for _, p := range m.profiles {
