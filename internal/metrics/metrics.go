@@ -147,6 +147,134 @@ var (
 		},
 		[]string{"version", "commit", "build_date"},
 	)
+
+	// ── Phase 14 — Path Monitor ───────────────────────────────────────
+
+	// PathTransitions counts pathmon up/down edge events per peer.
+	// Labels keep cardinality bounded: peer_id is high-cardinality but
+	// the number of peers is typically small and known to operators.
+	PathTransitions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "pathmon",
+			Name:      "transitions_total",
+			Help:      "Pathmon transitions labeled by type (up|down) and peer_id.",
+		},
+		[]string{"type", "peer_id"},
+	)
+
+	// PathFailovers counts auto-failover swaps triggered by path_down.
+	PathFailovers = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "pathmon",
+			Name:      "failovers_total",
+			Help:      "Engine auto-failover swaps labeled by action (swap|restore).",
+		},
+		[]string{"action"},
+	)
+
+	// ── Phase 13 / 13.5 — Quota ───────────────────────────────────────
+
+	// QuotaEdges counts per-threshold edge crossings. Labels: type =
+	// warn | shift | stop | reset, quota_id stays raw for per-quota
+	// dashboards. hard_stop=true alerts also emit the stop edge and
+	// additionally increment the QuotaBlocks counter below.
+	QuotaEdges = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "quota",
+			Name:      "edges_total",
+			Help:      "Quota threshold edge crossings labeled by type and quota_id.",
+		},
+		[]string{"type", "quota_id"},
+	)
+
+	// QuotaBlocks counts hard-stop DROP installs + unblocks.
+	QuotaBlocks = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "quota",
+			Name:      "blocks_total",
+			Help:      "Quota hard-stop enforcer actions labeled by action (block|unblock).",
+		},
+		[]string{"action"},
+	)
+
+	// ── Phase 19 — Circuit ────────────────────────────────────────────
+
+	// CircuitInstalls counts per-role Create calls on the circuit
+	// manager. Labels: role = source | transit | exit | none. A no-op
+	// "none" install still increments so operators can see mis-scoped
+	// circuit pushes.
+	CircuitInstalls = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "circuit",
+			Name:      "installs_total",
+			Help:      "Circuit installs on this node labeled by local role.",
+		},
+		[]string{"role"},
+	)
+
+	// ── Phase 20 — mTLS CA ────────────────────────────────────────────
+
+	// MTLSCertsIssued counts successful cert issuances since daemon
+	// start (per-peer cardinality is bounded and useful for dashboards).
+	MTLSCertsIssued = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "gmesh",
+		Subsystem: "mtls",
+		Name:      "certs_issued_total",
+		Help:      "Total peer certificates issued by the embedded CA.",
+	})
+
+	// MTLSCertsRevoked counts revocations.
+	MTLSCertsRevoked = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "gmesh",
+		Subsystem: "mtls",
+		Name:      "certs_revoked_total",
+		Help:      "Total peer certificates revoked via the CRL.",
+	})
+
+	// ── Phase 21 — Anomaly detectors ──────────────────────────────────
+
+	// AnomalyAlerts counts alerts by detector + severity. Peer_id is
+	// deliberately NOT a label to keep cardinality bounded under
+	// flapping conditions; dashboards that need per-peer rollups query
+	// the observability log instead.
+	AnomalyAlerts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "anomaly",
+			Name:      "alerts_total",
+			Help:      "Anomaly detector alerts labeled by detector and severity.",
+		},
+		[]string{"detector", "severity"},
+	)
+
+	// ── Phase 18 — L7 Classifier ──────────────────────────────────────
+
+	// L7BytesTotal counts bytes per L7 protocol since daemon start.
+	// Labels: protocol + peer_id. Peer_id is bounded by mesh size.
+	// Operators that care about per-destination breakdowns use the
+	// ListL7Flows RPC, not this counter.
+	L7BytesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "gmesh",
+			Subsystem: "l7",
+			Name:      "bytes_total",
+			Help:      "Cumulative bytes per L7 protocol and peer_id.",
+		},
+		[]string{"protocol", "peer_id"},
+	)
+
+	// L7FlowsActive is the current distinct-flow count in the aggregator.
+	L7FlowsActive = prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "gmesh",
+		Subsystem: "l7",
+		Name:      "flows_active",
+		Help:      "Distinct flows currently tracked by the L7 classifier.",
+	})
 )
 
 // MustRegister is called once at process start to wire every collector
@@ -158,6 +286,13 @@ func MustRegister() {
 		HolePunchAttempts, FirewallApplies, FirewallRulesActive,
 		RelayBytesForwarded, WSTunnelBytes, EventsPublished, EventsDropped,
 		HealthScoreHist, NATDiscovery, BuildInfo,
+		// Phase 14 + 18 + 19 + 20 + 21:
+		PathTransitions, PathFailovers,
+		QuotaEdges, QuotaBlocks,
+		CircuitInstalls,
+		MTLSCertsIssued, MTLSCertsRevoked,
+		AnomalyAlerts,
+		L7BytesTotal, L7FlowsActive,
 	}
 	for _, c := range cols {
 		if err := Registry.Register(c); err != nil {

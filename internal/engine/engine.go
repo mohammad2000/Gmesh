@@ -25,6 +25,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/health"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/l7"
+	"github.com/mohammad2000/Gmesh/internal/metrics"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/pathmon"
@@ -645,6 +646,14 @@ func (q *quotaBridgePublisher) Publish(ev quota.Event) {
 		Type:    ev.Type, // "quota_warning" etc.
 		Payload: marshalJSONSilent(ev.Payload),
 	})
+	// Metric: quota_edges_total{type, quota_id}. Strip the "quota_"
+	// prefix from the event type so labels are compact: warning | shift
+	// | stop | reset.
+	edge := ev.Type
+	if len(edge) > 6 && edge[:6] == "quota_" {
+		edge = edge[6:]
+	}
+	metrics.QuotaEdges.WithLabelValues(edge, fmt.Sprintf("%d", ev.QuotaID)).Inc()
 }
 
 // quotaSwitcher is the engine-backed Switcher wired after engine.New.
@@ -697,6 +706,12 @@ func (p *pathmonBridgePublisher) Publish(ev pathmon.Event) {
 			"at_unix":  ev.At.Unix(),
 		}),
 	})
+	// Metric: pathmon_transitions_total{type, peer_id}
+	label := "up"
+	if ev.Type == "path_down" {
+		label = "down"
+	}
+	metrics.PathTransitions.WithLabelValues(label, fmt.Sprintf("%d", ev.PeerID)).Inc()
 }
 
 // anomalyBridgePublisher adapts events.Bus to anomaly.Publisher so a
@@ -716,6 +731,8 @@ func (p *anomalyBridgePublisher) Publish(a anomaly.Alert) {
 			"at_unix":  a.Observed.Unix(),
 		}),
 	})
+	// Metric: anomaly_alerts_total{detector, severity}
+	metrics.AnomalyAlerts.WithLabelValues(a.Detector, a.Severity.String()).Inc()
 }
 
 // ── Ingress profiles (Phase 12) ───────────────────────────────────────
@@ -777,6 +794,7 @@ func (e *Engine) CreateCircuit(ctx context.Context, c *circuit.Circuit) (*circui
 	if err != nil {
 		return nil, err
 	}
+	metrics.CircuitInstalls.WithLabelValues(role.String()).Inc()
 	e.emit(events.TypeScopeConnected, c.Source, map[string]any{
 		"kind":        "circuit",
 		"circuit_id":  res.ID,
@@ -1666,6 +1684,7 @@ func (e *Engine) failoverDown(ctx context.Context, peerID int64) {
 		e.Log.Info("path failover engaged",
 			"profile", p.ID, "from_peer", peerID,
 			"to_peer", p.BackupExitPeerID)
+		metrics.PathFailovers.WithLabelValues("swap").Inc()
 		if e.Events != nil {
 			e.Events.Publish(events.Event{
 				Type:   "path_failover",
@@ -1719,6 +1738,7 @@ func (e *Engine) failoverUp(ctx context.Context, peerID int64) {
 		e.failoverMu.Unlock()
 		e.Log.Info("path failover restored",
 			"profile", pid, "to_peer", peerID)
+		metrics.PathFailovers.WithLabelValues("restore").Inc()
 		if e.Events != nil {
 			e.Events.Publish(events.Event{
 				Type:   "path_restore",

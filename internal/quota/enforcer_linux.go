@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/mohammad2000/Gmesh/internal/metrics"
 )
 
 // LinuxEnforcer installs nftables DROP rules keyed by the egress
@@ -93,6 +95,7 @@ add rule inet %[1]s quota_drop_fwd meta mark 0x%[2]x counter drop comment "quota
 	e.blocked[egressProfileID] = mark
 	e.Log.Info("quota hard-stop DROP installed",
 		"profile", egressProfileID, "mark", fmt.Sprintf("0x%x", mark))
+	metrics.QuotaBlocks.WithLabelValues("block").Inc()
 	return nil
 }
 
@@ -122,6 +125,7 @@ func (e *LinuxEnforcer) Unblock(ctx context.Context, egressProfileID int64) erro
 		return fmt.Errorf("unblock: %w", err)
 	}
 	e.Log.Info("quota hard-stop DROP removed", "profile", egressProfileID)
+	metrics.QuotaBlocks.WithLabelValues("unblock").Inc()
 	return nil
 }
 

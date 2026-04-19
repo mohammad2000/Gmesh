@@ -2,8 +2,12 @@ package l7
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"sync"
 	"time"
+
+	"github.com/mohammad2000/Gmesh/internal/metrics"
 )
 
 // Monitor ties a Reader + Classifier + Aggregator together and runs a
@@ -14,6 +18,15 @@ type Monitor struct {
 	Classifier *Classifier
 	Agg        *Aggregator
 	Interval   time.Duration
+
+	// watermarks remembers the last-published byte total per
+	// (peer, protocol) key so Tick can Add only the positive delta to
+	// the Prometheus counter. Prometheus counters must never decrease;
+	// the aggregator's own totals are already monotonic, but we still
+	// need this per-label memory so restart of a label's bucket isn't
+	// double-counted against an earlier total.
+	watermarkMu sync.Mutex
+	watermarks  map[string]int64
 }
 
 // New wires a Monitor with the platform-default reader + a fresh
@@ -30,11 +43,16 @@ func New(log *slog.Logger, interval time.Duration) *Monitor {
 		Reader:     NewPlatformReader(),
 		Classifier: NewClassifier(),
 		Agg:        NewAggregator(),
+		watermarks: map[string]int64{},
 	}
 }
 
 // Tick runs one pull + classify + ingest cycle. Returns the number of
 // flows observed (zero is fine — conntrack acct may be off).
+//
+// Publishes Prometheus counters after the ingest so dashboards + rate
+// alerts see per-protocol byte growth between scrapes. L7FlowsActive
+// gauge reflects the aggregator's distinct-flow count.
 func (m *Monitor) Tick() (int, error) {
 	if m.Reader == nil {
 		return 0, nil
@@ -47,6 +65,29 @@ func (m *Monitor) Tick() (int, error) {
 		m.Classifier.Classify(&flows[i])
 	}
 	m.Agg.Ingest(flows)
+
+	// Publish current totals as counter DELTAS (counters only ever grow;
+	// the aggregator's totals are already monotonic so we Add the
+	// difference between the current total and whatever has already
+	// been Counted.) A simpler alternative is to reset the counter each
+	// tick, but Prometheus counters must not reset — so we track an
+	// internal watermark per (peer, protocol) and Add only the growth.
+	for _, t := range m.Agg.Totals() {
+		key := fmt.Sprintf("%d|%s", t.PeerID, string(t.Protocol))
+		m.watermarkMu.Lock()
+		prev := m.watermarks[key]
+		delta := t.Bytes - prev
+		if delta > 0 {
+			m.watermarks[key] = t.Bytes
+		}
+		m.watermarkMu.Unlock()
+		if delta > 0 {
+			metrics.L7BytesTotal.
+				WithLabelValues(string(t.Protocol), fmt.Sprintf("%d", t.PeerID)).
+				Add(float64(delta))
+		}
+	}
+	metrics.L7FlowsActive.Set(float64(len(m.Agg.Flows())))
 	return len(flows), nil
 }
 

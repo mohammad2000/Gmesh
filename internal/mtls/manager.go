@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mohammad2000/Gmesh/internal/metrics"
 )
 
 func randReader() io.Reader { return rand.Reader }
@@ -293,6 +295,7 @@ func (m *LinuxManager) IssueCert(req CertRequest) (*Cert, error) {
 		"peer_id", req.PeerID, "serial", serialHex,
 		"cn", req.CommonName, "spiffe", req.SpiffeID,
 		"not_after", req.NotAfter)
+	metrics.MTLSCertsIssued.Inc()
 
 	return &Cert{
 		Serial:     serialHex,
@@ -371,6 +374,7 @@ func (m *LinuxManager) RevokeCert(serial, reason string) error {
 		return fmt.Errorf("persist revocation: %w", err)
 	}
 	m.Log.Info("mtls cert revoked", "serial", serial, "reason", reason)
+	metrics.MTLSCertsRevoked.Inc()
 	return nil
 }
 
