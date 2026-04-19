@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+export GOFLAGS = -trimpath
+export CGO_ENABLED = 0
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	$(MAKE) build
+
+override_dh_auto_install:
+	install -Dm0755 bin/gmeshd     debian/gmeshd/usr/local/bin/gmeshd
+	install -Dm0755 bin/gmeshctl   debian/gmeshd/usr/local/bin/gmeshctl
+	install -Dm0755 bin/gmesh-relay debian/gmeshd/usr/local/bin/gmesh-relay
+	install -Dm0644 systemd/gmeshd.service debian/gmeshd/lib/systemd/system/gmeshd.service
+
+override_dh_auto_test:
+	$(MAKE) test

@@ -1,0 +1,46 @@
+# Build output
+/bin/
+/dist/
+/out/
+
+# Go
+*.exe
+*.test
+*.prof
+coverage.out
+coverage.html
+
+# Generated code — regeneratable but we do check it in; uncomment to ignore
+# /gen/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Local env / config overrides
+*.local.yaml
+*.local.yml
+.env
+.env.*
+!.env.example
+
+# Debian build artifacts
+/debian/.debhelper/
+/debian/files
+/debian/gmeshd/
+/debian/*.substvars
+/debian/debhelper-build-stamp
+*.deb
+*.changes
+*.buildinfo
+
+# Test artifacts
+/test/*/tmp/
+/test/*/_data/
+
+# Runtime
+*.sock
+*.pid

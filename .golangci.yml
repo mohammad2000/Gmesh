@@ -1,0 +1,41 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - revive
+    - bodyclose
+    - errorlint
+    - gocritic
+    - gosec
+    - nilerr
+    - nolintlint
+    - prealloc
+    - unparam
+    - whitespace
+
+linters-settings:
+  gosec:
+    excludes:
+      - G104  # errcheck covers it
+      - G204  # subprocess with variable (we run iptables/ip/wg)
+      - G301  # file perm (we intentionally use 0755 for socket dirs)
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters: [errcheck, gosec, unparam]

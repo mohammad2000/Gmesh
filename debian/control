@@ -1,0 +1,23 @@
+Source: gmeshd
+Section: net
+Priority: optional
+Maintainer: Mohammad Salamati <m.salamati2000@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.23)
+Standards-Version: 4.6.2
+Homepage: https://github.com/mohammad2000/Gmesh
+Vcs-Git: https://github.com/mohammad2000/Gmesh.git
+Vcs-Browser: https://github.com/mohammad2000/Gmesh
+
+Package: gmeshd
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, iproute2, nftables
+Recommends: wireguard-tools
+Description: Go-based WireGuard mesh networking daemon
+ gmeshd manages a node's membership in a WireGuard mesh: it owns the
+ WireGuard interface, runs STUN-based NAT discovery, performs hole
+ punching and relay fallback, installs nftables firewall rules, and
+ exposes a gRPC API on a Unix socket for local consumers.
+ .
+ This package ships the daemon (gmeshd), operator CLI (gmeshctl),
+ relay server (gmesh-relay), and the systemd unit that supervises
+ the daemon.

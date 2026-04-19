@@ -1,0 +1,330 @@
+syntax = "proto3";
+
+package gmesh.v1;
+
+option go_package = "github.com/mohammad2000/Gmesh/gen/gmesh/v1;gmeshv1";
+
+// GMesh is the control-plane API exposed by the gmeshd daemon over a Unix
+// socket. The GritivaCore agent, gmeshctl, and any other local process talks
+// to gmeshd through this service.
+//
+// All mutating RPCs are idempotent on the {peer_id, mesh_ip} primary key.
+service GMesh {
+  // ── Lifecycle ─────────────────────────────────────────────────────────
+  rpc Join    (JoinRequest)    returns (JoinResponse);
+  rpc Leave   (LeaveRequest)   returns (LeaveResponse);
+  rpc Status  (StatusRequest)  returns (StatusResponse);
+  rpc Version (VersionRequest) returns (VersionResponse);
+
+  // ── Peers ─────────────────────────────────────────────────────────────
+  rpc AddPeer      (AddPeerRequest)      returns (AddPeerResponse);
+  rpc RemovePeer   (RemovePeerRequest)   returns (RemovePeerResponse);
+  rpc UpdatePeer   (UpdatePeerRequest)   returns (UpdatePeerResponse);
+  rpc ListPeers    (ListPeersRequest)    returns (ListPeersResponse);
+  rpc GetPeerStats (GetPeerStatsRequest) returns (GetPeerStatsResponse);
+
+  // ── NAT & traversal ───────────────────────────────────────────────────
+  rpc DiscoverNAT (DiscoverNATRequest) returns (DiscoverNATResponse);
+  rpc HolePunch   (HolePunchRequest)   returns (HolePunchResponse);
+
+  // ── Relay / WS tunnel ─────────────────────────────────────────────────
+  rpc SetupRelay       (SetupRelayRequest)       returns (SetupRelayResponse);
+  rpc AllocateWSTunnel (AllocateWSTunnelRequest) returns (AllocateWSTunnelResponse);
+
+  // ── Health ────────────────────────────────────────────────────────────
+  rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
+
+  // ── Scopes (netns-isolated peers behind a VM) ─────────────────────────
+  rpc ScopeConnect    (ScopeConnectRequest)    returns (ScopeConnectResponse);
+  rpc ScopeDisconnect (ScopeDisconnectRequest) returns (ScopeDisconnectResponse);
+
+  // ── Firewall (nftables) ───────────────────────────────────────────────
+  rpc ApplyFirewall     (ApplyFirewallRequest)     returns (ApplyFirewallResponse);
+  rpc ResetFirewall     (ResetFirewallRequest)     returns (ResetFirewallResponse);
+  rpc GetFirewallStatus (GetFirewallStatusRequest) returns (GetFirewallStatusResponse);
+
+  // ── Event stream ──────────────────────────────────────────────────────
+  // Server-streaming RPC. Subscribers get async events: peer state changes,
+  // NAT re-discovery, health degradation, firewall apply results, etc.
+  rpc SubscribeEvents (SubscribeEventsRequest) returns (stream Event);
+}
+
+// ── Common types ────────────────────────────────────────────────────────
+
+enum PeerType {
+  PEER_TYPE_UNSPECIFIED = 0;
+  PEER_TYPE_VM          = 1;
+  PEER_TYPE_SCOPE       = 2;
+}
+
+enum PeerStatus {
+  PEER_STATUS_UNSPECIFIED  = 0;
+  PEER_STATUS_CONNECTING   = 1;
+  PEER_STATUS_CONNECTED    = 2;
+  PEER_STATUS_DISCONNECTED = 3;
+  PEER_STATUS_ERROR        = 4;
+  PEER_STATUS_ESTABLISHING = 5;
+}
+
+enum NATType {
+  NAT_TYPE_UNSPECIFIED           = 0;
+  NAT_TYPE_OPEN                  = 1;
+  NAT_TYPE_FULL_CONE             = 2;
+  NAT_TYPE_RESTRICTED_CONE       = 3;
+  NAT_TYPE_PORT_RESTRICTED_CONE  = 4;
+  NAT_TYPE_SYMMETRIC             = 5;
+}
+
+enum ConnectionMethod {
+  CONN_METHOD_UNSPECIFIED       = 0;
+  CONN_METHOD_DIRECT            = 1;
+  CONN_METHOD_UPNP_PORT_MAP     = 2;
+  CONN_METHOD_STUN_HOLE_PUNCH   = 3;
+  CONN_METHOD_SIMULTANEOUS_OPEN = 4;
+  CONN_METHOD_BIRTHDAY_PUNCH    = 5;
+  CONN_METHOD_RELAY             = 6;
+  CONN_METHOD_RELAY_TCP         = 7;
+  CONN_METHOD_WS_TUNNEL         = 8;
+}
+
+enum HealthStatus {
+  HEALTH_UNSPECIFIED = 0;
+  HEALTH_EXCELLENT   = 1;
+  HEALTH_GOOD        = 2;
+  HEALTH_DEGRADED    = 3;
+  HEALTH_POOR        = 4;
+  HEALTH_FAILING     = 5;
+}
+
+message Peer {
+  int64            id                = 1;
+  PeerType         type              = 2;
+  string           mesh_ip           = 3;   // 10.200.x.x
+  string           public_key        = 4;
+  string           endpoint          = 5;   // host:port
+  repeated string  allowed_ips       = 6;
+  PeerStatus       status            = 7;
+  NATType          nat_type          = 8;
+  bool             supports_hole_punch = 9;
+  bool             is_relay_capable  = 10;
+  ConnectionMethod method            = 11;
+  int64            rx_bytes          = 12;
+  int64            tx_bytes          = 13;
+  int64            latency_ms        = 14;
+  double           packet_loss       = 15;
+  int64            last_handshake_unix = 16;
+  int64            scope_id          = 17;  // 0 for VM peers
+}
+
+message NATInfo {
+  NATType nat_type          = 1;
+  string  external_ip       = 2;
+  uint32  external_port     = 3;
+  bool    supports_hole_punch = 4;
+  bool    is_relay_capable  = 5;
+}
+
+// ── Lifecycle ──────────────────────────────────────────────────────────
+
+message JoinRequest {
+  string mesh_ip        = 1;   // 10.200.x.x/16 assigned by backend
+  uint32 listen_port    = 2;   // local UDP port, e.g. 51820
+  string interface_name = 3;   // "wg-gritiva"
+  string network_cidr   = 4;   // "10.200.0.0/16"
+  string node_id        = 5;   // "node-xxxxxxxx"
+}
+
+message JoinResponse {
+  string  public_key          = 1;
+  string  private_key_encrypted = 2;  // returned for backend storage (Fernet)
+  NATInfo nat                 = 3;
+  string  endpoint            = 4;    // external_ip:external_port
+}
+
+message LeaveRequest { string reason = 1; }
+message LeaveResponse {}
+
+message StatusRequest {}
+message StatusResponse {
+  bool            joined        = 1;
+  string          mesh_ip       = 2;
+  string          interface     = 3;
+  NATInfo         nat           = 4;
+  int32           peer_count    = 5;
+  int32           active_peers  = 6;
+  repeated Peer   peers         = 7;
+}
+
+message VersionRequest {}
+message VersionResponse { string version = 1; string commit = 2; string build_date = 3; }
+
+// ── Peers ──────────────────────────────────────────────────────────────
+
+message AddPeerRequest {
+  int64            peer_id      = 1;
+  string           mesh_ip      = 2;
+  string           public_key   = 3;
+  string           endpoint     = 4;
+  repeated string  allowed_ips  = 5;
+  uint32           keepalive    = 6;
+  NATInfo          remote_nat   = 7;
+  ConnectionMethod force_method = 8;  // UNSPECIFIED → let engine choose
+}
+
+message AddPeerResponse {
+  Peer peer = 1;
+}
+
+message RemovePeerRequest  { int64 peer_id = 1; }
+message RemovePeerResponse {}
+
+message UpdatePeerRequest  {
+  int64            peer_id     = 1;
+  string           endpoint    = 2;
+  repeated string  allowed_ips = 3;
+  uint32           keepalive   = 4;
+}
+message UpdatePeerResponse { Peer peer = 1; }
+
+message ListPeersRequest   {}
+message ListPeersResponse  { repeated Peer peers = 1; }
+
+message GetPeerStatsRequest  { int64 peer_id = 1; }
+message GetPeerStatsResponse { Peer peer = 1; }
+
+// ── NAT & traversal ────────────────────────────────────────────────────
+
+message DiscoverNATRequest  { bool force_refresh = 1; }
+message DiscoverNATResponse { NATInfo nat = 1; }
+
+message HolePunchRequest {
+  int64  peer_id           = 1;
+  string remote_endpoint   = 2;
+  int64  fire_at_unix_ms   = 3;  // for simultaneous-open coordination
+}
+message HolePunchResponse {
+  bool             success    = 1;
+  ConnectionMethod method_used = 2;
+  int64            latency_ms = 3;
+  string           error      = 4;
+}
+
+// ── Relay ──────────────────────────────────────────────────────────────
+
+message SetupRelayRequest {
+  int64  peer_id          = 1;
+  string relay_endpoint   = 2;   // gmesh-relay address
+  string relay_session_id = 3;
+}
+message SetupRelayResponse { bool ok = 1; string error = 2; }
+
+message AllocateWSTunnelRequest  {
+  int64  peer_id        = 1;
+  string backend_ws_url = 2;  // wss://api.gritiva.com/ws/relay/{session}/{peer}
+}
+message AllocateWSTunnelResponse { bool ok = 1; string error = 2; }
+
+// ── Health ─────────────────────────────────────────────────────────────
+
+message HealthCheckRequest  { int64 peer_id = 1; /* 0 = all */ }
+message HealthCheckResponse {
+  message PeerHealth {
+    int64        peer_id          = 1;
+    HealthStatus status           = 2;
+    int32        score            = 3;   // 0..100
+    int64        latency_ms       = 4;
+    double       packet_loss      = 5;
+    int64        handshake_age_s  = 6;
+  }
+  repeated PeerHealth peers = 1;
+}
+
+// ── Scope peers (netns-isolated behind a VM) ───────────────────────────
+
+message ScopeConnectRequest {
+  int64           scope_id         = 1;
+  string          scope_mesh_ip    = 2;   // 10.200.x.x (identity)
+  string          scope_netns      = 3;   // "scope-{id}"
+  string          veth_cidr        = 4;   // 10.50.{id}.0/30
+  string          vm_veth_ip       = 5;   // 10.50.{id}.1
+  string          scope_ip         = 6;   // 10.50.{id}.2
+  string          gateway_mesh_ip  = 7;   // parent VM mesh_ip
+  string          public_key       = 8;   // scope's own WG key (clean model)
+  uint32          listen_port      = 9;
+}
+message ScopeConnectResponse { Peer peer = 1; }
+
+message ScopeDisconnectRequest  { int64 scope_id = 1; }
+message ScopeDisconnectResponse {}
+
+// ── Firewall (nftables) ────────────────────────────────────────────────
+
+enum FirewallAction {
+  FW_ACTION_UNSPECIFIED = 0;
+  FW_ACTION_ALLOW       = 1;
+  FW_ACTION_DENY        = 2;
+  FW_ACTION_LIMIT       = 3;
+  FW_ACTION_LOG         = 4;
+}
+
+enum FirewallProtocol {
+  FW_PROTO_UNSPECIFIED = 0;
+  FW_PROTO_ANY         = 1;
+  FW_PROTO_TCP         = 2;
+  FW_PROTO_UDP         = 3;
+  FW_PROTO_ICMP        = 4;
+  FW_PROTO_ICMPV6      = 5;
+}
+
+message FirewallRule {
+  int64            id           = 1;
+  string           name         = 2;
+  bool             enabled      = 3;
+  int32            priority     = 4;
+  FirewallAction   action       = 5;
+  FirewallProtocol protocol     = 6;
+  string           source       = 7;   // CIDR or "peer:NN" or "any"
+  string           destination  = 8;
+  string           port_range   = 9;   // "80", "80-443", "22,80,443"
+  string           direction    = 10;  // "inbound" | "outbound" | "both"
+  string           tcp_flags    = 11;
+  string           conn_state   = 12;  // "NEW,ESTABLISHED,RELATED"
+  string           rate_limit   = 13;  // "100/s" | "1000/m"
+  uint32           rate_burst   = 14;
+  string           schedule     = 15;  // JSON; cron-ish time windows
+  int64            expires_at   = 16;
+  repeated string  tags         = 17;
+}
+
+message ApplyFirewallRequest {
+  repeated FirewallRule rules         = 1;
+  bool                  force_reset   = 2;
+  string                default_policy = 3; // "allow" | "deny"
+}
+message ApplyFirewallResponse {
+  int32            applied_count = 1;
+  int32            failed_count  = 2;
+  repeated string  errors        = 3;
+}
+
+message ResetFirewallRequest  {}
+message ResetFirewallResponse {}
+
+message GetFirewallStatusRequest  {}
+message GetFirewallStatusResponse {
+  int32                 active_rules = 1;
+  string                backend      = 2; // "nftables"
+  repeated FirewallRule rules        = 3;
+  map<int64,int64>      hit_counts   = 4;
+}
+
+// ── Event stream ───────────────────────────────────────────────────────
+
+message SubscribeEventsRequest { repeated string types = 1; /* filter; empty = all */ }
+
+message Event {
+  int64  timestamp_unix_ms = 1;
+  string type              = 2;  // "peer_connected", "peer_disconnected", "nat_changed", "health_update", "firewall_applied", ...
+  string peer_id           = 3;
+  string payload_json      = 4;  // structured payload as JSON (schema per type)
+}

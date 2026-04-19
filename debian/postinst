@@ -1,0 +1,40 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create default config if missing
+        if [ ! -f /etc/gmesh/config.yaml ]; then
+            mkdir -p /etc/gmesh
+            cat > /etc/gmesh/config.yaml <<'YAML'
+# gmeshd — default configuration
+socket:
+  path: /run/gmesh.sock
+  mode: 0o660
+
+log:
+  format: text
+  level:  info
+
+wireguard:
+  interface:   wg-gritiva
+  listen_port: 51820
+  mtu:         1420
+  keepalive_seconds: 25
+  prefer_kernel: true
+  network_cidr: 10.200.0.0/16
+YAML
+            chmod 0640 /etc/gmesh/config.yaml
+        fi
+
+        # Reload systemd and enable unit
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload
+            systemctl enable gmeshd.service || true
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
