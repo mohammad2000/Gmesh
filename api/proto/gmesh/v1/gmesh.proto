@@ -70,6 +70,17 @@ service GMesh {
   rpc UpdateIngressProfile (UpdateIngressProfileRequest) returns (IngressProfileResponse);
   rpc DeleteIngressProfile (DeleteIngressProfileRequest) returns (DeleteIngressProfileResponse);
   rpc ListIngressProfiles  (ListIngressProfilesRequest)  returns (ListIngressProfilesResponse);
+
+  // ── Quotas (Phase 13) ────────────────────────────────────────────────
+  // Byte-counter-driven policy attached to an EgressProfile. Emits events
+  // when thresholds are crossed; optionally swaps traffic to a backup
+  // profile automatically at the shift threshold.
+  rpc CreateQuota   (CreateQuotaRequest)   returns (QuotaResponse);
+  rpc UpdateQuota   (UpdateQuotaRequest)   returns (QuotaResponse);
+  rpc DeleteQuota   (DeleteQuotaRequest)   returns (DeleteQuotaResponse);
+  rpc ListQuotas    (ListQuotasRequest)    returns (ListQuotasResponse);
+  rpc GetQuotaUsage (GetQuotaUsageRequest) returns (GetQuotaUsageResponse);
+  rpc ResetQuota    (ResetQuotaRequest)    returns (ResetQuotaResponse);
 }
 
 // ── Common types ────────────────────────────────────────────────────────
@@ -438,3 +449,57 @@ message DeleteIngressProfileResponse {}
 
 message ListIngressProfilesRequest  {}
 message ListIngressProfilesResponse { repeated IngressProfile profiles = 1; }
+
+// ── Quota (Phase 13) ──────────────────────────────────────────────────
+
+message Quota {
+  int64  id                 = 1;
+  string name               = 2;
+  bool   enabled            = 3;
+
+  // What this quota watches.
+  int64  egress_profile_id  = 4;
+
+  // Time window: "hourly" | "daily" | "weekly" | "monthly".
+  string period             = 5;
+  int64  limit_bytes        = 6;
+
+  // Fractions 0..1. If multiple thresholds are set and crossed in one
+  // evaluation pass, events fire in order warn → shift → stop.
+  double warn_at            = 7;
+  double shift_at           = 8;
+  double stop_at            = 9;
+
+  // Backup profile to swap exit_peer_id to on shift. 0 = no backup.
+  int64  backup_profile_id  = 10;
+
+  // Live counters (read-only from client perspective; server overwrites).
+  int64  used_bytes         = 11;
+  int64  period_start_unix  = 12;
+  int64  period_end_unix    = 13;
+
+  // Event latching: once an event fires this period, it won't re-fire
+  // until reset/period rollover. Server-managed.
+  bool   warn_fired         = 14;
+  bool   shift_fired        = 15;
+  bool   stop_fired         = 16;
+
+  int64  created_at_unix    = 17;
+  int64  updated_at_unix    = 18;
+}
+
+message CreateQuotaRequest { Quota quota = 1; }
+message UpdateQuotaRequest { Quota quota = 1; }
+message QuotaResponse      { Quota quota = 1; }
+
+message DeleteQuotaRequest  { int64 id = 1; }
+message DeleteQuotaResponse {}
+
+message ListQuotasRequest  {}
+message ListQuotasResponse { repeated Quota quotas = 1; }
+
+message GetQuotaUsageRequest  { int64 id = 1; /* 0 = all */ }
+message GetQuotaUsageResponse { repeated Quota quotas = 1; }
+
+message ResetQuotaRequest  { int64 id = 1; }
+message ResetQuotaResponse {}

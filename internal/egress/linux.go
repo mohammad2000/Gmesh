@@ -227,6 +227,10 @@ func (m *LinuxManager) nftMarkRule(p *Profile, mark uint32) string {
 		}
 		body = append(body, fmt.Sprintf("%s dport %s", proto, nftPortSet(p.DestPorts)))
 	}
+	// `counter` attaches a packet+byte counter that Phase 13's Quota
+	// Manager polls via `nft -j list table`. Without it, used_bytes
+	// stays 0 forever.
+	body = append(body, "counter")
 	body = append(body, fmt.Sprintf(`meta mark set 0x%x`, mark))
 	body = append(body, fmt.Sprintf(`comment "egress-%d"`, p.ID))
 

@@ -50,6 +50,7 @@ func main() {
 		healthCmd(),
 		egressCmd(),
 		ingressCmd(),
+		quotaCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -1185,6 +1186,199 @@ func ingressListCmd() *cobra.Command {
 			return w.Flush()
 		},
 	}
+}
+
+// ── Quota ────────────────────────────────────────────────────────────
+
+func quotaCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "quota", Short: "Byte-quota policies for egress profiles"}
+	cmd.AddCommand(quotaCreateCmd(), quotaDeleteCmd(), quotaListCmd(), quotaUsageCmd(), quotaResetCmd())
+	return cmd
+}
+
+func quotaCreateCmd() *cobra.Command {
+	var (
+		id, profileID, backupID int64
+		name, period            string
+		limit                   int64
+		warn, shift, stop       float64
+		enabled                 bool
+	)
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Attach a byte-quota to an egress profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.CreateQuota(ctx, &gmeshv1.CreateQuotaRequest{
+				Quota: &gmeshv1.Quota{
+					Id: id, Name: name, Enabled: enabled,
+					EgressProfileId: profileID,
+					Period:          period,
+					LimitBytes:      limit,
+					WarnAt:          warn, ShiftAt: shift, StopAt: stop,
+					BackupProfileId: backupID,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("create quota rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp.Quota)
+			}
+			fmt.Printf("created quota id=%d name=%q profile=%d limit=%d bytes\n",
+				resp.Quota.Id, resp.Quota.Name, resp.Quota.EgressProfileId, resp.Quota.LimitBytes)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "quota ID")
+	cmd.Flags().StringVar(&name, "name", "", "quota name")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enabled flag")
+	cmd.Flags().Int64Var(&profileID, "profile", 0, "egress profile ID to watch")
+	cmd.Flags().StringVar(&period, "period", "daily", `"hourly" | "daily" | "weekly" | "monthly"`)
+	cmd.Flags().Int64Var(&limit, "limit-bytes", 0, "period budget in bytes")
+	cmd.Flags().Float64Var(&warn, "warn-at", 0, "warn threshold fraction 0..1")
+	cmd.Flags().Float64Var(&shift, "shift-at", 0, "shift-to-backup threshold fraction 0..1")
+	cmd.Flags().Float64Var(&stop, "stop-at", 0, "stop threshold fraction 0..1")
+	cmd.Flags().Int64Var(&backupID, "backup-profile", 0, "backup egress profile ID for auto-shift")
+	_ = cmd.MarkFlagRequired("id")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("profile")
+	_ = cmd.MarkFlagRequired("limit-bytes")
+	return cmd
+}
+
+func quotaDeleteCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Remove a quota",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.DeleteQuota(ctx, &gmeshv1.DeleteQuotaRequest{Id: id}); err != nil {
+				return fmt.Errorf("delete quota rpc: %w", err)
+			}
+			fmt.Printf("deleted quota id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "quota ID")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
+}
+
+func quotaListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all quotas",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.ListQuotas(ctx, &gmeshv1.ListQuotasRequest{})
+			if err != nil {
+				return fmt.Errorf("list quota rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "ID\tNAME\tPROFILE\tPERIOD\tLIMIT\tUSED\tPERCENT\tSTATUS")
+			for _, q := range resp.Quotas {
+				frac := 0.0
+				if q.LimitBytes > 0 {
+					frac = float64(q.UsedBytes) / float64(q.LimitBytes) * 100
+				}
+				status := "ok"
+				if q.StopFired {
+					status = "STOP"
+				} else if q.ShiftFired {
+					status = "SHIFTED"
+				} else if q.WarnFired {
+					status = "WARN"
+				}
+				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%d\t%d\t%.1f%%\t%s\n",
+					q.Id, q.Name, q.EgressProfileId, q.Period,
+					q.LimitBytes, q.UsedBytes, frac, status)
+			}
+			return w.Flush()
+		},
+	}
+}
+
+func quotaUsageCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "usage",
+		Short: "Force a tick + show live usage",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			resp, err := c.GetQuotaUsage(ctx, &gmeshv1.GetQuotaUsageRequest{Id: id})
+			if err != nil {
+				return fmt.Errorf("usage rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			for _, q := range resp.Quotas {
+				pct := 0.0
+				if q.LimitBytes > 0 {
+					pct = float64(q.UsedBytes) / float64(q.LimitBytes) * 100
+				}
+				fmt.Printf("quota %d (%s): used=%d / limit=%d (%.1f%%) period=%s\n",
+					q.Id, q.Name, q.UsedBytes, q.LimitBytes, pct, q.Period)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "quota ID (0 = all)")
+	return cmd
+}
+
+func quotaResetCmd() *cobra.Command {
+	var id int64
+	cmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Zero a quota's counter + clear latches",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := c.ResetQuota(ctx, &gmeshv1.ResetQuotaRequest{Id: id}); err != nil {
+				return fmt.Errorf("reset quota rpc: %w", err)
+			}
+			fmt.Printf("reset quota id=%d\n", id)
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&id, "id", 0, "quota ID")
+	_ = cmd.MarkFlagRequired("id")
+	return cmd
 }
 
 func peerUpdateCmd() *cobra.Command {

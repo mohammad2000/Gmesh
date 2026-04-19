@@ -6,6 +6,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,11 +18,12 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/crypto"
 	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/events"
-	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/health"
+	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/routing"
 	"github.com/mohammad2000/Gmesh/internal/scope"
@@ -51,6 +53,7 @@ type Engine struct {
 	Egress    egress.Manager
 	Exit      egress.ExitManager
 	Ingress   ingress.Manager
+	Quota     quota.Manager
 	Store     *state.Store
 	Events    *events.Bus
 	Monitor   *health.Monitor
@@ -87,6 +90,7 @@ type Options struct {
 	Egress    egress.Manager    // nil → detect (Linux or stub)
 	Exit      egress.ExitManager // nil → detect (Linux or stub)
 	Ingress   ingress.Manager   // nil → detect (Linux or stub)
+	Quota     quota.Manager     // nil → detect (Linux or stub)
 }
 
 // New wires an Engine together.
@@ -164,6 +168,11 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 
 	bus := events.NewBus(log)
 
+	qu := opts.Quota
+	if qu == nil {
+		qu = quota.New(log, &quotaBridgePublisher{bus: bus}, nil /* Switcher set after engine ready */)
+	}
+
 	e := &Engine{
 		Config:        cfg,
 		Log:           log,
@@ -178,6 +187,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		Egress:        eg,
 		Exit:          ex,
 		Ingress:       ig,
+		Quota:         qu,
 		Store:         store,
 		Events:        bus,
 		relaySessions: make(map[int64]*relay.Session),
@@ -188,6 +198,14 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	if err := e.rehydrate(); err != nil {
 		return nil, fmt.Errorf("rehydrate state: %w", err)
 	}
+
+	// Wire the quota Switcher now that the engine is fully built. The
+	// quota Manager was constructed earlier without a Switcher because
+	// the Engine didn't exist yet.
+	if setter, ok := e.Quota.(quota.SwitcherSetter); ok {
+		setter.SetSwitcher(&quotaSwitcher{e: e})
+	}
+
 	return e, nil
 }
 
@@ -238,6 +256,10 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	if e.Firewall != nil {
 		go e.firewallScheduler(ctx)
+	}
+	if e.Quota != nil {
+		// 10s tick default; matches docs/roadmap-next.md.
+		go e.Quota.Run(ctx, 10*time.Second)
 	}
 	// Health monitor: polls peers, emits health_update + peer_connected/
 	// peer_disconnected events.
@@ -365,6 +387,87 @@ func (e *Engine) TeardownRelay(peerID int64) {
 	if sess != nil {
 		_ = sess.Close()
 	}
+}
+
+// ── Quota (Phase 13) ─────────────────────────────────────────────────
+
+// CreateQuota installs a byte-quota policy.
+func (e *Engine) CreateQuota(ctx context.Context, q *quota.Quota) (*quota.Quota, error) {
+	return e.Quota.Create(ctx, q)
+}
+
+// UpdateQuota modifies an existing quota.
+func (e *Engine) UpdateQuota(ctx context.Context, q *quota.Quota) (*quota.Quota, error) {
+	return e.Quota.Update(ctx, q)
+}
+
+// DeleteQuota removes a quota.
+func (e *Engine) DeleteQuota(ctx context.Context, id int64) error {
+	return e.Quota.Delete(ctx, id)
+}
+
+// ListQuotas returns a snapshot.
+func (e *Engine) ListQuotas() []*quota.Quota { return e.Quota.List() }
+
+// GetQuotaUsage returns current live counters (one or all).
+func (e *Engine) GetQuotaUsage(ctx context.Context, id int64) []*quota.Quota {
+	// Force a tick so callers get fresh data.
+	_ = e.Quota.Tick(ctx)
+	if id == 0 {
+		return e.Quota.List()
+	}
+	q, ok := e.Quota.Get(id)
+	if !ok {
+		return nil
+	}
+	return []*quota.Quota{q}
+}
+
+// ResetQuota zeroes a quota's counter and clears latches.
+func (e *Engine) ResetQuota(ctx context.Context, id int64) error {
+	return e.Quota.Reset(ctx, id)
+}
+
+// quotaBridgePublisher adapts events.Bus to quota.Publisher.
+type quotaBridgePublisher struct{ bus *events.Bus }
+
+func (q *quotaBridgePublisher) Publish(ev quota.Event) {
+	// Our generic Event types live in internal/events; quota types map 1:1.
+	q.bus.Publish(events.Event{
+		Type:    ev.Type, // "quota_warning" etc.
+		Payload: marshalJSONSilent(ev.Payload),
+	})
+}
+
+// quotaSwitcher is the engine-backed Switcher wired after engine.New.
+type quotaSwitcher struct{ e *Engine }
+
+// SwapExitPeer implements quota.Switcher by updating the egress profile
+// in place with the backup peer ID.
+func (s *quotaSwitcher) SwapExitPeer(ctx context.Context, egressProfileID, newExitPeerID int64) error {
+	profs := s.e.Egress.List()
+	var target *egress.Profile
+	for _, p := range profs {
+		if p.ID == egressProfileID {
+			target = p
+			break
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("quota switcher: egress profile %d not found", egressProfileID)
+	}
+	target.ExitPeerID = newExitPeerID
+	_, err := s.e.UpdateEgress(ctx, target)
+	return err
+}
+
+// marshalJSONSilent returns json.Marshal(v) or nil on error.
+func marshalJSONSilent(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 // ── Ingress profiles (Phase 12) ───────────────────────────────────────

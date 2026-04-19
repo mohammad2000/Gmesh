@@ -49,6 +49,12 @@ const (
 	GMesh_UpdateIngressProfile_FullMethodName = "/gmesh.v1.GMesh/UpdateIngressProfile"
 	GMesh_DeleteIngressProfile_FullMethodName = "/gmesh.v1.GMesh/DeleteIngressProfile"
 	GMesh_ListIngressProfiles_FullMethodName  = "/gmesh.v1.GMesh/ListIngressProfiles"
+	GMesh_CreateQuota_FullMethodName          = "/gmesh.v1.GMesh/CreateQuota"
+	GMesh_UpdateQuota_FullMethodName          = "/gmesh.v1.GMesh/UpdateQuota"
+	GMesh_DeleteQuota_FullMethodName          = "/gmesh.v1.GMesh/DeleteQuota"
+	GMesh_ListQuotas_FullMethodName           = "/gmesh.v1.GMesh/ListQuotas"
+	GMesh_GetQuotaUsage_FullMethodName        = "/gmesh.v1.GMesh/GetQuotaUsage"
+	GMesh_ResetQuota_FullMethodName           = "/gmesh.v1.GMesh/ResetQuota"
 )
 
 // GMeshClient is the client API for GMesh service.
@@ -111,6 +117,16 @@ type GMeshClient interface {
 	UpdateIngressProfile(ctx context.Context, in *UpdateIngressProfileRequest, opts ...grpc.CallOption) (*IngressProfileResponse, error)
 	DeleteIngressProfile(ctx context.Context, in *DeleteIngressProfileRequest, opts ...grpc.CallOption) (*DeleteIngressProfileResponse, error)
 	ListIngressProfiles(ctx context.Context, in *ListIngressProfilesRequest, opts ...grpc.CallOption) (*ListIngressProfilesResponse, error)
+	// ── Quotas (Phase 13) ────────────────────────────────────────────────
+	// Byte-counter-driven policy attached to an EgressProfile. Emits events
+	// when thresholds are crossed; optionally swaps traffic to a backup
+	// profile automatically at the shift threshold.
+	CreateQuota(ctx context.Context, in *CreateQuotaRequest, opts ...grpc.CallOption) (*QuotaResponse, error)
+	UpdateQuota(ctx context.Context, in *UpdateQuotaRequest, opts ...grpc.CallOption) (*QuotaResponse, error)
+	DeleteQuota(ctx context.Context, in *DeleteQuotaRequest, opts ...grpc.CallOption) (*DeleteQuotaResponse, error)
+	ListQuotas(ctx context.Context, in *ListQuotasRequest, opts ...grpc.CallOption) (*ListQuotasResponse, error)
+	GetQuotaUsage(ctx context.Context, in *GetQuotaUsageRequest, opts ...grpc.CallOption) (*GetQuotaUsageResponse, error)
+	ResetQuota(ctx context.Context, in *ResetQuotaRequest, opts ...grpc.CallOption) (*ResetQuotaResponse, error)
 }
 
 type gMeshClient struct {
@@ -430,6 +446,66 @@ func (c *gMeshClient) ListIngressProfiles(ctx context.Context, in *ListIngressPr
 	return out, nil
 }
 
+func (c *gMeshClient) CreateQuota(ctx context.Context, in *CreateQuotaRequest, opts ...grpc.CallOption) (*QuotaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuotaResponse)
+	err := c.cc.Invoke(ctx, GMesh_CreateQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) UpdateQuota(ctx context.Context, in *UpdateQuotaRequest, opts ...grpc.CallOption) (*QuotaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuotaResponse)
+	err := c.cc.Invoke(ctx, GMesh_UpdateQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) DeleteQuota(ctx context.Context, in *DeleteQuotaRequest, opts ...grpc.CallOption) (*DeleteQuotaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteQuotaResponse)
+	err := c.cc.Invoke(ctx, GMesh_DeleteQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ListQuotas(ctx context.Context, in *ListQuotasRequest, opts ...grpc.CallOption) (*ListQuotasResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListQuotasResponse)
+	err := c.cc.Invoke(ctx, GMesh_ListQuotas_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) GetQuotaUsage(ctx context.Context, in *GetQuotaUsageRequest, opts ...grpc.CallOption) (*GetQuotaUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetQuotaUsageResponse)
+	err := c.cc.Invoke(ctx, GMesh_GetQuotaUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gMeshClient) ResetQuota(ctx context.Context, in *ResetQuotaRequest, opts ...grpc.CallOption) (*ResetQuotaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetQuotaResponse)
+	err := c.cc.Invoke(ctx, GMesh_ResetQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GMeshServer is the server API for GMesh service.
 // All implementations must embed UnimplementedGMeshServer
 // for forward compatibility.
@@ -490,6 +566,16 @@ type GMeshServer interface {
 	UpdateIngressProfile(context.Context, *UpdateIngressProfileRequest) (*IngressProfileResponse, error)
 	DeleteIngressProfile(context.Context, *DeleteIngressProfileRequest) (*DeleteIngressProfileResponse, error)
 	ListIngressProfiles(context.Context, *ListIngressProfilesRequest) (*ListIngressProfilesResponse, error)
+	// ── Quotas (Phase 13) ────────────────────────────────────────────────
+	// Byte-counter-driven policy attached to an EgressProfile. Emits events
+	// when thresholds are crossed; optionally swaps traffic to a backup
+	// profile automatically at the shift threshold.
+	CreateQuota(context.Context, *CreateQuotaRequest) (*QuotaResponse, error)
+	UpdateQuota(context.Context, *UpdateQuotaRequest) (*QuotaResponse, error)
+	DeleteQuota(context.Context, *DeleteQuotaRequest) (*DeleteQuotaResponse, error)
+	ListQuotas(context.Context, *ListQuotasRequest) (*ListQuotasResponse, error)
+	GetQuotaUsage(context.Context, *GetQuotaUsageRequest) (*GetQuotaUsageResponse, error)
+	ResetQuota(context.Context, *ResetQuotaRequest) (*ResetQuotaResponse, error)
 	mustEmbedUnimplementedGMeshServer()
 }
 
@@ -589,6 +675,24 @@ func (UnimplementedGMeshServer) DeleteIngressProfile(context.Context, *DeleteIng
 }
 func (UnimplementedGMeshServer) ListIngressProfiles(context.Context, *ListIngressProfilesRequest) (*ListIngressProfilesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListIngressProfiles not implemented")
+}
+func (UnimplementedGMeshServer) CreateQuota(context.Context, *CreateQuotaRequest) (*QuotaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateQuota not implemented")
+}
+func (UnimplementedGMeshServer) UpdateQuota(context.Context, *UpdateQuotaRequest) (*QuotaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateQuota not implemented")
+}
+func (UnimplementedGMeshServer) DeleteQuota(context.Context, *DeleteQuotaRequest) (*DeleteQuotaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteQuota not implemented")
+}
+func (UnimplementedGMeshServer) ListQuotas(context.Context, *ListQuotasRequest) (*ListQuotasResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListQuotas not implemented")
+}
+func (UnimplementedGMeshServer) GetQuotaUsage(context.Context, *GetQuotaUsageRequest) (*GetQuotaUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetQuotaUsage not implemented")
+}
+func (UnimplementedGMeshServer) ResetQuota(context.Context, *ResetQuotaRequest) (*ResetQuotaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetQuota not implemented")
 }
 func (UnimplementedGMeshServer) mustEmbedUnimplementedGMeshServer() {}
 func (UnimplementedGMeshServer) testEmbeddedByValue()               {}
@@ -1144,6 +1248,114 @@ func _GMesh_ListIngressProfiles_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GMesh_CreateQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).CreateQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_CreateQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).CreateQuota(ctx, req.(*CreateQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_UpdateQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).UpdateQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_UpdateQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).UpdateQuota(ctx, req.(*UpdateQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_DeleteQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).DeleteQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_DeleteQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).DeleteQuota(ctx, req.(*DeleteQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ListQuotas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListQuotasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ListQuotas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ListQuotas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ListQuotas(ctx, req.(*ListQuotasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_GetQuotaUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetQuotaUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).GetQuotaUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_GetQuotaUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).GetQuotaUsage(ctx, req.(*GetQuotaUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GMesh_ResetQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GMeshServer).ResetQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GMesh_ResetQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GMeshServer).ResetQuota(ctx, req.(*ResetQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GMesh_ServiceDesc is the grpc.ServiceDesc for GMesh service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1266,6 +1478,30 @@ var GMesh_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListIngressProfiles",
 			Handler:    _GMesh_ListIngressProfiles_Handler,
+		},
+		{
+			MethodName: "CreateQuota",
+			Handler:    _GMesh_CreateQuota_Handler,
+		},
+		{
+			MethodName: "UpdateQuota",
+			Handler:    _GMesh_UpdateQuota_Handler,
+		},
+		{
+			MethodName: "DeleteQuota",
+			Handler:    _GMesh_DeleteQuota_Handler,
+		},
+		{
+			MethodName: "ListQuotas",
+			Handler:    _GMesh_ListQuotas_Handler,
+		},
+		{
+			MethodName: "GetQuotaUsage",
+			Handler:    _GMesh_GetQuotaUsage_Handler,
+		},
+		{
+			MethodName: "ResetQuota",
+			Handler:    _GMesh_ResetQuota_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

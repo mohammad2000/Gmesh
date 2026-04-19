@@ -26,6 +26,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/quota"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/scope"
 	"github.com/mohammad2000/Gmesh/internal/traversal"
@@ -386,6 +387,96 @@ func (s *Server) subscriberCount() int {
 
 // eventsBus exposes the bus for in-process consumers.
 func (s *Server) eventsBus() *events.Bus { return s.Engine.Events }
+
+// ── Quota (Phase 13) ──────────────────────────────────────────────────
+
+func (s *Server) CreateQuota(ctx context.Context, in *gmeshv1.CreateQuotaRequest) (*gmeshv1.QuotaResponse, error) {
+	if in.Quota == nil {
+		return nil, status.Error(codes.InvalidArgument, "quota required")
+	}
+	q, err := s.Engine.CreateQuota(ctx, quotaFromProto(in.Quota))
+	if err != nil {
+		if err == quota.ErrExists {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "create quota: %v", err)
+	}
+	return &gmeshv1.QuotaResponse{Quota: quotaToProto(q)}, nil
+}
+
+func (s *Server) UpdateQuota(ctx context.Context, in *gmeshv1.UpdateQuotaRequest) (*gmeshv1.QuotaResponse, error) {
+	if in.Quota == nil {
+		return nil, status.Error(codes.InvalidArgument, "quota required")
+	}
+	q, err := s.Engine.UpdateQuota(ctx, quotaFromProto(in.Quota))
+	if err != nil {
+		if err == quota.ErrNotFound {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "update quota: %v", err)
+	}
+	return &gmeshv1.QuotaResponse{Quota: quotaToProto(q)}, nil
+}
+
+func (s *Server) DeleteQuota(ctx context.Context, in *gmeshv1.DeleteQuotaRequest) (*gmeshv1.DeleteQuotaResponse, error) {
+	if err := s.Engine.DeleteQuota(ctx, in.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete quota: %v", err)
+	}
+	return &gmeshv1.DeleteQuotaResponse{}, nil
+}
+
+func (s *Server) ListQuotas(_ context.Context, _ *gmeshv1.ListQuotasRequest) (*gmeshv1.ListQuotasResponse, error) {
+	resp := &gmeshv1.ListQuotasResponse{}
+	for _, q := range s.Engine.ListQuotas() {
+		resp.Quotas = append(resp.Quotas, quotaToProto(q))
+	}
+	return resp, nil
+}
+
+func (s *Server) GetQuotaUsage(ctx context.Context, in *gmeshv1.GetQuotaUsageRequest) (*gmeshv1.GetQuotaUsageResponse, error) {
+	resp := &gmeshv1.GetQuotaUsageResponse{}
+	for _, q := range s.Engine.GetQuotaUsage(ctx, in.Id) {
+		resp.Quotas = append(resp.Quotas, quotaToProto(q))
+	}
+	return resp, nil
+}
+
+func (s *Server) ResetQuota(ctx context.Context, in *gmeshv1.ResetQuotaRequest) (*gmeshv1.ResetQuotaResponse, error) {
+	if err := s.Engine.ResetQuota(ctx, in.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "reset quota: %v", err)
+	}
+	return &gmeshv1.ResetQuotaResponse{}, nil
+}
+
+func quotaFromProto(p *gmeshv1.Quota) *quota.Quota {
+	return &quota.Quota{
+		ID: p.Id, Name: p.Name, Enabled: p.Enabled,
+		EgressProfileID: p.EgressProfileId,
+		Period:          quota.Period(p.Period),
+		LimitBytes:      p.LimitBytes,
+		WarnAt:          p.WarnAt, ShiftAt: p.ShiftAt, StopAt: p.StopAt,
+		BackupProfileID: p.BackupProfileId,
+	}
+}
+
+func quotaToProto(q *quota.Quota) *gmeshv1.Quota {
+	return &gmeshv1.Quota{
+		Id: q.ID, Name: q.Name, Enabled: q.Enabled,
+		EgressProfileId: q.EgressProfileID,
+		Period:          string(q.Period),
+		LimitBytes:      q.LimitBytes,
+		UsedBytes:       q.UsedBytes,
+		WarnAt:          q.WarnAt, ShiftAt: q.ShiftAt, StopAt: q.StopAt,
+		BackupProfileId: q.BackupProfileID,
+		WarnFired:       q.WarnFired,
+		ShiftFired:      q.ShiftFired,
+		StopFired:       q.StopFired,
+		PeriodStartUnix: q.PeriodStart.Unix(),
+		PeriodEndUnix:   q.PeriodEnd.Unix(),
+		CreatedAtUnix:   q.CreatedAt.Unix(),
+		UpdatedAtUnix:   q.UpdatedAt.Unix(),
+	}
+}
 
 // ── Ingress profiles (Phase 12) ───────────────────────────────────────
 

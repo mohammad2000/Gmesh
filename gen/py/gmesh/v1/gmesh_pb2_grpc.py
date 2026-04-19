@@ -189,6 +189,36 @@ class GMeshStub(object):
                 request_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.SerializeToString,
                 response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.FromString,
                 _registered_method=True)
+        self.CreateQuota = channel.unary_unary(
+                '/gmesh.v1.GMesh/CreateQuota',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.CreateQuotaRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.UpdateQuota = channel.unary_unary(
+                '/gmesh.v1.GMesh/UpdateQuota',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateQuotaRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.FromString,
+                _registered_method=True)
+        self.DeleteQuota = channel.unary_unary(
+                '/gmesh.v1.GMesh/DeleteQuota',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaResponse.FromString,
+                _registered_method=True)
+        self.ListQuotas = channel.unary_unary(
+                '/gmesh.v1.GMesh/ListQuotas',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListQuotasRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListQuotasResponse.FromString,
+                _registered_method=True)
+        self.GetQuotaUsage = channel.unary_unary(
+                '/gmesh.v1.GMesh/GetQuotaUsage',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageResponse.FromString,
+                _registered_method=True)
+        self.ResetQuota = channel.unary_unary(
+                '/gmesh.v1.GMesh/ResetQuota',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaResponse.FromString,
+                _registered_method=True)
 
 
 class GMeshServicer(object):
@@ -399,6 +429,46 @@ class GMeshServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateQuota(self, request, context):
+        """── Quotas (Phase 13) ────────────────────────────────────────────────
+        Byte-counter-driven policy attached to an EgressProfile. Emits events
+        when thresholds are crossed; optionally swaps traffic to a backup
+        profile automatically at the shift threshold.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateQuota(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteQuota(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListQuotas(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetQuotaUsage(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ResetQuota(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GMeshServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -551,6 +621,36 @@ def add_GMeshServicer_to_server(servicer, server):
                     servicer.ListIngressProfiles,
                     request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.FromString,
                     response_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.SerializeToString,
+            ),
+            'CreateQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateQuota,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.CreateQuotaRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.SerializeToString,
+            ),
+            'UpdateQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateQuota,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.UpdateQuotaRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.SerializeToString,
+            ),
+            'DeleteQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteQuota,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaResponse.SerializeToString,
+            ),
+            'ListQuotas': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListQuotas,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ListQuotasRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.ListQuotasResponse.SerializeToString,
+            ),
+            'GetQuotaUsage': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetQuotaUsage,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageResponse.SerializeToString,
+            ),
+            'ResetQuota': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResetQuota,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1368,6 +1468,168 @@ class GMesh(object):
             '/gmesh.v1.GMesh/ListIngressProfiles',
             gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesRequest.SerializeToString,
             gmesh_dot_v1_dot_gmesh__pb2.ListIngressProfilesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/CreateQuota',
+            gmesh_dot_v1_dot_gmesh__pb2.CreateQuotaRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/UpdateQuota',
+            gmesh_dot_v1_dot_gmesh__pb2.UpdateQuotaRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.QuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/DeleteQuota',
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.DeleteQuotaResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListQuotas(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/ListQuotas',
+            gmesh_dot_v1_dot_gmesh__pb2.ListQuotasRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.ListQuotasResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetQuotaUsage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/GetQuotaUsage',
+            gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.GetQuotaUsageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ResetQuota(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/ResetQuota',
+            gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.ResetQuotaResponse.FromString,
             options,
             channel_credentials,
             insecure,
