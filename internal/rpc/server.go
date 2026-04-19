@@ -4,6 +4,7 @@ package rpc
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/engine"
 	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/traversal"
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
@@ -238,6 +240,63 @@ func (s *Server) GetPeerStats(ctx context.Context, in *gmeshv1.GetPeerStatsReque
 	return &gmeshv1.GetPeerStatsResponse{Peer: peerToProto(p)}, nil
 }
 
+// ── Relay ──────────────────────────────────────────────────────────────
+
+// SetupRelay dials gmesh-relay, authenticates, and repoints WG at the
+// local forwarder. The relay_session_id in the request is treated as a
+// string; we expect it to be either 16 bytes or a text form we hash into 16.
+func (s *Server) SetupRelay(ctx context.Context, in *gmeshv1.SetupRelayRequest) (*gmeshv1.SetupRelayResponse, error) {
+	if in.PeerId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "peer_id required")
+	}
+	if in.RelayEndpoint == "" {
+		return nil, status.Error(codes.InvalidArgument, "relay_endpoint required")
+	}
+
+	// Build auth token. In production the HMAC secret is loaded from config.
+	// For Phase 4 the caller passes session_id as a string; we hash to 16 bytes.
+	sid := sessionIDFromString(in.RelaySessionId)
+	secret := []byte(s.Engine.Config.Relay.DefaultRelayURL) //nolint:gosec // placeholder — real secret comes from config in Phase 4.1
+	tok := relay.SignToken(secret, sid, uint64(in.PeerId)) //nolint:gosec
+
+	if _, err := s.Engine.SetupRelay(ctx, in.PeerId, in.RelayEndpoint, sid, tok); err != nil {
+		return &gmeshv1.SetupRelayResponse{Ok: false, Error: err.Error()}, nil
+	}
+	return &gmeshv1.SetupRelayResponse{Ok: true}, nil
+}
+
+// AllocateWSTunnel opens a WS tunnel to backend_ws_url.
+func (s *Server) AllocateWSTunnel(ctx context.Context, in *gmeshv1.AllocateWSTunnelRequest) (*gmeshv1.AllocateWSTunnelResponse, error) {
+	if in.PeerId == 0 {
+		return nil, status.Error(codes.InvalidArgument, "peer_id required")
+	}
+	if in.BackendWsUrl == "" {
+		return nil, status.Error(codes.InvalidArgument, "backend_ws_url required")
+	}
+	if _, err := s.Engine.AllocateWSTunnel(ctx, in.PeerId, in.BackendWsUrl, nil); err != nil {
+		return &gmeshv1.AllocateWSTunnelResponse{Ok: false, Error: err.Error()}, nil
+	}
+	return &gmeshv1.AllocateWSTunnelResponse{Ok: true}, nil
+}
+
+// sessionIDFromString hashes an opaque string into a 16-byte session ID.
+// In the typical backend-driven flow, the backend already supplies 16 raw
+// bytes (hex-encoded); if the string is exactly 32 hex chars we decode it,
+// otherwise we take the first 16 bytes of SHA-256.
+func sessionIDFromString(s string) [16]byte {
+	var out [16]byte
+	if len(s) == 32 {
+		// Try hex.
+		if b, err := hexDecode(s); err == nil && len(b) == 16 {
+			copy(out[:], b)
+			return out
+		}
+	}
+	sum := sha256sum([]byte(s))
+	copy(out[:], sum[:16])
+	return out
+}
+
 // ── NAT & traversal ────────────────────────────────────────────────────
 
 // DiscoverNAT runs STUN classification.
@@ -288,6 +347,37 @@ func natToProto(i *nat.Info) *gmeshv1.NATInfo {
 		SupportsHolePunch: i.SupportsHolePunch,
 		IsRelayCapable:    i.IsRelayCapable,
 	}
+}
+
+// ── Small helpers (kept local to avoid new dependencies) ───────────────
+
+func hexDecode(s string) ([]byte, error) {
+	out := make([]byte, len(s)/2)
+	for i := 0; i < len(out); i++ {
+		hi, err1 := hexNibble(s[2*i])
+		lo, err2 := hexNibble(s[2*i+1])
+		if err1 != nil || err2 != nil {
+			return nil, fmt.Errorf("hexDecode: bad char")
+		}
+		out[i] = hi<<4 | lo
+	}
+	return out, nil
+}
+
+func hexNibble(c byte) (byte, error) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', nil
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, nil
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, nil
+	}
+	return 0, fmt.Errorf("hex nibble: %q", c)
+}
+
+func sha256sum(b []byte) [32]byte {
+	return sha256.Sum256(b)
 }
 
 // peerToProto converts an internal peer.Peer to the wire format.

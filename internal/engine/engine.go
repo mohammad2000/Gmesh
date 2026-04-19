@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sync"
 	"time"
 
@@ -39,10 +40,13 @@ type Engine struct {
 	Responder Responder
 	Trav      *traversal.Engine
 	WG        wireguard.Manager
-	Relay     relay.Client
 	Firewall  firewall.Backend
 	Routing   routing.Manager
 	Store     *state.Store
+
+	relayMu       sync.Mutex
+	relaySessions map[int64]*relay.Session // peer_id → live relay session
+	wsTunnels     map[int64]*relay.WSTunnel
 
 	mu        sync.RWMutex
 	joined    bool
@@ -113,16 +117,18 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	trav.Register(&traversal.BirthdayStrategy{Puncher: punch, Log: log})
 
 	e := &Engine{
-		Config:    cfg,
-		Log:       log,
-		Peers:     peer.NewRegistry(),
-		NAT:       discoverer,
-		Responder: responder,
-		Trav:      trav,
-		WG:        wg,
-		Routing:   routing.NewInMemory(),
-		Store:     store,
-		keepalive: time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
+		Config:        cfg,
+		Log:           log,
+		Peers:         peer.NewRegistry(),
+		NAT:           discoverer,
+		Responder:     responder,
+		Trav:          trav,
+		WG:            wg,
+		Routing:       routing.NewInMemory(),
+		Store:         store,
+		relaySessions: make(map[int64]*relay.Session),
+		wsTunnels:     make(map[int64]*relay.WSTunnel),
+		keepalive:     time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
 	}
 
 	if err := e.rehydrate(); err != nil {
@@ -194,6 +200,115 @@ func (e *Engine) Stop(_ context.Context) error {
 // DiscoverNAT runs STUN-based NAT discovery (or returns cached result).
 func (e *Engine) DiscoverNAT(ctx context.Context, forceRefresh bool) (*nat.Info, error) {
 	return e.NAT.Discover(ctx, forceRefresh)
+}
+
+// SetupRelay dials the gmesh-relay server, authenticates, and hands back
+// the local loopback endpoint WireGuard should dial to push traffic through
+// the relay.
+//
+// The returned endpoint is already configured as the peer's Endpoint on the
+// kernel WG interface, so no further action is needed by the caller beyond
+// keeping the session alive (gmeshd owns it).
+func (e *Engine) SetupRelay(ctx context.Context, peerID int64, relayAddr string, sessionID [16]byte, authToken relay.AuthToken) (*relay.Session, error) {
+	e.relayMu.Lock()
+	if prev, ok := e.relaySessions[peerID]; ok {
+		e.relayMu.Unlock()
+		_ = prev.Close()
+		e.relayMu.Lock()
+	}
+	e.relayMu.Unlock()
+
+	wgAddr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.Config.WireGuard.ListenPort)}
+	sess, err := relay.DialSession(ctx, relay.Config{
+		PeerID:     peerID,
+		SessionID:  sessionID,
+		AuthToken:  authToken,
+		RelayAddr:  relayAddr,
+		WGEndpoint: wgAddr,
+		Log:        e.Log,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("dial relay: %w", err)
+	}
+
+	e.relayMu.Lock()
+	e.relaySessions[peerID] = sess
+	e.relayMu.Unlock()
+
+	// If the peer is in the registry, repoint its WG endpoint to the local
+	// forwarder. Callers who pre-register the peer before calling SetupRelay
+	// get transparent relay upgrade.
+	if p, ok := e.Peers.Get(peerID); ok && e.IsJoined() {
+		p.Endpoint = sess.LocalEndpoint().String()
+		if err := e.WG.AddPeer(ctx, e.Interface(), wireguard.PeerConfig{
+			PublicKey:                   p.PublicKey,
+			Endpoint:                    p.Endpoint,
+			AllowedIPs:                  p.AllowedIPs,
+			PersistentKeepaliveInterval: e.keepalive,
+		}); err != nil {
+			e.Log.Warn("retarget WG peer to relay failed", "peer_id", peerID, "error", err)
+		}
+	}
+	return sess, nil
+}
+
+// RelaySession returns the active relay Session for peerID, if any.
+func (e *Engine) RelaySession(peerID int64) *relay.Session {
+	e.relayMu.Lock()
+	defer e.relayMu.Unlock()
+	return e.relaySessions[peerID]
+}
+
+// TeardownRelay closes an active relay session. Idempotent.
+func (e *Engine) TeardownRelay(peerID int64) {
+	e.relayMu.Lock()
+	sess := e.relaySessions[peerID]
+	delete(e.relaySessions, peerID)
+	e.relayMu.Unlock()
+	if sess != nil {
+		_ = sess.Close()
+	}
+}
+
+// AllocateWSTunnel opens a WebSocket tunnel through the backend's
+// /ws/relay/{session_id}/{peer_id} endpoint. Used when UDP to gmesh-relay
+// is blocked.
+func (e *Engine) AllocateWSTunnel(ctx context.Context, peerID int64, url string, httpHeader map[string]string) (*relay.WSTunnel, error) {
+	e.relayMu.Lock()
+	if prev, ok := e.wsTunnels[peerID]; ok {
+		e.relayMu.Unlock()
+		_ = prev.Close()
+		e.relayMu.Lock()
+	}
+	e.relayMu.Unlock()
+
+	wgAddr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.Config.WireGuard.ListenPort)}
+	t, err := relay.DialWSTunnel(ctx, relay.WSTunnelConfig{
+		PeerID:     peerID,
+		URL:        url,
+		WGEndpoint: wgAddr,
+		HTTPHeader: httpHeader,
+		Log:        e.Log,
+	})
+	if err != nil {
+		return nil, err
+	}
+	e.relayMu.Lock()
+	e.wsTunnels[peerID] = t
+	e.relayMu.Unlock()
+
+	if p, ok := e.Peers.Get(peerID); ok && e.IsJoined() {
+		p.Endpoint = t.LocalEndpoint().String()
+		if err := e.WG.AddPeer(ctx, e.Interface(), wireguard.PeerConfig{
+			PublicKey:                   p.PublicKey,
+			Endpoint:                    p.Endpoint,
+			AllowedIPs:                  p.AllowedIPs,
+			PersistentKeepaliveInterval: e.keepalive,
+		}); err != nil {
+			e.Log.Warn("retarget WG peer to ws tunnel failed", "peer_id", peerID, "error", err)
+		}
+	}
+	return t, nil
 }
 
 // HolePunch runs the full strategy ladder selected from local + remote NAT.

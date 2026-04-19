@@ -42,6 +42,7 @@ func main() {
 		peerCmd(),
 		natCmd(),
 		holePunchCmd(),
+		relayCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
@@ -425,6 +426,98 @@ func holePunchCmd() *cobra.Command {
 	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID (optional)")
 	cmd.Flags().StringVar(&endpoint, "endpoint", "", "remote host:port")
 	_ = cmd.MarkFlagRequired("endpoint")
+	return cmd
+}
+
+// ── Relay ─────────────────────────────────────────────────────────────
+
+func relayCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "relay", Short: "Relay (UDP) + WS tunnel management"}
+	cmd.AddCommand(relaySetupCmd(), wsTunnelCmd())
+	return cmd
+}
+
+func relaySetupCmd() *cobra.Command {
+	var (
+		peerID    int64
+		relayAddr string
+		sessionID string
+	)
+	cmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Open a gmesh-relay session for a peer",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			resp, err := c.SetupRelay(ctx, &gmeshv1.SetupRelayRequest{
+				PeerId:         peerID,
+				RelayEndpoint:  relayAddr,
+				RelaySessionId: sessionID,
+			})
+			if err != nil {
+				return fmt.Errorf("setup relay rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("ok:    %v\n", resp.Ok)
+			if resp.Error != "" {
+				fmt.Printf("error: %s\n", resp.Error)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID")
+	cmd.Flags().StringVar(&relayAddr, "relay", "", "relay host:port")
+	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier")
+	_ = cmd.MarkFlagRequired("peer-id")
+	_ = cmd.MarkFlagRequired("relay")
+	_ = cmd.MarkFlagRequired("session")
+	return cmd
+}
+
+func wsTunnelCmd() *cobra.Command {
+	var (
+		peerID int64
+		url    string
+	)
+	cmd := &cobra.Command{
+		Use:   "ws-tunnel",
+		Short: "Open a WebSocket tunnel to a backend /ws/relay endpoint",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, close_, err := dial()
+			if err != nil {
+				return err
+			}
+			defer close_()
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			resp, err := c.AllocateWSTunnel(ctx, &gmeshv1.AllocateWSTunnelRequest{
+				PeerId:       peerID,
+				BackendWsUrl: url,
+			})
+			if err != nil {
+				return fmt.Errorf("ws tunnel rpc: %w", err)
+			}
+			if outputJSON {
+				return writeJSON(resp)
+			}
+			fmt.Printf("ok:    %v\n", resp.Ok)
+			if resp.Error != "" {
+				fmt.Printf("error: %s\n", resp.Error)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID")
+	cmd.Flags().StringVar(&url, "url", "", "wss://.../ws/relay/{session}/{peer}")
+	_ = cmd.MarkFlagRequired("peer-id")
+	_ = cmd.MarkFlagRequired("url")
 	return cmd
 }
 
