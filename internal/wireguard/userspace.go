@@ -90,7 +90,7 @@ func (u *userspaceManager) Close() error {
 // still reach the device. (wgctrl looks up by UAPI socket, not by
 // OS interface name, so this is purely cosmetic.)
 func (u *userspaceManager) CreateInterface(
-	ctx context.Context, name, privateKey string, mtu int, listenPort uint16,
+	ctx context.Context, name, addrCIDR string, mtu int, listenPort uint16,
 ) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -106,7 +106,17 @@ func (u *userspaceManager) CreateInterface(
 		mtu = device.DefaultMTU
 	}
 
-	tunDev, err := tun.CreateTUN(name, mtu)
+	// macOS rejects any TUN name that isn't "utun[0-9]*". Callers
+	// (backends, admin scripts) pass logical names like "wg-gritiva"
+	// that make sense on Linux. On Darwin we translate to the bare
+	// sentinel "utun", which wireguard-go's tun_darwin.go treats as
+	// "pick the next free utunN". The logical name is preserved as
+	// the map key in u.devices so wgctrl lookups by callers work.
+	createName := name
+	if runtime.GOOS == "darwin" && !isUtunName(name) {
+		createName = "utun"
+	}
+	tunDev, err := tun.CreateTUN(createName, mtu)
 	if err != nil {
 		return fmt.Errorf("userspace wg: create tun %q: %w", name, err)
 	}
@@ -150,18 +160,29 @@ func (u *userspaceManager) CreateInterface(
 		}
 	}()
 
-	// Initial private key + listen port via UAPI. We use wgctrl under
-	// the hood for consistency with the Linux path.
-	if err := u.applyInitialConfig(realName, privateKey, listenPort); err != nil {
+	// Listen port via UAPI. The private key is set later via
+	// SetPrivateKey (the Engine.Join flow generates the keypair after
+	// CreateInterface). Passing an empty key here avoids a base64
+	// parse error in ConfigureDevice.
+	if err := u.applyInitialConfig(realName, "", listenPort); err != nil {
 		uapi.Close()
 		wgDev.Close()
 		_ = tunDev.Close()
 		return fmt.Errorf("userspace wg: apply initial config: %w", err)
 	}
 
-	// Bring interface up with platform tooling.
+	// Bring interface up + assign the mesh address with platform
+	// tooling. Linux uses `ip addr add`; Darwin uses `ifconfig X inet
+	// Y/prefix Y` (the second Y is the peer/destination, required by
+	// utun).
 	if err := ifaceUp(ctx, realName, mtu); err != nil {
 		u.log.Warn("userspace wg: ifconfig up failed; continuing anyway", "error", err)
+	}
+	if addrCIDR != "" {
+		if err := ifaceAddAddr(ctx, realName, addrCIDR); err != nil {
+			u.log.Warn("userspace wg: address assign failed; continuing anyway",
+				"iface", realName, "addr", addrCIDR, "error", err)
+		}
 	}
 
 	u.devices[name] = &usDevice{
@@ -378,6 +399,60 @@ func ifaceUp(ctx context.Context, name string, mtu int) error {
 	default:
 		return errors.New("userspace wg: interface up unsupported on " + runtime.GOOS)
 	}
+}
+
+// ifaceAddAddr assigns a CIDR address to the TUN/utun interface using
+// platform-native tooling. On Linux: `ip addr add`. On Darwin: utun is
+// a point-to-point interface, and `ifconfig utunN inet addr peer addr`
+// is the shape BSD expects (we use the same address on both sides so
+// the kernel routes traffic through WireGuard-allowed IPs to the
+// device). A raw prefix-less `ifconfig utunN inet X.Y.Z.W` works too
+// but doesn't set the route, so peers can't reach you.
+func ifaceAddAddr(ctx context.Context, name, addrCIDR string) error {
+	switch runtime.GOOS {
+	case "linux":
+		return runCmd(ctx, "ip", "addr", "add", addrCIDR, "dev", name)
+	case "darwin":
+		ip := addrCIDR
+		if i := strings.Index(addrCIDR, "/"); i > 0 {
+			ip = addrCIDR[:i]
+		}
+		// utun is point-to-point. Set local = peer = our mesh IP so
+		// BSD doesn't complain; the actual routing is done by the
+		// explicit `route add` below.
+		if err := runCmd(ctx, "ifconfig", name, "inet", ip, ip); err != nil {
+			return err
+		}
+		// Route the mesh CIDR (if provided) via this utun, so traffic
+		// to any other peer's mesh IP flows through WireGuard.
+		if strings.Contains(addrCIDR, "/") {
+			if err := runCmd(ctx, "route", "-q", "add", "-net", addrCIDR, "-interface", name); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return errors.New("userspace wg: address assign unsupported on " + runtime.GOOS)
+	}
+}
+
+// isUtunName reports whether name matches macOS's "utun" + N format.
+// We use it to decide whether to rewrite the requested TUN name on
+// Darwin (the kernel rejects anything else).
+func isUtunName(name string) bool {
+	if !strings.HasPrefix(name, "utun") {
+		return false
+	}
+	suffix := name[len("utun"):]
+	if suffix == "" {
+		return false
+	}
+	for _, c := range suffix {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func runCmd(ctx context.Context, name string, args ...string) error {
