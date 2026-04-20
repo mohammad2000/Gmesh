@@ -120,11 +120,12 @@ func (s *Server) Status(ctx context.Context, _ *gmeshv1.StatusRequest) (*gmeshv1
 	}
 
 	resp := &gmeshv1.StatusResponse{
-		Joined:    s.Engine.IsJoined(),
-		MeshIp:    s.Engine.MeshIP(),
-		Interface: s.Engine.Interface(),
-		PublicKey: s.Engine.PubKey(),
-		PeerCount: int32(len(peers)), //nolint:gosec // bounded by node capacity
+		Joined:     s.Engine.IsJoined(),
+		MeshIp:     s.Engine.MeshIP(),
+		Interface:  s.Engine.Interface(),
+		PublicKey:  s.Engine.PubKey(),
+		ListenPort: uint32(s.Engine.ListenPort()),
+		PeerCount:  int32(len(peers)), //nolint:gosec // bounded by node capacity
 	}
 	for _, p := range peers {
 		if p.Status == peer.StatusConnected {

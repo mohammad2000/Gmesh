@@ -235,6 +235,10 @@ message StatusResponse {
   // an idempotent (ALREADY_EXISTS) mesh_join so the backend can update
   // its peer record without re-requesting a full join.
   string          public_key    = 8;
+  // The port gmeshd is actually bound to. Pulled into mesh_joined
+  // responses so the backend DB can track the runtime port (which may
+  // differ from whatever the backend asked for in the join command).
+  uint32          listen_port   = 9;
 }
 
 message VersionRequest {}

@@ -945,7 +945,11 @@ type StatusResponse struct {
 	// Used by the bridge translator to resolve the current pubkey after
 	// an idempotent (ALREADY_EXISTS) mesh_join so the backend can update
 	// its peer record without re-requesting a full join.
-	PublicKey     string `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PublicKey string `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// The port gmeshd is actually bound to. Pulled into mesh_joined
+	// responses so the backend DB can track the runtime port (which may
+	// differ from whatever the backend asked for in the join command).
+	ListenPort    uint32 `protobuf:"varint,9,opt,name=listen_port,json=listenPort,proto3" json:"listen_port,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1034,6 +1038,13 @@ func (x *StatusResponse) GetPublicKey() string {
 		return x.PublicKey
 	}
 	return ""
+}
+
+func (x *StatusResponse) GetListenPort() uint32 {
+	if x != nil {
+		return x.ListenPort
+	}
+	return 0
 }
 
 type VersionRequest struct {
@@ -7134,7 +7145,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fLeaveRequest\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"\x0f\n" +
 	"\rLeaveResponse\"\x0f\n" +
-	"\rStatusRequest\"\x8b\x02\n" +
+	"\rStatusRequest\"\xac\x02\n" +
 	"\x0eStatusResponse\x12\x16\n" +
 	"\x06joined\x18\x01 \x01(\bR\x06joined\x12\x17\n" +
 	"\amesh_ip\x18\x02 \x01(\tR\x06meshIp\x12\x1c\n" +
@@ -7145,7 +7156,9 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\factive_peers\x18\x06 \x01(\x05R\vactivePeers\x12$\n" +
 	"\x05peers\x18\a \x03(\v2\x0e.gmesh.v1.PeerR\x05peers\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\b \x01(\tR\tpublicKey\"\x10\n" +
+	"public_key\x18\b \x01(\tR\tpublicKey\x12\x1f\n" +
+	"\vlisten_port\x18\t \x01(\rR\n" +
+	"listenPort\"\x10\n" +
 	"\x0eVersionRequest\"b\n" +
 	"\x0fVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +

@@ -99,6 +99,14 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         public_key = res["public_key"]
         private_key_encrypted = res.get("private_key_encrypted", "")
         endpoint = res.get("endpoint", "")
+        # Always snapshot Status so we can return the *actual* port and
+        # interface the daemon is running with (config file, existing
+        # wg-quick setup, or a concurrent mesh_leave+rejoin might make
+        # these diverge from what the backend requested).
+        try:
+            st_now = await self.bridge.status()
+        except Exception:
+            st_now = {}
     except grpc.aio.AioRpcError as ex:
         # gmeshd refuses duplicate joins with ALREADY_EXISTS. This is
         # NOT an error from the backend's point of view — the backend
@@ -108,12 +116,15 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         if ex.code() != grpc.StatusCode.ALREADY_EXISTS:
             raise
         log.info("mesh_join already in place; returning current state")
-        st = await self.bridge.status()
-        # Status now exposes the local node's public key directly (added
-        # to StatusResponse specifically so the already-joined branch
-        # can return a real key instead of the empty string — the
-        # backend kept peers pinned to a "placeholder_public_key::..."
-        # row until it saw a real key, which broke peer-sync).
+        st_now = await self.bridge.status()
+        st = st_now
+        # Status exposes the local node's actual public_key + interface
+        # + whatever listen_port gmeshd ended up using. The backend
+        # trusts these values over what it itself sent in the mesh_join
+        # command — which may differ from the daemon's runtime state
+        # (different config file, port collision, OS-rename like macOS
+        # utunN, etc.). Returning the truth here is what keeps the DB
+        # consistent without manual psql updates.
         public_key = st.get("public_key", "")
         private_key_encrypted = ""
         endpoint = ""
@@ -132,7 +143,14 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
                 "error_type": "already_joined_conflict",
                 "action": "mesh_join",
             }
-    return {
+    # Report the *actual* listen port + interface the daemon ended up
+    # using (vs whatever the backend asked for in the mesh_join cmd).
+    # Backend's handle_mesh_joined uses these to keep the DB aligned
+    # with reality — otherwise peer-sync hands siblings a stale port
+    # and WireGuard handshakes silently time out.
+    runtime_listen_port = (st_now.get("listen_port") if isinstance(st_now, dict) else None)
+    runtime_iface = (st_now.get("interface") if isinstance(st_now, dict) else None)
+    out = {
         "type": "mesh_joined",
         "success": True,
         # Echo peer_id back so the backend's handle_mesh_joined can
@@ -147,6 +165,11 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         "private_key_encrypted": private_key_encrypted,
         "endpoint": endpoint,
     }
+    if runtime_listen_port:
+        out["listen_port"] = runtime_listen_port
+    if runtime_iface:
+        out["interface_name"] = runtime_iface
+    return out
 
 
 async def _handle_mesh_leave(self: Translator, msg: dict) -> dict:

@@ -1259,6 +1259,12 @@ func (e *Engine) PubKey() string {
 	return e.pubKey
 }
 
+// ListenPort returns the WG listen port in use. Pulled from config;
+// 0 when not configured.
+func (e *Engine) ListenPort() uint16 {
+	return e.Config.WireGuard.ListenPort
+}
+
 // PublicKey returns this node's WG public key (empty before Join).
 func (e *Engine) PublicKey() string {
 	e.mu.RLock()
