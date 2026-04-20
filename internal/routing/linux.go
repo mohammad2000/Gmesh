@@ -30,16 +30,28 @@ func NewLinux(log *slog.Logger) *LinuxManager {
 	return &LinuxManager{Log: log, routes: make(map[string]Route)}
 }
 
-// Ensure installs a /32 (or /128) route to meshIP via iface, replacing any
-// conflicting route on a different interface.
-func (m *LinuxManager) Ensure(ctx context.Context, meshIP, iface string) error {
+// Ensure installs a /32 (or /128) route to meshIP via iface, replacing
+// any conflicting route on a different interface.
+//
+// sourceIP is optional. When non-empty the route is installed with
+// `src <sourceIP>`, pinning the kernel's source-IP choice for packets
+// heading to this peer. This matters when iface has multiple addresses
+// (e.g. a host bridging the 10.200.* and 10.250.* meshes) — without
+// src the kernel picks the interface's primary IP, the remote peer's
+// WireGuard allowed_ips rejects it, and handshakes silently go one-
+// way (you can ping out but not in). Callers that don't need it pass "".
+func (m *LinuxManager) Ensure(ctx context.Context, meshIP, iface, sourceIP string) error {
 	if meshIP == "" || iface == "" {
 		return fmt.Errorf("routing: meshIP and iface required")
 	}
 	target := normalizeMeshIP(meshIP)
 
+	args := []string{"route", "replace", target, "dev", iface}
+	if sourceIP != "" {
+		args = append(args, "src", sourceIP)
+	}
 	// `ip route replace` will insert if missing, overwrite if present.
-	if err := run(ctx, "ip", "route", "replace", target, "dev", iface); err != nil {
+	if err := run(ctx, "ip", args...); err != nil {
 		return fmt.Errorf("ip route replace %s dev %s: %w", target, iface, err)
 	}
 
@@ -47,7 +59,7 @@ func (m *LinuxManager) Ensure(ctx context.Context, meshIP, iface string) error {
 	m.routes[target+"/"+iface] = Route{MeshIP: meshIP, Interface: iface}
 	m.mu.Unlock()
 
-	m.Log.Debug("route installed", "mesh_ip", meshIP, "iface", iface)
+	m.Log.Debug("route installed", "mesh_ip", meshIP, "iface", iface, "src", sourceIP)
 	return nil
 }
 

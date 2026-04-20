@@ -1022,7 +1022,7 @@ func (e *Engine) ScopeConnect(ctx context.Context, spec scope.Spec) (*scope.Peer
 	e.Peers.Upsert(pr)
 
 	if e.IsJoined() && e.Routing != nil {
-		if err := e.Routing.Ensure(ctx, spec.MeshIP, e.Interface()); err != nil {
+		if err := e.Routing.Ensure(ctx, spec.MeshIP, e.Interface(), e.MeshIP()); err != nil {
 			e.Log.Warn("scope route install failed", "error", err, "mesh_ip", spec.MeshIP)
 		}
 	}
@@ -1400,7 +1400,7 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	}
 	e.Peers.Upsert(p)
 	if e.Routing != nil && p.MeshIP != "" {
-		if err := e.Routing.Ensure(ctx, p.MeshIP, e.Interface()); err != nil {
+		if err := e.Routing.Ensure(ctx, p.MeshIP, e.Interface(), e.MeshIP()); err != nil {
 			e.Log.Warn("peer route install failed", "error", err, "mesh_ip", p.MeshIP)
 		}
 	}

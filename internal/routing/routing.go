@@ -23,7 +23,13 @@ import (
 // Manager is the routing abstraction.
 type Manager interface {
 	// Ensure installs a /32 route to mesh_ip via interface. Idempotent.
-	Ensure(ctx context.Context, meshIP, iface string) error
+	// sourceIP, when non-empty, is baked into the route as `src` so
+	// the kernel pins the local address for packets to this peer —
+	// required on hosts that carry multiple meshes on one interface
+	// (e.g. a node that's both 10.250.0.20 and 10.200.0.2 on wg-gmesh:
+	// without src, the kernel picks primary 10.250.0.20, the remote's
+	// allowed_ips drops the packet, and handshake goes one-way).
+	Ensure(ctx context.Context, meshIP, iface, sourceIP string) error
 
 	// Remove deletes the route.
 	Remove(ctx context.Context, meshIP, iface string) error
@@ -49,8 +55,9 @@ type InMemory struct {
 // NewInMemory returns an empty InMemory manager.
 func NewInMemory() *InMemory { return &InMemory{routes: make(map[string]Route)} }
 
-// Ensure adds a tracked route. TODO: issue `ip route replace`.
-func (m *InMemory) Ensure(_ context.Context, meshIP, iface string) error {
+// Ensure adds a tracked route. sourceIP is ignored by this in-memory
+// impl — it's only meaningful on the kernel (Linux) path.
+func (m *InMemory) Ensure(_ context.Context, meshIP, iface, _ string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.routes[meshIP+"/"+iface] = Route{MeshIP: meshIP, Interface: iface}
