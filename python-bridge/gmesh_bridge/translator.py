@@ -21,6 +21,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
+import grpc
+
 from .client import GmeshBridge
 
 log = logging.getLogger("gmesh_bridge.translator")
@@ -56,20 +58,56 @@ class Translator:
 # ── Individual handlers ────────────────────────────────────────────────
 
 async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
-    res = await self.bridge.join(
-        mesh_ip=msg["mesh_ip"],
-        listen_port=int(msg.get("listen_port", 51820)),
-        interface_name=msg.get("interface_name", "wg-gritiva"),
-        network_cidr=msg.get("network_cidr", "10.200.0.0/16"),
-        node_id=msg.get("node_id", ""),
-    )
+    try:
+        res = await self.bridge.join(
+            mesh_ip=msg["mesh_ip"],
+            listen_port=int(msg.get("listen_port", 51820)),
+            interface_name=msg.get("interface_name", "wg-gritiva"),
+            network_cidr=msg.get("network_cidr", "10.200.0.0/16"),
+            node_id=msg.get("node_id", ""),
+        )
+        public_key = res["public_key"]
+        private_key_encrypted = res.get("private_key_encrypted", "")
+        endpoint = res.get("endpoint", "")
+    except grpc.aio.AioRpcError as ex:
+        # gmeshd refuses duplicate joins with ALREADY_EXISTS. This is
+        # NOT an error from the backend's point of view — the backend
+        # just wants the agent to be in that mesh, and it already is.
+        # Fall through to Status so we can return the same response
+        # shape (public_key, endpoint) the backend parser expects.
+        if ex.code() != grpc.StatusCode.ALREADY_EXISTS:
+            raise
+        log.info("mesh_join already in place; returning current state")
+        st = await self.bridge.status()
+        # Find this host's peer entry for its own public key — status
+        # doesn't expose the local peer's key directly, so we rely on
+        # node_id / mesh_ip round-trip. If not discoverable, return the
+        # empty string; backend treats it as "reuse existing key".
+        public_key = ""
+        private_key_encrypted = ""
+        endpoint = ""
+        # Confirm the daemon's idea of mesh_ip matches what the backend
+        # asked for. If not, the backend's request conflicts with the
+        # already-joined state — surface that explicitly.
+        if st.get("mesh_ip") and st["mesh_ip"] != msg["mesh_ip"]:
+            return {
+                "type": "mesh_error",
+                "success": False,
+                "error": (
+                    f"gmeshd is already joined to a DIFFERENT mesh "
+                    f"({st['mesh_ip']} vs requested {msg['mesh_ip']}). "
+                    f"Call mesh_leave first, or use the existing mesh."
+                ),
+                "error_type": "already_joined_conflict",
+                "action": "mesh_join",
+            }
     return {
         "type": "mesh_joined",
         "success": True,
         "mesh_ip": msg["mesh_ip"],
-        "public_key": res["public_key"],
-        "private_key_encrypted": res["private_key_encrypted"],
-        "endpoint": res["endpoint"],
+        "public_key": public_key,
+        "private_key_encrypted": private_key_encrypted,
+        "endpoint": endpoint,
     }
 
 
