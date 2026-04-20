@@ -43,7 +43,15 @@ class Translator:
 
         The response mirrors the legacy mesh protocol so the backend's
         existing parsers (handlers/mesh.py in GritivaCore) keep working.
+
+        Accepts every shape the backend emits, so individual clients
+        (Mac, Linux) don't each need their own _flatten. Shapes seen in
+        the wild:
+          {"type": "mesh_join", ...flat fields...}
+          {"action": "mesh_join", "data": {...fields...}, "peer_id": N}
+          {"action": "mesh_add_peer", "peer_id": N, "remote_peer": {...}}
         """
+        msg = _normalize(msg)
         t = msg.get("type", "")
         handler = _HANDLERS.get(t)
         if handler is None:
@@ -53,6 +61,28 @@ class Translator:
         except Exception as ex:  # pragma: no cover — defensive logging
             log.exception("bridge handler %s failed", t)
             return {"type": _error_type_for(t), "error": str(ex), "success": False}
+
+
+def _normalize(msg: Dict[str, Any]) -> Dict[str, Any]:
+    """Fold every wrapper shape into a flat dict handlers can read
+    directly. Handlers should only reference top-level keys after this.
+    Leaves the input untouched; returns a fresh dict.
+    """
+    out: Dict[str, Any] = {}
+    # "type" wins if present; fall back to "action" (backend cmd side).
+    out["type"] = msg.get("type") or msg.get("action") or ""
+    for wrapper in ("data", "remote_peer"):
+        inner = msg.get(wrapper)
+        if isinstance(inner, dict):
+            for k, v in inner.items():
+                if k not in out:
+                    out[k] = v
+    for k, v in msg.items():
+        if k in ("type", "action", "data", "remote_peer"):
+            continue
+        if k not in out:
+            out[k] = v
+    return out
 
 
 # ── Individual handlers ────────────────────────────────────────────────
@@ -79,11 +109,12 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
             raise
         log.info("mesh_join already in place; returning current state")
         st = await self.bridge.status()
-        # Find this host's peer entry for its own public key — status
-        # doesn't expose the local peer's key directly, so we rely on
-        # node_id / mesh_ip round-trip. If not discoverable, return the
-        # empty string; backend treats it as "reuse existing key".
-        public_key = ""
+        # Status now exposes the local node's public key directly (added
+        # to StatusResponse specifically so the already-joined branch
+        # can return a real key instead of the empty string — the
+        # backend kept peers pinned to a "placeholder_public_key::..."
+        # row until it saw a real key, which broke peer-sync).
+        public_key = st.get("public_key", "")
         private_key_encrypted = ""
         endpoint = ""
         # Confirm the daemon's idea of mesh_ip matches what the backend
@@ -104,6 +135,13 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
     return {
         "type": "mesh_joined",
         "success": True,
+        # Echo peer_id back so the backend's handle_mesh_joined can
+        # look up the right MeshPeer row and update its fields
+        # (status, public_key, endpoint). Without this echo the
+        # handler saw peer_id=None and bailed early with
+        # "MeshPeer not found", leaving public_key stuck at the
+        # "placeholder_public_key::..." sentinel forever.
+        "peer_id": msg.get("peer_id"),
         "mesh_ip": msg["mesh_ip"],
         "public_key": public_key,
         "private_key_encrypted": private_key_encrypted,

@@ -230,6 +230,11 @@ message StatusResponse {
   int32           peer_count    = 5;
   int32           active_peers  = 6;
   repeated Peer   peers         = 7;
+  // Local node's WireGuard public key. Empty when not joined yet.
+  // Used by the bridge translator to resolve the current pubkey after
+  // an idempotent (ALREADY_EXISTS) mesh_join so the backend can update
+  // its peer record without re-requesting a full join.
+  string          public_key    = 8;
 }
 
 message VersionRequest {}

@@ -123,6 +123,7 @@ func (s *Server) Status(ctx context.Context, _ *gmeshv1.StatusRequest) (*gmeshv1
 		Joined:    s.Engine.IsJoined(),
 		MeshIp:    s.Engine.MeshIP(),
 		Interface: s.Engine.Interface(),
+		PublicKey: s.Engine.PubKey(),
 		PeerCount: int32(len(peers)), //nolint:gosec // bounded by node capacity
 	}
 	for _, p := range peers {

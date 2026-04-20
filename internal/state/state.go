@@ -29,7 +29,14 @@ type NodeState struct {
 	PrivateKey string `json:"private_key"` // base64; file is 0600
 	PublicKey  string `json:"public_key"`
 	NodeID     string `json:"node_id"`
-	Joined     bool   `json:"joined"`
+	// NetworkCIDR is the full mesh network (e.g. "10.200.0.0/16") so
+	// the daemon can reconstruct addrCIDR on rehydrate without having
+	// to guess the prefix length from the mesh IP alone. Empty on
+	// state files written by pre-fix daemons — rehydrateInterface
+	// falls back to /32 in that case, which still works for per-peer
+	// routing, just not the whole-CIDR route.
+	NetworkCIDR string `json:"network_cidr,omitempty"`
+	Joined      bool   `json:"joined"`
 }
 
 // PeerEntry is one remote peer stored on disk.

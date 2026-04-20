@@ -88,14 +88,15 @@ type Engine struct {
 	failoverMu           sync.Mutex
 	exitFailoverOriginal map[int64]int64
 
-	mu        sync.RWMutex
-	joined    bool
-	meshIP    string
-	iface     string
-	nodeID    string
-	pubKey    string
-	privKey   string
-	keepalive time.Duration
+	mu          sync.RWMutex
+	joined      bool
+	meshIP      string
+	iface       string
+	nodeID      string
+	pubKey      string
+	privKey     string
+	networkCIDR string
+	keepalive   time.Duration
 }
 
 // Options bundles the optional dependencies that vary between tests and
@@ -323,6 +324,7 @@ func (e *Engine) rehydrate() error {
 	e.nodeID = st.Node.NodeID
 	e.privKey = st.Node.PrivateKey
 	e.pubKey = st.Node.PublicKey
+	e.networkCIDR = st.Node.NetworkCIDR
 	e.mu.Unlock()
 
 	for _, p := range st.Peers {
@@ -341,7 +343,60 @@ func (e *Engine) rehydrate() error {
 			ScopeID:    p.ScopeID,
 		})
 	}
-	e.Log.Info("rehydrated", "peers", len(st.Peers), "mesh_ip", e.meshIP)
+	e.Log.Info("rehydrated in-memory state", "peers", len(st.Peers), "mesh_ip", e.meshIP)
+
+	// Re-create the WG interface and re-apply private key + peers.
+	// Without this, any add_peer / status RPC after a restart fails
+	// with "no such device" — state.json remembers the mesh, but the
+	// kernel TUN was destroyed when the process died. Non-fatal on
+	// error (we log + stay joined in state so the next Start attempt
+	// can retry), but Status will reflect joined=true.
+	if err := e.rehydrateInterface(context.Background(), st); err != nil {
+		e.Log.Warn("rehydrate interface failed; mesh operations will error until gmeshd can recreate it",
+			"error", err, "interface", e.iface)
+	}
+	return nil
+}
+
+// rehydrateInterface re-creates the WireGuard interface + re-applies
+// the private key + all persisted peers. Called from rehydrate() on
+// daemon startup. Idempotent: if the interface already exists (unlikely
+// on startup but possible in tests), CreateInterface handles re-init.
+func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error {
+	addrCIDR := e.meshIP
+	if prefix := maskFromCIDR(st.Node.NetworkCIDR); prefix != "" {
+		addrCIDR = e.meshIP + "/" + prefix
+	}
+	listenPort := uint16(st.Node.ListenPort)
+	if err := e.WG.CreateInterface(ctx, e.iface, addrCIDR, int(e.Config.WireGuard.MTU), listenPort); err != nil {
+		return fmt.Errorf("create interface %s: %w", e.iface, err)
+	}
+	if err := e.WG.SetPrivateKey(ctx, e.iface, e.privKey); err != nil {
+		return fmt.Errorf("set private key: %w", err)
+	}
+	reapplied := 0
+	for _, p := range st.Peers {
+		if p.PublicKey == "" {
+			continue
+		}
+		allowed := p.AllowedIPs
+		if len(allowed) == 0 && p.MeshIP != "" {
+			allowed = []string{p.MeshIP + "/32"}
+		}
+		cfg := wireguard.PeerConfig{
+			PublicKey:                   p.PublicKey,
+			AllowedIPs:                  allowed,
+			Endpoint:                    p.Endpoint,
+			PersistentKeepaliveInterval: e.keepalive,
+		}
+		if err := e.WG.AddPeer(ctx, e.iface, cfg); err != nil {
+			e.Log.Warn("rehydrate: re-add peer failed", "peer_id", p.ID, "error", err)
+			continue
+		}
+		reapplied++
+	}
+	e.Log.Info("rehydrated WG interface", "iface", e.iface, "addr", addrCIDR,
+		"listen_port", listenPort, "peers_reapplied", reapplied)
 	return nil
 }
 
@@ -1196,6 +1251,14 @@ func (e *Engine) Interface() string {
 	return e.iface
 }
 
+// PubKey returns this node's WireGuard public key (base64). Empty
+// string when the node hasn't joined a mesh yet.
+func (e *Engine) PubKey() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.pubKey
+}
+
 // PublicKey returns this node's WG public key (empty before Join).
 func (e *Engine) PublicKey() string {
 	e.mu.RLock()
@@ -1249,6 +1312,7 @@ func (e *Engine) Join(ctx context.Context, meshIP, iface string, listenPort uint
 	e.nodeID = nodeID
 	e.privKey = kp.Private
 	e.pubKey = kp.Public
+	e.networkCIDR = networkCIDR
 	e.mu.Unlock()
 
 	if err := e.persist(); err != nil {
@@ -1432,13 +1496,14 @@ func (e *Engine) persist() error {
 	e.mu.RLock()
 	st := state.State{
 		Node: state.NodeState{
-			MeshIP:     e.meshIP,
-			Interface:  e.iface,
-			ListenPort: e.Config.WireGuard.ListenPort,
-			PrivateKey: e.privKey,
-			PublicKey:  e.pubKey,
-			NodeID:     e.nodeID,
-			Joined:     e.joined,
+			MeshIP:      e.meshIP,
+			Interface:   e.iface,
+			ListenPort:  e.Config.WireGuard.ListenPort,
+			PrivateKey:  e.privKey,
+			PublicKey:   e.pubKey,
+			NodeID:      e.nodeID,
+			NetworkCIDR: e.networkCIDR,
+			Joined:      e.joined,
 		},
 	}
 	e.mu.RUnlock()

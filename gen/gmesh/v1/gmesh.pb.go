@@ -933,14 +933,19 @@ func (*StatusRequest) Descriptor() ([]byte, []int) {
 }
 
 type StatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Joined        bool                   `protobuf:"varint,1,opt,name=joined,proto3" json:"joined,omitempty"`
-	MeshIp        string                 `protobuf:"bytes,2,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"`
-	Interface     string                 `protobuf:"bytes,3,opt,name=interface,proto3" json:"interface,omitempty"`
-	Nat           *NATInfo               `protobuf:"bytes,4,opt,name=nat,proto3" json:"nat,omitempty"`
-	PeerCount     int32                  `protobuf:"varint,5,opt,name=peer_count,json=peerCount,proto3" json:"peer_count,omitempty"`
-	ActivePeers   int32                  `protobuf:"varint,6,opt,name=active_peers,json=activePeers,proto3" json:"active_peers,omitempty"`
-	Peers         []*Peer                `protobuf:"bytes,7,rep,name=peers,proto3" json:"peers,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Joined      bool                   `protobuf:"varint,1,opt,name=joined,proto3" json:"joined,omitempty"`
+	MeshIp      string                 `protobuf:"bytes,2,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"`
+	Interface   string                 `protobuf:"bytes,3,opt,name=interface,proto3" json:"interface,omitempty"`
+	Nat         *NATInfo               `protobuf:"bytes,4,opt,name=nat,proto3" json:"nat,omitempty"`
+	PeerCount   int32                  `protobuf:"varint,5,opt,name=peer_count,json=peerCount,proto3" json:"peer_count,omitempty"`
+	ActivePeers int32                  `protobuf:"varint,6,opt,name=active_peers,json=activePeers,proto3" json:"active_peers,omitempty"`
+	Peers       []*Peer                `protobuf:"bytes,7,rep,name=peers,proto3" json:"peers,omitempty"`
+	// Local node's WireGuard public key. Empty when not joined yet.
+	// Used by the bridge translator to resolve the current pubkey after
+	// an idempotent (ALREADY_EXISTS) mesh_join so the backend can update
+	// its peer record without re-requesting a full join.
+	PublicKey     string `protobuf:"bytes,8,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1022,6 +1027,13 @@ func (x *StatusResponse) GetPeers() []*Peer {
 		return x.Peers
 	}
 	return nil
+}
+
+func (x *StatusResponse) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
 }
 
 type VersionRequest struct {
@@ -7122,7 +7134,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\fLeaveRequest\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"\x0f\n" +
 	"\rLeaveResponse\"\x0f\n" +
-	"\rStatusRequest\"\xec\x01\n" +
+	"\rStatusRequest\"\x8b\x02\n" +
 	"\x0eStatusResponse\x12\x16\n" +
 	"\x06joined\x18\x01 \x01(\bR\x06joined\x12\x17\n" +
 	"\amesh_ip\x18\x02 \x01(\tR\x06meshIp\x12\x1c\n" +
@@ -7131,7 +7143,9 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\n" +
 	"peer_count\x18\x05 \x01(\x05R\tpeerCount\x12!\n" +
 	"\factive_peers\x18\x06 \x01(\x05R\vactivePeers\x12$\n" +
-	"\x05peers\x18\a \x03(\v2\x0e.gmesh.v1.PeerR\x05peers\"\x10\n" +
+	"\x05peers\x18\a \x03(\v2\x0e.gmesh.v1.PeerR\x05peers\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\b \x01(\tR\tpublicKey\"\x10\n" +
 	"\x0eVersionRequest\"b\n" +
 	"\x0fVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +

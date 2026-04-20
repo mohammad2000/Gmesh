@@ -132,6 +132,7 @@ class GmeshBridge:
             "joined": resp.joined,
             "mesh_ip": resp.mesh_ip,
             "interface": resp.interface,
+            "public_key": resp.public_key,
             "peer_count": resp.peer_count,
             "active_peers": resp.active_peers,
             "peers": [_peer_view(p).__dict__ for p in resp.peers],
