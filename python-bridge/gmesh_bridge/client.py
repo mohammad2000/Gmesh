@@ -142,10 +142,25 @@ class GmeshBridge:
             mesh_ip=mesh_ip, listen_port=listen_port, interface_name=interface_name,
             network_cidr=network_cidr, node_id=node_id,
         ))
+        kind_name = {
+            gmesh_pb2.ENDPOINT_LAN: "lan",
+            gmesh_pb2.ENDPOINT_WAN: "wan",
+            gmesh_pb2.ENDPOINT_STUN: "stun",
+            gmesh_pb2.ENDPOINT_RELAY: "relay",
+        }
+        endpoints = [
+            {
+                "address": e.address,
+                "kind": kind_name.get(e.type, "wan"),
+                "priority": e.priority,
+            }
+            for e in resp.endpoints
+        ]
         return {
             "public_key": resp.public_key,
             "private_key_encrypted": resp.private_key_encrypted,
             "endpoint": resp.endpoint,
+            "endpoints": endpoints,
         }
 
     async def leave(self, reason: str = "") -> None:

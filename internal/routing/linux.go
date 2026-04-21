@@ -98,17 +98,6 @@ func (m *LinuxManager) List() []Route {
 	return out
 }
 
-// normalizeMeshIP ensures a /32 or /128 suffix.
-func normalizeMeshIP(ip string) string {
-	if strings.ContainsAny(ip, "/") {
-		return ip
-	}
-	if strings.Contains(ip, ":") {
-		return ip + "/128"
-	}
-	return ip + "/32"
-}
-
 // run executes a command and returns trimmed output on error.
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)

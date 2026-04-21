@@ -424,9 +424,16 @@ func ifaceAddAddr(ctx context.Context, name, addrCIDR string) error {
 			return err
 		}
 		// Route the mesh CIDR (if provided) via this utun, so traffic
-		// to any other peer's mesh IP flows through WireGuard.
+		// to any other peer's mesh IP flows through WireGuard. Normalize
+		// to the network address (10.200.0.3/16 → 10.200.0.0/16) —
+		// macOS's `route add -net` rejects CIDRs whose host bits are
+		// non-zero. First best-effort delete any prior route for this
+		// network so we win a restart race with stale utunN routes left
+		// by a previous gmeshd run.
 		if strings.Contains(addrCIDR, "/") {
-			if err := runCmd(ctx, "route", "-q", "add", "-net", addrCIDR, "-interface", name); err != nil {
+			netCIDR := normalizeNetworkCIDR(addrCIDR)
+			_ = runCmd(ctx, "route", "-q", "-n", "delete", "-net", netCIDR)
+			if err := runCmd(ctx, "route", "-q", "-n", "add", "-net", netCIDR, "-interface", name); err != nil {
 				return err
 			}
 		}
@@ -434,6 +441,17 @@ func ifaceAddAddr(ctx context.Context, name, addrCIDR string) error {
 	default:
 		return errors.New("userspace wg: address assign unsupported on " + runtime.GOOS)
 	}
+}
+
+// normalizeNetworkCIDR takes "host/prefix" like "10.200.0.3/16" and
+// returns the network base "10.200.0.0/16". Needed for macOS's
+// `route add -net` which refuses CIDRs with non-zero host bits.
+func normalizeNetworkCIDR(addrCIDR string) string {
+	_, n, err := net.ParseCIDR(addrCIDR)
+	if err != nil || n == nil {
+		return addrCIDR
+	}
+	return n.String()
 }
 
 // isUtunName reports whether name matches macOS's "utun" + N format.

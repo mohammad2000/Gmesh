@@ -99,6 +99,12 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         public_key = res["public_key"]
         private_key_encrypted = res.get("private_key_encrypted", "")
         endpoint = res.get("endpoint", "")
+        # JoinResponse.endpoints now carries the LAN IPs gmeshd
+        # enumerated via internal/nat.LocalEndpoints (plus any reflexive
+        # candidate). Forward them unchanged to the backend so
+        # mesh_peer_endpoints can race LAN before WAN for same-subnet
+        # peers. List of {address, kind, priority}.
+        join_endpoints = res.get("endpoints") or []
         # Always snapshot Status so we can return the *actual* port and
         # interface the daemon is running with (config file, existing
         # wg-quick setup, or a concurrent mesh_leave+rejoin might make
@@ -128,6 +134,7 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         public_key = st.get("public_key", "")
         private_key_encrypted = ""
         endpoint = ""
+        join_endpoints = []
         # Confirm the daemon's idea of mesh_ip matches what the backend
         # asked for. If not, the backend's request conflicts with the
         # already-joined state — surface that explicitly.
@@ -169,6 +176,8 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         out["listen_port"] = runtime_listen_port
     if runtime_iface:
         out["interface_name"] = runtime_iface
+    if join_endpoints:
+        out["endpoints"] = join_endpoints
     return out
 
 

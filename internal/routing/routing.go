@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 )
 
@@ -87,5 +88,18 @@ func (m *InMemory) List() []Route {
 var ErrNotImplemented = errors.New("routing: not implemented")
 
 // New returns the best available routing backend for the current host.
-// Linux → LinuxManager; everything else → InMemory.
+// Linux → LinuxManager; macOS → DarwinManager; everything else → InMemory.
 func New(log *slog.Logger) Manager { return newPlatformManager(log) }
+
+// normalizeMeshIP ensures a /32 or /128 suffix on host routes. Shared
+// across platform backends (linux.go, darwin.go) so the route string
+// format stays consistent.
+func normalizeMeshIP(ip string) string {
+	if strings.ContainsAny(ip, "/") {
+		return ip
+	}
+	if strings.Contains(ip, ":") {
+		return ip + "/128"
+	}
+	return ip + "/32"
+}
