@@ -42,6 +42,31 @@ class PeerView:
     last_handshake_unix: int
 
 
+def _proto_endpoints(items: Optional[Iterable[dict]]) -> list:
+    """Build a list of gmesh.v1.PeerEndpoint proto messages from plain
+    dicts shaped like {address, kind, priority}. Used for AddPeer and
+    UpdatePeer so the daemon can race LAN/WAN/STUN/relay candidates.
+    Returns [] when the caller passes None or an empty iterable.
+    """
+    if not items:
+        return []
+    kind_map = {
+        "lan": gmesh_pb2.ENDPOINT_LAN,
+        "wan": gmesh_pb2.ENDPOINT_WAN,
+        "stun": gmesh_pb2.ENDPOINT_STUN,
+        "relay": gmesh_pb2.ENDPOINT_RELAY,
+    }
+    out = []
+    for it in items:
+        addr = it.get("address") if isinstance(it, dict) else None
+        if not addr:
+            continue
+        kind = kind_map.get(str(it.get("kind", "wan")).lower(), gmesh_pb2.ENDPOINT_WAN)
+        prio = int(it.get("priority") or 0)
+        out.append(gmesh_pb2.PeerEndpoint(address=addr, type=kind, priority=prio))
+    return out
+
+
 def _peer_view(p: Any) -> PeerView:
     type_map = {
         gmesh_pb2.PEER_TYPE_VM: "vm",
@@ -147,10 +172,12 @@ class GmeshBridge:
 
     async def add_peer(self, *, peer_id: int, mesh_ip: str, public_key: str,
                         endpoint: str = "", allowed_ips: Optional[Iterable[str]] = None,
-                        keepalive: int = 25) -> PeerView:
+                        keepalive: int = 25,
+                        endpoints: Optional[Iterable[dict]] = None) -> PeerView:
         resp = await self._stub.AddPeer(gmesh_pb2.AddPeerRequest(
             peer_id=peer_id, mesh_ip=mesh_ip, public_key=public_key,
             endpoint=endpoint, allowed_ips=list(allowed_ips or []), keepalive=keepalive,
+            endpoints=_proto_endpoints(endpoints),
         ))
         return _peer_view(resp.peer)
 
@@ -159,10 +186,12 @@ class GmeshBridge:
 
     async def update_peer(self, peer_id: int, *, endpoint: str = "",
                            allowed_ips: Optional[Iterable[str]] = None,
-                           keepalive: int = 0) -> PeerView:
+                           keepalive: int = 0,
+                           endpoints: Optional[Iterable[dict]] = None) -> PeerView:
         resp = await self._stub.UpdatePeer(gmesh_pb2.UpdatePeerRequest(
             peer_id=peer_id, endpoint=endpoint,
             allowed_ips=list(allowed_ips or []), keepalive=keepalive,
+            endpoints=_proto_endpoints(endpoints),
         ))
         return _peer_view(resp.peer)
 

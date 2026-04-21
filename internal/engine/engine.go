@@ -77,6 +77,11 @@ type Engine struct {
 	relaySessions map[int64]*relay.Session // peer_id → live relay session
 	wsTunnels     map[int64]*relay.WSTunnel
 
+	// Racer picks the best endpoint from the peer's candidate list
+	// (LAN → WAN → STUN → relay) by trying each in sequence and
+	// watching for a WG handshake. Lazy-initialized in Start.
+	Racer *EndpointRacer
+
 	fwMu      sync.Mutex
 	fwRules   []firewall.Rule
 	fwDefault string
@@ -281,6 +286,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		wsTunnels:            make(map[int64]*relay.WSTunnel),
 		exitFailoverOriginal: make(map[int64]int64),
 		keepalive:            time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
+		Racer:                NewEndpointRacer(),
 	}
 
 	if err := e.rehydrate(); err != nil {
@@ -1382,6 +1388,13 @@ func (e *Engine) Leave(ctx context.Context, reason string) error {
 // ── Peers ──────────────────────────────────────────────────────────────
 
 // AddPeer installs a peer on the WG interface and registers it.
+//
+// When p.Endpoints has more than one candidate, the highest-priority
+// (LAN < WAN < STUN < relay) entry is used to program WG and an
+// EndpointRacer starts in the background to try the rest if no
+// handshake appears within raceCandidateTimeout. This is what lets
+// two peers on the same LAN reach each other via 192.168.x instead
+// of burning public-IP packets through a flaky ISP.
 func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride time.Duration) error {
 	if !e.IsJoined() {
 		return ErrNotJoined
@@ -1390,9 +1403,20 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	if keepaliveOverride > 0 {
 		ka = keepaliveOverride
 	}
+
+	// Pick the initial endpoint: if the peer has a sorted candidate
+	// list, honor its priority ordering; otherwise fall back to the
+	// single Endpoint field.
+	initialEndpoint := p.Endpoint
+	if len(p.Endpoints) > 0 {
+		sorted := sortedCandidates(p.Endpoints)
+		initialEndpoint = sorted[0].Address
+		p.Endpoint = initialEndpoint
+	}
+
 	if err := e.WG.AddPeer(ctx, e.Interface(), wireguard.PeerConfig{
 		PublicKey:                   p.PublicKey,
-		Endpoint:                    p.Endpoint,
+		Endpoint:                    initialEndpoint,
 		AllowedIPs:                  p.AllowedIPs,
 		PersistentKeepaliveInterval: ka,
 	}); err != nil {
@@ -1411,7 +1435,15 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 		"mesh_ip":    p.MeshIP,
 		"endpoint":   p.Endpoint,
 		"public_key": p.PublicKey,
+		"candidates": len(p.Endpoints),
 	})
+
+	// Start the racer in the background; uses the engine's background
+	// context so it survives across RPC calls but is cancelled on
+	// engine shutdown or RemovePeer.
+	if e.Racer != nil && len(p.Endpoints) > 1 {
+		e.Racer.Start(context.Background(), e, p)
+	}
 	return nil
 }
 
@@ -1420,6 +1452,9 @@ func (e *Engine) RemovePeer(ctx context.Context, peerID int64) error {
 	p, ok := e.Peers.Get(peerID)
 	if !ok {
 		return ErrPeerNotFound
+	}
+	if e.Racer != nil {
+		e.Racer.Stop(peerID)
 	}
 	if err := e.WG.RemovePeer(ctx, e.Interface(), p.PublicKey); err != nil {
 		return fmt.Errorf("wg remove peer: %w", err)

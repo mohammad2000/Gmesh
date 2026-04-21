@@ -28,13 +28,50 @@ const (
 	StatusEstablishing
 )
 
+// EndpointKind classifies a candidate address. Matches gmesh.v1.EndpointType.
+type EndpointKind int
+
+const (
+	EndpointKindUnspecified EndpointKind = iota
+	EndpointKindLAN
+	EndpointKindWAN
+	EndpointKindSTUN
+	EndpointKindRelay
+)
+
+func (k EndpointKind) String() string {
+	switch k {
+	case EndpointKindLAN:
+		return "lan"
+	case EndpointKindWAN:
+		return "wan"
+	case EndpointKindSTUN:
+		return "stun"
+	case EndpointKindRelay:
+		return "relay"
+	default:
+		return "unknown"
+	}
+}
+
+// Endpoint is a single candidate address where a peer may be reachable.
+// Multiple endpoints per peer allow LAN-first routing, then WAN, then
+// STUN-reflexive, with relay as a last-resort fallback.
+type Endpoint struct {
+	Address  string // host:port
+	Kind     EndpointKind
+	Priority uint32    // lower = better; default heuristic: lan=10, wan=50, stun=60, relay=100
+	LastOK   time.Time // zero value = never
+}
+
 // Peer is the authoritative in-memory record for a remote node.
 type Peer struct {
 	ID                int64
 	Type              Type
 	MeshIP            string
 	PublicKey         string
-	Endpoint          string // host:port
+	Endpoint          string // host:port — the currently-selected/preferred endpoint
+	Endpoints         []Endpoint
 	AllowedIPs        []string
 	Status            Status
 	Method            int // gmesh.v1.ConnectionMethod

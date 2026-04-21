@@ -156,9 +156,23 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 		return nil, status.Errorf(codes.Internal, "join: %v", err)
 	}
 
+	// Enumerate local LAN endpoints so the coordinator can propagate
+	// them to other peers on the same subnet. Combined with the STUN
+	// reflexive candidate, this gives downstream peers a prioritized
+	// list: LAN (priority 10) → STUN (60).
+	var candidates []*gmeshv1.PeerEndpoint
+	for _, addr := range nat.LocalEndpoints(uint32(in.ListenPort)) {
+		candidates = append(candidates, &gmeshv1.PeerEndpoint{
+			Address:  addr,
+			Type:     gmeshv1.EndpointType_ENDPOINT_LAN,
+			Priority: 10,
+		})
+	}
+
 	return &gmeshv1.JoinResponse{
-		PublicKey:            res.PublicKey,
-		PrivateKeyEncrypted:  res.PrivateKey, // plain for now — Phase 8 adds Fernet
+		PublicKey:           res.PublicKey,
+		PrivateKeyEncrypted: res.PrivateKey, // plain for now — Phase 8 adds Fernet
+		Endpoints:           candidates,
 	}, nil
 }
 
@@ -195,6 +209,7 @@ func (s *Server) AddPeer(ctx context.Context, in *gmeshv1.AddPeerRequest) (*gmes
 		MeshIP:     in.MeshIp,
 		PublicKey:  in.PublicKey,
 		Endpoint:   in.Endpoint,
+		Endpoints:  endpointsFromProto(in.Endpoints, in.Endpoint),
 		AllowedIPs: allowed,
 		Status:     peer.StatusConnecting,
 	}
@@ -223,7 +238,7 @@ func (s *Server) RemovePeer(ctx context.Context, in *gmeshv1.RemovePeerRequest) 
 	return &gmeshv1.RemovePeerResponse{}, nil
 }
 
-// UpdatePeer changes endpoint / allowed-ips / keepalive.
+// UpdatePeer changes endpoint / allowed-ips / keepalive / candidate list.
 func (s *Server) UpdatePeer(ctx context.Context, in *gmeshv1.UpdatePeerRequest) (*gmeshv1.UpdatePeerResponse, error) {
 	err := s.Engine.UpdatePeer(ctx, in.PeerId, in.Endpoint, in.AllowedIps, time.Duration(in.Keepalive)*time.Second)
 	if err != nil {
@@ -231,6 +246,11 @@ func (s *Server) UpdatePeer(ctx context.Context, in *gmeshv1.UpdatePeerRequest) 
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update_peer: %v", err)
+	}
+	if len(in.Endpoints) > 0 {
+		if p, ok := s.Engine.Peers.Get(in.PeerId); ok {
+			p.Endpoints = endpointsFromProto(in.Endpoints, in.Endpoint)
+		}
 	}
 	p, _ := s.Engine.Peers.Get(in.PeerId)
 	return &gmeshv1.UpdatePeerResponse{Peer: peerToProto(p)}, nil
@@ -1314,12 +1334,22 @@ func peerToProto(p *peer.Peer) *gmeshv1.Peer {
 	if p.Type == peer.TypeScope {
 		pt = gmeshv1.PeerType_PEER_TYPE_SCOPE
 	}
+	var eps []*gmeshv1.PeerEndpoint
+	for _, e := range p.Endpoints {
+		eps = append(eps, &gmeshv1.PeerEndpoint{
+			Address:      e.Address,
+			Type:         gmeshv1.EndpointType(e.Kind),
+			Priority:     e.Priority,
+			LastOkUnixMs: e.LastOK.UnixMilli(),
+		})
+	}
 	return &gmeshv1.Peer{
 		Id:                 p.ID,
 		Type:               pt,
 		MeshIp:             p.MeshIP,
 		PublicKey:          p.PublicKey,
 		Endpoint:           p.Endpoint,
+		Endpoints:          eps,
 		AllowedIps:         p.AllowedIPs,
 		Status:             gmeshv1.PeerStatus(p.Status),
 		NatType:            gmeshv1.NATType(p.NATType),
@@ -1333,4 +1363,51 @@ func peerToProto(p *peer.Peer) *gmeshv1.Peer {
 		LastHandshakeUnix:  p.LastHandshake.Unix(),
 		ScopeId:            p.ScopeID,
 	}
+}
+
+// endpointsFromProto converts the wire candidate list into the internal
+// peer.Endpoint slice. If the proto list is empty but a legacy
+// `endpoint` string was provided, synthesize a single WAN candidate so
+// older coordinators keep working.
+func endpointsFromProto(in []*gmeshv1.PeerEndpoint, legacy string) []peer.Endpoint {
+	if len(in) == 0 {
+		if legacy == "" {
+			return nil
+		}
+		return []peer.Endpoint{{
+			Address:  legacy,
+			Kind:     peer.EndpointKindWAN,
+			Priority: 50,
+		}}
+	}
+	out := make([]peer.Endpoint, 0, len(in))
+	for _, e := range in {
+		if e == nil || e.Address == "" {
+			continue
+		}
+		prio := e.Priority
+		if prio == 0 {
+			// Default priorities matching the design: lan=10, wan=50,
+			// stun=60, relay=100. Coordinators SHOULD set these explicitly.
+			switch e.Type {
+			case gmeshv1.EndpointType_ENDPOINT_LAN:
+				prio = 10
+			case gmeshv1.EndpointType_ENDPOINT_WAN:
+				prio = 50
+			case gmeshv1.EndpointType_ENDPOINT_STUN:
+				prio = 60
+			case gmeshv1.EndpointType_ENDPOINT_RELAY:
+				prio = 100
+			default:
+				prio = 50
+			}
+		}
+		out = append(out, peer.Endpoint{
+			Address:  e.Address,
+			Kind:     peer.EndpointKind(e.Type),
+			Priority: prio,
+			LastOK:   time.UnixMilli(e.LastOkUnixMs),
+		})
+	}
+	return out
 }

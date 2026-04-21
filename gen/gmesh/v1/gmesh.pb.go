@@ -311,6 +311,61 @@ func (HealthStatus) EnumDescriptor() ([]byte, []int) {
 	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{4}
 }
 
+type EndpointType int32
+
+const (
+	EndpointType_ENDPOINT_UNSPECIFIED EndpointType = 0
+	EndpointType_ENDPOINT_LAN         EndpointType = 1 // RFC1918 / link-local, same-subnet peers
+	EndpointType_ENDPOINT_WAN         EndpointType = 2 // Public IP, either static or DNS-resolved
+	EndpointType_ENDPOINT_STUN        EndpointType = 3 // Reflexive mapping discovered via STUN
+	EndpointType_ENDPOINT_RELAY       EndpointType = 4 // DERP-style relay fallback
+)
+
+// Enum value maps for EndpointType.
+var (
+	EndpointType_name = map[int32]string{
+		0: "ENDPOINT_UNSPECIFIED",
+		1: "ENDPOINT_LAN",
+		2: "ENDPOINT_WAN",
+		3: "ENDPOINT_STUN",
+		4: "ENDPOINT_RELAY",
+	}
+	EndpointType_value = map[string]int32{
+		"ENDPOINT_UNSPECIFIED": 0,
+		"ENDPOINT_LAN":         1,
+		"ENDPOINT_WAN":         2,
+		"ENDPOINT_STUN":        3,
+		"ENDPOINT_RELAY":       4,
+	}
+)
+
+func (x EndpointType) Enum() *EndpointType {
+	p := new(EndpointType)
+	*p = x
+	return p
+}
+
+func (x EndpointType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (EndpointType) Descriptor() protoreflect.EnumDescriptor {
+	return file_gmesh_v1_gmesh_proto_enumTypes[5].Descriptor()
+}
+
+func (EndpointType) Type() protoreflect.EnumType {
+	return &file_gmesh_v1_gmesh_proto_enumTypes[5]
+}
+
+func (x EndpointType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use EndpointType.Descriptor instead.
+func (EndpointType) EnumDescriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{5}
+}
+
 type FirewallAction int32
 
 const (
@@ -350,11 +405,11 @@ func (x FirewallAction) String() string {
 }
 
 func (FirewallAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_gmesh_v1_gmesh_proto_enumTypes[5].Descriptor()
+	return file_gmesh_v1_gmesh_proto_enumTypes[6].Descriptor()
 }
 
 func (FirewallAction) Type() protoreflect.EnumType {
-	return &file_gmesh_v1_gmesh_proto_enumTypes[5]
+	return &file_gmesh_v1_gmesh_proto_enumTypes[6]
 }
 
 func (x FirewallAction) Number() protoreflect.EnumNumber {
@@ -363,7 +418,7 @@ func (x FirewallAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallAction.Descriptor instead.
 func (FirewallAction) EnumDescriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{5}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{6}
 }
 
 type FirewallProtocol int32
@@ -408,11 +463,11 @@ func (x FirewallProtocol) String() string {
 }
 
 func (FirewallProtocol) Descriptor() protoreflect.EnumDescriptor {
-	return file_gmesh_v1_gmesh_proto_enumTypes[6].Descriptor()
+	return file_gmesh_v1_gmesh_proto_enumTypes[7].Descriptor()
 }
 
 func (FirewallProtocol) Type() protoreflect.EnumType {
-	return &file_gmesh_v1_gmesh_proto_enumTypes[6]
+	return &file_gmesh_v1_gmesh_proto_enumTypes[7]
 }
 
 func (x FirewallProtocol) Number() protoreflect.EnumNumber {
@@ -421,7 +476,7 @@ func (x FirewallProtocol) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FirewallProtocol.Descriptor instead.
 func (FirewallProtocol) EnumDescriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{6}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{7}
 }
 
 type Peer struct {
@@ -430,7 +485,7 @@ type Peer struct {
 	Type              PeerType               `protobuf:"varint,2,opt,name=type,proto3,enum=gmesh.v1.PeerType" json:"type,omitempty"`
 	MeshIp            string                 `protobuf:"bytes,3,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"` // 10.200.x.x
 	PublicKey         string                 `protobuf:"bytes,4,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Endpoint          string                 `protobuf:"bytes,5,opt,name=endpoint,proto3" json:"endpoint,omitempty"` // host:port
+	Endpoint          string                 `protobuf:"bytes,5,opt,name=endpoint,proto3" json:"endpoint,omitempty"` // host:port (legacy: active/preferred endpoint)
 	AllowedIps        []string               `protobuf:"bytes,6,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
 	Status            PeerStatus             `protobuf:"varint,7,opt,name=status,proto3,enum=gmesh.v1.PeerStatus" json:"status,omitempty"`
 	NatType           NATType                `protobuf:"varint,8,opt,name=nat_type,json=natType,proto3,enum=gmesh.v1.NATType" json:"nat_type,omitempty"`
@@ -443,8 +498,13 @@ type Peer struct {
 	PacketLoss        float64                `protobuf:"fixed64,15,opt,name=packet_loss,json=packetLoss,proto3" json:"packet_loss,omitempty"`
 	LastHandshakeUnix int64                  `protobuf:"varint,16,opt,name=last_handshake_unix,json=lastHandshakeUnix,proto3" json:"last_handshake_unix,omitempty"`
 	ScopeId           int64                  `protobuf:"varint,17,opt,name=scope_id,json=scopeId,proto3" json:"scope_id,omitempty"` // 0 for VM peers
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// All known endpoints for this peer, ordered by priority (lowest first).
+	// Each is a PeerEndpoint carrying host:port + a type tag (lan/wan/stun/
+	// relay) so the engine can race candidates. When populated, `endpoint`
+	// (field 5) is the currently-selected/last-successful one.
+	Endpoints     []*PeerEndpoint `protobuf:"bytes,18,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Peer) Reset() {
@@ -596,6 +656,86 @@ func (x *Peer) GetScopeId() int64 {
 	return 0
 }
 
+func (x *Peer) GetEndpoints() []*PeerEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+// A single candidate address where a peer might be reachable.
+type PeerEndpoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "host:port" format. For IPv6, host must be bracketed.
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// Where this candidate came from.
+	Type EndpointType `protobuf:"varint,2,opt,name=type,proto3,enum=gmesh.v1.EndpointType" json:"type,omitempty"`
+	// Lower = better. Typical values: lan=10, wan=50, stun=60, relay=100.
+	Priority uint32 `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
+	// Unix ms of last successful handshake/probe via this endpoint. 0 = never.
+	LastOkUnixMs  int64 `protobuf:"varint,4,opt,name=last_ok_unix_ms,json=lastOkUnixMs,proto3" json:"last_ok_unix_ms,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PeerEndpoint) Reset() {
+	*x = PeerEndpoint{}
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PeerEndpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PeerEndpoint) ProtoMessage() {}
+
+func (x *PeerEndpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PeerEndpoint.ProtoReflect.Descriptor instead.
+func (*PeerEndpoint) Descriptor() ([]byte, []int) {
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PeerEndpoint) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *PeerEndpoint) GetType() EndpointType {
+	if x != nil {
+		return x.Type
+	}
+	return EndpointType_ENDPOINT_UNSPECIFIED
+}
+
+func (x *PeerEndpoint) GetPriority() uint32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *PeerEndpoint) GetLastOkUnixMs() int64 {
+	if x != nil {
+		return x.LastOkUnixMs
+	}
+	return 0
+}
+
 type NATInfo struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	NatType           NATType                `protobuf:"varint,1,opt,name=nat_type,json=natType,proto3,enum=gmesh.v1.NATType" json:"nat_type,omitempty"`
@@ -609,7 +749,7 @@ type NATInfo struct {
 
 func (x *NATInfo) Reset() {
 	*x = NATInfo{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[1]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -621,7 +761,7 @@ func (x *NATInfo) String() string {
 func (*NATInfo) ProtoMessage() {}
 
 func (x *NATInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[1]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -634,7 +774,7 @@ func (x *NATInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NATInfo.ProtoReflect.Descriptor instead.
 func (*NATInfo) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{1}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *NATInfo) GetNatType() NATType {
@@ -685,7 +825,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[2]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -697,7 +837,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[2]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -710,7 +850,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{2}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *JoinRequest) GetMeshIp() string {
@@ -753,14 +893,18 @@ type JoinResponse struct {
 	PublicKey           string                 `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	PrivateKeyEncrypted string                 `protobuf:"bytes,2,opt,name=private_key_encrypted,json=privateKeyEncrypted,proto3" json:"private_key_encrypted,omitempty"` // returned for backend storage (Fernet)
 	Nat                 *NATInfo               `protobuf:"bytes,3,opt,name=nat,proto3" json:"nat,omitempty"`
-	Endpoint            string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"` // external_ip:external_port
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	Endpoint            string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"` // external_ip:external_port (legacy)
+	// Every address the daemon could plausibly be reachable at. Backend
+	// stores these so other peers can race them. Populated by the daemon
+	// enumerating its own interfaces + the NAT reflexive address.
+	Endpoints     []*PeerEndpoint `protobuf:"bytes,5,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[3]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -772,7 +916,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[3]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -785,7 +929,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{3}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *JoinResponse) GetPublicKey() string {
@@ -816,6 +960,13 @@ func (x *JoinResponse) GetEndpoint() string {
 	return ""
 }
 
+func (x *JoinResponse) GetEndpoints() []*PeerEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
 type LeaveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -825,7 +976,7 @@ type LeaveRequest struct {
 
 func (x *LeaveRequest) Reset() {
 	*x = LeaveRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[4]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -837,7 +988,7 @@ func (x *LeaveRequest) String() string {
 func (*LeaveRequest) ProtoMessage() {}
 
 func (x *LeaveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[4]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -850,7 +1001,7 @@ func (x *LeaveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveRequest.ProtoReflect.Descriptor instead.
 func (*LeaveRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{4}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LeaveRequest) GetReason() string {
@@ -868,7 +1019,7 @@ type LeaveResponse struct {
 
 func (x *LeaveResponse) Reset() {
 	*x = LeaveResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[5]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -880,7 +1031,7 @@ func (x *LeaveResponse) String() string {
 func (*LeaveResponse) ProtoMessage() {}
 
 func (x *LeaveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[5]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -893,7 +1044,7 @@ func (x *LeaveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LeaveResponse.ProtoReflect.Descriptor instead.
 func (*LeaveResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{5}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{6}
 }
 
 type StatusRequest struct {
@@ -904,7 +1055,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[6]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -916,7 +1067,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[6]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -929,7 +1080,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{6}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{7}
 }
 
 type StatusResponse struct {
@@ -956,7 +1107,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[7]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -968,7 +1119,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[7]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -981,7 +1132,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{7}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *StatusResponse) GetJoined() bool {
@@ -1055,7 +1206,7 @@ type VersionRequest struct {
 
 func (x *VersionRequest) Reset() {
 	*x = VersionRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[8]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1067,7 +1218,7 @@ func (x *VersionRequest) String() string {
 func (*VersionRequest) ProtoMessage() {}
 
 func (x *VersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[8]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1080,7 +1231,7 @@ func (x *VersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionRequest.ProtoReflect.Descriptor instead.
 func (*VersionRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{8}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{9}
 }
 
 type VersionResponse struct {
@@ -1094,7 +1245,7 @@ type VersionResponse struct {
 
 func (x *VersionResponse) Reset() {
 	*x = VersionResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[9]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1106,7 +1257,7 @@ func (x *VersionResponse) String() string {
 func (*VersionResponse) ProtoMessage() {}
 
 func (x *VersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[9]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1119,7 +1270,7 @@ func (x *VersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VersionResponse.ProtoReflect.Descriptor instead.
 func (*VersionResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{9}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *VersionResponse) GetVersion() string {
@@ -1144,22 +1295,26 @@ func (x *VersionResponse) GetBuildDate() string {
 }
 
 type AddPeerRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	MeshIp        string                 `protobuf:"bytes,2,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"`
-	PublicKey     string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Endpoint      string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	AllowedIps    []string               `protobuf:"bytes,5,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
-	Keepalive     uint32                 `protobuf:"varint,6,opt,name=keepalive,proto3" json:"keepalive,omitempty"`
-	RemoteNat     *NATInfo               `protobuf:"bytes,7,opt,name=remote_nat,json=remoteNat,proto3" json:"remote_nat,omitempty"`
-	ForceMethod   ConnectionMethod       `protobuf:"varint,8,opt,name=force_method,json=forceMethod,proto3,enum=gmesh.v1.ConnectionMethod" json:"force_method,omitempty"` // UNSPECIFIED → let engine choose
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	PeerId      int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	MeshIp      string                 `protobuf:"bytes,2,opt,name=mesh_ip,json=meshIp,proto3" json:"mesh_ip,omitempty"`
+	PublicKey   string                 `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Endpoint    string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	AllowedIps  []string               `protobuf:"bytes,5,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
+	Keepalive   uint32                 `protobuf:"varint,6,opt,name=keepalive,proto3" json:"keepalive,omitempty"`
+	RemoteNat   *NATInfo               `protobuf:"bytes,7,opt,name=remote_nat,json=remoteNat,proto3" json:"remote_nat,omitempty"`
+	ForceMethod ConnectionMethod       `protobuf:"varint,8,opt,name=force_method,json=forceMethod,proto3,enum=gmesh.v1.ConnectionMethod" json:"force_method,omitempty"` // UNSPECIFIED → let engine choose
+	// Multi-endpoint candidate list. When non-empty the engine races
+	// these in priority order and ignores `endpoint` (field 4). Stays
+	// optional so older coordinators still work.
+	Endpoints     []*PeerEndpoint `protobuf:"bytes,9,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddPeerRequest) Reset() {
 	*x = AddPeerRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[10]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1171,7 +1326,7 @@ func (x *AddPeerRequest) String() string {
 func (*AddPeerRequest) ProtoMessage() {}
 
 func (x *AddPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[10]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1184,7 +1339,7 @@ func (x *AddPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPeerRequest.ProtoReflect.Descriptor instead.
 func (*AddPeerRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{10}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AddPeerRequest) GetPeerId() int64 {
@@ -1243,6 +1398,13 @@ func (x *AddPeerRequest) GetForceMethod() ConnectionMethod {
 	return ConnectionMethod_CONN_METHOD_UNSPECIFIED
 }
 
+func (x *AddPeerRequest) GetEndpoints() []*PeerEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
 type AddPeerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
@@ -1252,7 +1414,7 @@ type AddPeerResponse struct {
 
 func (x *AddPeerResponse) Reset() {
 	*x = AddPeerResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[11]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1264,7 +1426,7 @@ func (x *AddPeerResponse) String() string {
 func (*AddPeerResponse) ProtoMessage() {}
 
 func (x *AddPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[11]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1277,7 +1439,7 @@ func (x *AddPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPeerResponse.ProtoReflect.Descriptor instead.
 func (*AddPeerResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{11}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AddPeerResponse) GetPeer() *Peer {
@@ -1296,7 +1458,7 @@ type RemovePeerRequest struct {
 
 func (x *RemovePeerRequest) Reset() {
 	*x = RemovePeerRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[12]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1308,7 +1470,7 @@ func (x *RemovePeerRequest) String() string {
 func (*RemovePeerRequest) ProtoMessage() {}
 
 func (x *RemovePeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[12]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1321,7 +1483,7 @@ func (x *RemovePeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePeerRequest.ProtoReflect.Descriptor instead.
 func (*RemovePeerRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{12}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RemovePeerRequest) GetPeerId() int64 {
@@ -1339,7 +1501,7 @@ type RemovePeerResponse struct {
 
 func (x *RemovePeerResponse) Reset() {
 	*x = RemovePeerResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[13]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1351,7 +1513,7 @@ func (x *RemovePeerResponse) String() string {
 func (*RemovePeerResponse) ProtoMessage() {}
 
 func (x *RemovePeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[13]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1364,22 +1526,24 @@ func (x *RemovePeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePeerResponse.ProtoReflect.Descriptor instead.
 func (*RemovePeerResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{13}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{14}
 }
 
 type UpdatePeerRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerId        int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	Endpoint      string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	AllowedIps    []string               `protobuf:"bytes,3,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
-	Keepalive     uint32                 `protobuf:"varint,4,opt,name=keepalive,proto3" json:"keepalive,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	PeerId     int64                  `protobuf:"varint,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	Endpoint   string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	AllowedIps []string               `protobuf:"bytes,3,rep,name=allowed_ips,json=allowedIps,proto3" json:"allowed_ips,omitempty"`
+	Keepalive  uint32                 `protobuf:"varint,4,opt,name=keepalive,proto3" json:"keepalive,omitempty"`
+	// Replaces the peer's candidate list (if non-empty). Engine re-races.
+	Endpoints     []*PeerEndpoint `protobuf:"bytes,5,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdatePeerRequest) Reset() {
 	*x = UpdatePeerRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[14]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1391,7 +1555,7 @@ func (x *UpdatePeerRequest) String() string {
 func (*UpdatePeerRequest) ProtoMessage() {}
 
 func (x *UpdatePeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[14]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1404,7 +1568,7 @@ func (x *UpdatePeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePeerRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePeerRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{14}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UpdatePeerRequest) GetPeerId() int64 {
@@ -1435,6 +1599,13 @@ func (x *UpdatePeerRequest) GetKeepalive() uint32 {
 	return 0
 }
 
+func (x *UpdatePeerRequest) GetEndpoints() []*PeerEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
 type UpdatePeerResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Peer          *Peer                  `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
@@ -1444,7 +1615,7 @@ type UpdatePeerResponse struct {
 
 func (x *UpdatePeerResponse) Reset() {
 	*x = UpdatePeerResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[15]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1456,7 +1627,7 @@ func (x *UpdatePeerResponse) String() string {
 func (*UpdatePeerResponse) ProtoMessage() {}
 
 func (x *UpdatePeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[15]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1469,7 +1640,7 @@ func (x *UpdatePeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePeerResponse.ProtoReflect.Descriptor instead.
 func (*UpdatePeerResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{15}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UpdatePeerResponse) GetPeer() *Peer {
@@ -1487,7 +1658,7 @@ type ListPeersRequest struct {
 
 func (x *ListPeersRequest) Reset() {
 	*x = ListPeersRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[16]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1499,7 +1670,7 @@ func (x *ListPeersRequest) String() string {
 func (*ListPeersRequest) ProtoMessage() {}
 
 func (x *ListPeersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[16]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1512,7 +1683,7 @@ func (x *ListPeersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeersRequest.ProtoReflect.Descriptor instead.
 func (*ListPeersRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{16}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{17}
 }
 
 type ListPeersResponse struct {
@@ -1524,7 +1695,7 @@ type ListPeersResponse struct {
 
 func (x *ListPeersResponse) Reset() {
 	*x = ListPeersResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[17]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1536,7 +1707,7 @@ func (x *ListPeersResponse) String() string {
 func (*ListPeersResponse) ProtoMessage() {}
 
 func (x *ListPeersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[17]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1549,7 +1720,7 @@ func (x *ListPeersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeersResponse.ProtoReflect.Descriptor instead.
 func (*ListPeersResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{17}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListPeersResponse) GetPeers() []*Peer {
@@ -1568,7 +1739,7 @@ type GetPeerStatsRequest struct {
 
 func (x *GetPeerStatsRequest) Reset() {
 	*x = GetPeerStatsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[18]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1580,7 +1751,7 @@ func (x *GetPeerStatsRequest) String() string {
 func (*GetPeerStatsRequest) ProtoMessage() {}
 
 func (x *GetPeerStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[18]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1593,7 +1764,7 @@ func (x *GetPeerStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetPeerStatsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{18}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetPeerStatsRequest) GetPeerId() int64 {
@@ -1612,7 +1783,7 @@ type GetPeerStatsResponse struct {
 
 func (x *GetPeerStatsResponse) Reset() {
 	*x = GetPeerStatsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[19]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1624,7 +1795,7 @@ func (x *GetPeerStatsResponse) String() string {
 func (*GetPeerStatsResponse) ProtoMessage() {}
 
 func (x *GetPeerStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[19]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1637,7 +1808,7 @@ func (x *GetPeerStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeerStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetPeerStatsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{19}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetPeerStatsResponse) GetPeer() *Peer {
@@ -1656,7 +1827,7 @@ type DiscoverNATRequest struct {
 
 func (x *DiscoverNATRequest) Reset() {
 	*x = DiscoverNATRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[20]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1668,7 +1839,7 @@ func (x *DiscoverNATRequest) String() string {
 func (*DiscoverNATRequest) ProtoMessage() {}
 
 func (x *DiscoverNATRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[20]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1681,7 +1852,7 @@ func (x *DiscoverNATRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverNATRequest.ProtoReflect.Descriptor instead.
 func (*DiscoverNATRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{20}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *DiscoverNATRequest) GetForceRefresh() bool {
@@ -1700,7 +1871,7 @@ type DiscoverNATResponse struct {
 
 func (x *DiscoverNATResponse) Reset() {
 	*x = DiscoverNATResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[21]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1712,7 +1883,7 @@ func (x *DiscoverNATResponse) String() string {
 func (*DiscoverNATResponse) ProtoMessage() {}
 
 func (x *DiscoverNATResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[21]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1725,7 +1896,7 @@ func (x *DiscoverNATResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscoverNATResponse.ProtoReflect.Descriptor instead.
 func (*DiscoverNATResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{21}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DiscoverNATResponse) GetNat() *NATInfo {
@@ -1746,7 +1917,7 @@ type HolePunchRequest struct {
 
 func (x *HolePunchRequest) Reset() {
 	*x = HolePunchRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[22]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1758,7 +1929,7 @@ func (x *HolePunchRequest) String() string {
 func (*HolePunchRequest) ProtoMessage() {}
 
 func (x *HolePunchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[22]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1771,7 +1942,7 @@ func (x *HolePunchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HolePunchRequest.ProtoReflect.Descriptor instead.
 func (*HolePunchRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{22}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *HolePunchRequest) GetPeerId() int64 {
@@ -1807,7 +1978,7 @@ type HolePunchResponse struct {
 
 func (x *HolePunchResponse) Reset() {
 	*x = HolePunchResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[23]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1819,7 +1990,7 @@ func (x *HolePunchResponse) String() string {
 func (*HolePunchResponse) ProtoMessage() {}
 
 func (x *HolePunchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[23]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1832,7 +2003,7 @@ func (x *HolePunchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HolePunchResponse.ProtoReflect.Descriptor instead.
 func (*HolePunchResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{23}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *HolePunchResponse) GetSuccess() bool {
@@ -1874,7 +2045,7 @@ type SetupRelayRequest struct {
 
 func (x *SetupRelayRequest) Reset() {
 	*x = SetupRelayRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[24]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1886,7 +2057,7 @@ func (x *SetupRelayRequest) String() string {
 func (*SetupRelayRequest) ProtoMessage() {}
 
 func (x *SetupRelayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[24]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1899,7 +2070,7 @@ func (x *SetupRelayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetupRelayRequest.ProtoReflect.Descriptor instead.
 func (*SetupRelayRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{24}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SetupRelayRequest) GetPeerId() int64 {
@@ -1933,7 +2104,7 @@ type SetupRelayResponse struct {
 
 func (x *SetupRelayResponse) Reset() {
 	*x = SetupRelayResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[25]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1945,7 +2116,7 @@ func (x *SetupRelayResponse) String() string {
 func (*SetupRelayResponse) ProtoMessage() {}
 
 func (x *SetupRelayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[25]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1958,7 +2129,7 @@ func (x *SetupRelayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetupRelayResponse.ProtoReflect.Descriptor instead.
 func (*SetupRelayResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{25}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SetupRelayResponse) GetOk() bool {
@@ -1985,7 +2156,7 @@ type AllocateWSTunnelRequest struct {
 
 func (x *AllocateWSTunnelRequest) Reset() {
 	*x = AllocateWSTunnelRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[26]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1997,7 +2168,7 @@ func (x *AllocateWSTunnelRequest) String() string {
 func (*AllocateWSTunnelRequest) ProtoMessage() {}
 
 func (x *AllocateWSTunnelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[26]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2010,7 +2181,7 @@ func (x *AllocateWSTunnelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocateWSTunnelRequest.ProtoReflect.Descriptor instead.
 func (*AllocateWSTunnelRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{26}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AllocateWSTunnelRequest) GetPeerId() int64 {
@@ -2037,7 +2208,7 @@ type AllocateWSTunnelResponse struct {
 
 func (x *AllocateWSTunnelResponse) Reset() {
 	*x = AllocateWSTunnelResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[27]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2049,7 +2220,7 @@ func (x *AllocateWSTunnelResponse) String() string {
 func (*AllocateWSTunnelResponse) ProtoMessage() {}
 
 func (x *AllocateWSTunnelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[27]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2062,7 +2233,7 @@ func (x *AllocateWSTunnelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AllocateWSTunnelResponse.ProtoReflect.Descriptor instead.
 func (*AllocateWSTunnelResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{27}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AllocateWSTunnelResponse) GetOk() bool {
@@ -2088,7 +2259,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[28]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2100,7 +2271,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[28]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2113,7 +2284,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{28}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *HealthCheckRequest) GetPeerId() int64 {
@@ -2132,7 +2303,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[29]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2144,7 +2315,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[29]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2157,7 +2328,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{29}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *HealthCheckResponse) GetPeers() []*HealthCheckResponse_PeerHealth {
@@ -2184,7 +2355,7 @@ type ScopeConnectRequest struct {
 
 func (x *ScopeConnectRequest) Reset() {
 	*x = ScopeConnectRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[30]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2196,7 +2367,7 @@ func (x *ScopeConnectRequest) String() string {
 func (*ScopeConnectRequest) ProtoMessage() {}
 
 func (x *ScopeConnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[30]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2209,7 +2380,7 @@ func (x *ScopeConnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeConnectRequest.ProtoReflect.Descriptor instead.
 func (*ScopeConnectRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{30}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ScopeConnectRequest) GetScopeId() int64 {
@@ -2284,7 +2455,7 @@ type ScopeConnectResponse struct {
 
 func (x *ScopeConnectResponse) Reset() {
 	*x = ScopeConnectResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[31]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2296,7 +2467,7 @@ func (x *ScopeConnectResponse) String() string {
 func (*ScopeConnectResponse) ProtoMessage() {}
 
 func (x *ScopeConnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[31]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2309,7 +2480,7 @@ func (x *ScopeConnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeConnectResponse.ProtoReflect.Descriptor instead.
 func (*ScopeConnectResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{31}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ScopeConnectResponse) GetPeer() *Peer {
@@ -2328,7 +2499,7 @@ type ScopeDisconnectRequest struct {
 
 func (x *ScopeDisconnectRequest) Reset() {
 	*x = ScopeDisconnectRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[32]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2340,7 +2511,7 @@ func (x *ScopeDisconnectRequest) String() string {
 func (*ScopeDisconnectRequest) ProtoMessage() {}
 
 func (x *ScopeDisconnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[32]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2353,7 +2524,7 @@ func (x *ScopeDisconnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeDisconnectRequest.ProtoReflect.Descriptor instead.
 func (*ScopeDisconnectRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{32}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ScopeDisconnectRequest) GetScopeId() int64 {
@@ -2371,7 +2542,7 @@ type ScopeDisconnectResponse struct {
 
 func (x *ScopeDisconnectResponse) Reset() {
 	*x = ScopeDisconnectResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[33]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2383,7 +2554,7 @@ func (x *ScopeDisconnectResponse) String() string {
 func (*ScopeDisconnectResponse) ProtoMessage() {}
 
 func (x *ScopeDisconnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[33]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2396,7 +2567,7 @@ func (x *ScopeDisconnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScopeDisconnectResponse.ProtoReflect.Descriptor instead.
 func (*ScopeDisconnectResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{33}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{34}
 }
 
 type FirewallRule struct {
@@ -2424,7 +2595,7 @@ type FirewallRule struct {
 
 func (x *FirewallRule) Reset() {
 	*x = FirewallRule{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[34]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2436,7 +2607,7 @@ func (x *FirewallRule) String() string {
 func (*FirewallRule) ProtoMessage() {}
 
 func (x *FirewallRule) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[34]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2449,7 +2620,7 @@ func (x *FirewallRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FirewallRule.ProtoReflect.Descriptor instead.
 func (*FirewallRule) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{34}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *FirewallRule) GetId() int64 {
@@ -2582,7 +2753,7 @@ type ApplyFirewallRequest struct {
 
 func (x *ApplyFirewallRequest) Reset() {
 	*x = ApplyFirewallRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[35]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2594,7 +2765,7 @@ func (x *ApplyFirewallRequest) String() string {
 func (*ApplyFirewallRequest) ProtoMessage() {}
 
 func (x *ApplyFirewallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[35]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2607,7 +2778,7 @@ func (x *ApplyFirewallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyFirewallRequest.ProtoReflect.Descriptor instead.
 func (*ApplyFirewallRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{35}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ApplyFirewallRequest) GetRules() []*FirewallRule {
@@ -2642,7 +2813,7 @@ type ApplyFirewallResponse struct {
 
 func (x *ApplyFirewallResponse) Reset() {
 	*x = ApplyFirewallResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[36]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2654,7 +2825,7 @@ func (x *ApplyFirewallResponse) String() string {
 func (*ApplyFirewallResponse) ProtoMessage() {}
 
 func (x *ApplyFirewallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[36]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2667,7 +2838,7 @@ func (x *ApplyFirewallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyFirewallResponse.ProtoReflect.Descriptor instead.
 func (*ApplyFirewallResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{36}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ApplyFirewallResponse) GetAppliedCount() int32 {
@@ -2699,7 +2870,7 @@ type ResetFirewallRequest struct {
 
 func (x *ResetFirewallRequest) Reset() {
 	*x = ResetFirewallRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[37]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2711,7 +2882,7 @@ func (x *ResetFirewallRequest) String() string {
 func (*ResetFirewallRequest) ProtoMessage() {}
 
 func (x *ResetFirewallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[37]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2724,7 +2895,7 @@ func (x *ResetFirewallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetFirewallRequest.ProtoReflect.Descriptor instead.
 func (*ResetFirewallRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{37}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{38}
 }
 
 type ResetFirewallResponse struct {
@@ -2735,7 +2906,7 @@ type ResetFirewallResponse struct {
 
 func (x *ResetFirewallResponse) Reset() {
 	*x = ResetFirewallResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[38]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2747,7 +2918,7 @@ func (x *ResetFirewallResponse) String() string {
 func (*ResetFirewallResponse) ProtoMessage() {}
 
 func (x *ResetFirewallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[38]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2760,7 +2931,7 @@ func (x *ResetFirewallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetFirewallResponse.ProtoReflect.Descriptor instead.
 func (*ResetFirewallResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{38}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{39}
 }
 
 type GetFirewallStatusRequest struct {
@@ -2771,7 +2942,7 @@ type GetFirewallStatusRequest struct {
 
 func (x *GetFirewallStatusRequest) Reset() {
 	*x = GetFirewallStatusRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[39]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2783,7 +2954,7 @@ func (x *GetFirewallStatusRequest) String() string {
 func (*GetFirewallStatusRequest) ProtoMessage() {}
 
 func (x *GetFirewallStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[39]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2796,7 +2967,7 @@ func (x *GetFirewallStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFirewallStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetFirewallStatusRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{39}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{40}
 }
 
 type GetFirewallStatusResponse struct {
@@ -2811,7 +2982,7 @@ type GetFirewallStatusResponse struct {
 
 func (x *GetFirewallStatusResponse) Reset() {
 	*x = GetFirewallStatusResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[40]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2823,7 +2994,7 @@ func (x *GetFirewallStatusResponse) String() string {
 func (*GetFirewallStatusResponse) ProtoMessage() {}
 
 func (x *GetFirewallStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[40]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2836,7 +3007,7 @@ func (x *GetFirewallStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFirewallStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetFirewallStatusResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{40}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetFirewallStatusResponse) GetActiveRules() int32 {
@@ -2876,7 +3047,7 @@ type SubscribeEventsRequest struct {
 
 func (x *SubscribeEventsRequest) Reset() {
 	*x = SubscribeEventsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[41]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2888,7 +3059,7 @@ func (x *SubscribeEventsRequest) String() string {
 func (*SubscribeEventsRequest) ProtoMessage() {}
 
 func (x *SubscribeEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[41]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2901,7 +3072,7 @@ func (x *SubscribeEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeEventsRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeEventsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{41}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *SubscribeEventsRequest) GetTypes() []string {
@@ -2923,7 +3094,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[42]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2935,7 +3106,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[42]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2948,7 +3119,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{42}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *Event) GetTimestampUnixMs() int64 {
@@ -3014,7 +3185,7 @@ type EgressProfile struct {
 
 func (x *EgressProfile) Reset() {
 	*x = EgressProfile{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3026,7 +3197,7 @@ func (x *EgressProfile) String() string {
 func (*EgressProfile) ProtoMessage() {}
 
 func (x *EgressProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[43]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3039,7 +3210,7 @@ func (x *EgressProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EgressProfile.ProtoReflect.Descriptor instead.
 func (*EgressProfile) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{43}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *EgressProfile) GetId() int64 {
@@ -3163,7 +3334,7 @@ type CreateEgressProfileRequest struct {
 
 func (x *CreateEgressProfileRequest) Reset() {
 	*x = CreateEgressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3175,7 +3346,7 @@ func (x *CreateEgressProfileRequest) String() string {
 func (*CreateEgressProfileRequest) ProtoMessage() {}
 
 func (x *CreateEgressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[44]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3188,7 +3359,7 @@ func (x *CreateEgressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateEgressProfileRequest.ProtoReflect.Descriptor instead.
 func (*CreateEgressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{44}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CreateEgressProfileRequest) GetProfile() *EgressProfile {
@@ -3207,7 +3378,7 @@ type UpdateEgressProfileRequest struct {
 
 func (x *UpdateEgressProfileRequest) Reset() {
 	*x = UpdateEgressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3219,7 +3390,7 @@ func (x *UpdateEgressProfileRequest) String() string {
 func (*UpdateEgressProfileRequest) ProtoMessage() {}
 
 func (x *UpdateEgressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[45]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3232,7 +3403,7 @@ func (x *UpdateEgressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateEgressProfileRequest.ProtoReflect.Descriptor instead.
 func (*UpdateEgressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{45}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *UpdateEgressProfileRequest) GetProfile() *EgressProfile {
@@ -3251,7 +3422,7 @@ type EgressProfileResponse struct {
 
 func (x *EgressProfileResponse) Reset() {
 	*x = EgressProfileResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3263,7 +3434,7 @@ func (x *EgressProfileResponse) String() string {
 func (*EgressProfileResponse) ProtoMessage() {}
 
 func (x *EgressProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[46]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3276,7 +3447,7 @@ func (x *EgressProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EgressProfileResponse.ProtoReflect.Descriptor instead.
 func (*EgressProfileResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{46}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *EgressProfileResponse) GetProfile() *EgressProfile {
@@ -3295,7 +3466,7 @@ type DeleteEgressProfileRequest struct {
 
 func (x *DeleteEgressProfileRequest) Reset() {
 	*x = DeleteEgressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3307,7 +3478,7 @@ func (x *DeleteEgressProfileRequest) String() string {
 func (*DeleteEgressProfileRequest) ProtoMessage() {}
 
 func (x *DeleteEgressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[47]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3320,7 +3491,7 @@ func (x *DeleteEgressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteEgressProfileRequest.ProtoReflect.Descriptor instead.
 func (*DeleteEgressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{47}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *DeleteEgressProfileRequest) GetId() int64 {
@@ -3338,7 +3509,7 @@ type DeleteEgressProfileResponse struct {
 
 func (x *DeleteEgressProfileResponse) Reset() {
 	*x = DeleteEgressProfileResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3350,7 +3521,7 @@ func (x *DeleteEgressProfileResponse) String() string {
 func (*DeleteEgressProfileResponse) ProtoMessage() {}
 
 func (x *DeleteEgressProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[48]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3363,7 +3534,7 @@ func (x *DeleteEgressProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteEgressProfileResponse.ProtoReflect.Descriptor instead.
 func (*DeleteEgressProfileResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{48}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{49}
 }
 
 type ListEgressProfilesRequest struct {
@@ -3374,7 +3545,7 @@ type ListEgressProfilesRequest struct {
 
 func (x *ListEgressProfilesRequest) Reset() {
 	*x = ListEgressProfilesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3386,7 +3557,7 @@ func (x *ListEgressProfilesRequest) String() string {
 func (*ListEgressProfilesRequest) ProtoMessage() {}
 
 func (x *ListEgressProfilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[49]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3399,7 +3570,7 @@ func (x *ListEgressProfilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEgressProfilesRequest.ProtoReflect.Descriptor instead.
 func (*ListEgressProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{49}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{50}
 }
 
 type ListEgressProfilesResponse struct {
@@ -3411,7 +3582,7 @@ type ListEgressProfilesResponse struct {
 
 func (x *ListEgressProfilesResponse) Reset() {
 	*x = ListEgressProfilesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3423,7 +3594,7 @@ func (x *ListEgressProfilesResponse) String() string {
 func (*ListEgressProfilesResponse) ProtoMessage() {}
 
 func (x *ListEgressProfilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[50]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3436,7 +3607,7 @@ func (x *ListEgressProfilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEgressProfilesResponse.ProtoReflect.Descriptor instead.
 func (*ListEgressProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{50}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *ListEgressProfilesResponse) GetProfiles() []*EgressProfile {
@@ -3457,7 +3628,7 @@ type EnableExitRequest struct {
 
 func (x *EnableExitRequest) Reset() {
 	*x = EnableExitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3469,7 +3640,7 @@ func (x *EnableExitRequest) String() string {
 func (*EnableExitRequest) ProtoMessage() {}
 
 func (x *EnableExitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[51]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3482,7 +3653,7 @@ func (x *EnableExitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableExitRequest.ProtoReflect.Descriptor instead.
 func (*EnableExitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{51}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *EnableExitRequest) GetAllowedPeerIds() []int64 {
@@ -3500,7 +3671,7 @@ type EnableExitResponse struct {
 
 func (x *EnableExitResponse) Reset() {
 	*x = EnableExitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3512,7 +3683,7 @@ func (x *EnableExitResponse) String() string {
 func (*EnableExitResponse) ProtoMessage() {}
 
 func (x *EnableExitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[52]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3525,7 +3696,7 @@ func (x *EnableExitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableExitResponse.ProtoReflect.Descriptor instead.
 func (*EnableExitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{52}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{53}
 }
 
 type DisableExitRequest struct {
@@ -3536,7 +3707,7 @@ type DisableExitRequest struct {
 
 func (x *DisableExitRequest) Reset() {
 	*x = DisableExitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3548,7 +3719,7 @@ func (x *DisableExitRequest) String() string {
 func (*DisableExitRequest) ProtoMessage() {}
 
 func (x *DisableExitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[53]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3561,7 +3732,7 @@ func (x *DisableExitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableExitRequest.ProtoReflect.Descriptor instead.
 func (*DisableExitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{53}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{54}
 }
 
 type DisableExitResponse struct {
@@ -3572,7 +3743,7 @@ type DisableExitResponse struct {
 
 func (x *DisableExitResponse) Reset() {
 	*x = DisableExitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3584,7 +3755,7 @@ func (x *DisableExitResponse) String() string {
 func (*DisableExitResponse) ProtoMessage() {}
 
 func (x *DisableExitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[54]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3597,7 +3768,7 @@ func (x *DisableExitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableExitResponse.ProtoReflect.Descriptor instead.
 func (*DisableExitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{54}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{55}
 }
 
 type IngressProfile struct {
@@ -3626,7 +3797,7 @@ type IngressProfile struct {
 
 func (x *IngressProfile) Reset() {
 	*x = IngressProfile{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3638,7 +3809,7 @@ func (x *IngressProfile) String() string {
 func (*IngressProfile) ProtoMessage() {}
 
 func (x *IngressProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[55]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3651,7 +3822,7 @@ func (x *IngressProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngressProfile.ProtoReflect.Descriptor instead.
 func (*IngressProfile) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{55}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *IngressProfile) GetId() int64 {
@@ -3761,7 +3932,7 @@ type CreateIngressProfileRequest struct {
 
 func (x *CreateIngressProfileRequest) Reset() {
 	*x = CreateIngressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[56]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3773,7 +3944,7 @@ func (x *CreateIngressProfileRequest) String() string {
 func (*CreateIngressProfileRequest) ProtoMessage() {}
 
 func (x *CreateIngressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[56]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3786,7 +3957,7 @@ func (x *CreateIngressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIngressProfileRequest.ProtoReflect.Descriptor instead.
 func (*CreateIngressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{56}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CreateIngressProfileRequest) GetProfile() *IngressProfile {
@@ -3805,7 +3976,7 @@ type UpdateIngressProfileRequest struct {
 
 func (x *UpdateIngressProfileRequest) Reset() {
 	*x = UpdateIngressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[57]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3817,7 +3988,7 @@ func (x *UpdateIngressProfileRequest) String() string {
 func (*UpdateIngressProfileRequest) ProtoMessage() {}
 
 func (x *UpdateIngressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[57]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3830,7 +4001,7 @@ func (x *UpdateIngressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateIngressProfileRequest.ProtoReflect.Descriptor instead.
 func (*UpdateIngressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{57}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *UpdateIngressProfileRequest) GetProfile() *IngressProfile {
@@ -3849,7 +4020,7 @@ type IngressProfileResponse struct {
 
 func (x *IngressProfileResponse) Reset() {
 	*x = IngressProfileResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[58]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3861,7 +4032,7 @@ func (x *IngressProfileResponse) String() string {
 func (*IngressProfileResponse) ProtoMessage() {}
 
 func (x *IngressProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[58]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3874,7 +4045,7 @@ func (x *IngressProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngressProfileResponse.ProtoReflect.Descriptor instead.
 func (*IngressProfileResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{58}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *IngressProfileResponse) GetProfile() *IngressProfile {
@@ -3893,7 +4064,7 @@ type DeleteIngressProfileRequest struct {
 
 func (x *DeleteIngressProfileRequest) Reset() {
 	*x = DeleteIngressProfileRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[59]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3905,7 +4076,7 @@ func (x *DeleteIngressProfileRequest) String() string {
 func (*DeleteIngressProfileRequest) ProtoMessage() {}
 
 func (x *DeleteIngressProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[59]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3918,7 +4089,7 @@ func (x *DeleteIngressProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIngressProfileRequest.ProtoReflect.Descriptor instead.
 func (*DeleteIngressProfileRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{59}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *DeleteIngressProfileRequest) GetId() int64 {
@@ -3936,7 +4107,7 @@ type DeleteIngressProfileResponse struct {
 
 func (x *DeleteIngressProfileResponse) Reset() {
 	*x = DeleteIngressProfileResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[60]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3948,7 +4119,7 @@ func (x *DeleteIngressProfileResponse) String() string {
 func (*DeleteIngressProfileResponse) ProtoMessage() {}
 
 func (x *DeleteIngressProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[60]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3961,7 +4132,7 @@ func (x *DeleteIngressProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIngressProfileResponse.ProtoReflect.Descriptor instead.
 func (*DeleteIngressProfileResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{60}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{61}
 }
 
 type ListIngressProfilesRequest struct {
@@ -3972,7 +4143,7 @@ type ListIngressProfilesRequest struct {
 
 func (x *ListIngressProfilesRequest) Reset() {
 	*x = ListIngressProfilesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[61]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3984,7 +4155,7 @@ func (x *ListIngressProfilesRequest) String() string {
 func (*ListIngressProfilesRequest) ProtoMessage() {}
 
 func (x *ListIngressProfilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[61]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3997,7 +4168,7 @@ func (x *ListIngressProfilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIngressProfilesRequest.ProtoReflect.Descriptor instead.
 func (*ListIngressProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{61}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{62}
 }
 
 type ListIngressProfilesResponse struct {
@@ -4009,7 +4180,7 @@ type ListIngressProfilesResponse struct {
 
 func (x *ListIngressProfilesResponse) Reset() {
 	*x = ListIngressProfilesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[62]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4021,7 +4192,7 @@ func (x *ListIngressProfilesResponse) String() string {
 func (*ListIngressProfilesResponse) ProtoMessage() {}
 
 func (x *ListIngressProfilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[62]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4034,7 +4205,7 @@ func (x *ListIngressProfilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIngressProfilesResponse.ProtoReflect.Descriptor instead.
 func (*ListIngressProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{62}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *ListIngressProfilesResponse) GetProfiles() []*IngressProfile {
@@ -4091,7 +4262,7 @@ type Quota struct {
 
 func (x *Quota) Reset() {
 	*x = Quota{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[63]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4103,7 +4274,7 @@ func (x *Quota) String() string {
 func (*Quota) ProtoMessage() {}
 
 func (x *Quota) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[63]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4116,7 +4287,7 @@ func (x *Quota) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Quota.ProtoReflect.Descriptor instead.
 func (*Quota) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{63}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *Quota) GetId() int64 {
@@ -4275,7 +4446,7 @@ type CreateQuotaRequest struct {
 
 func (x *CreateQuotaRequest) Reset() {
 	*x = CreateQuotaRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[64]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4287,7 +4458,7 @@ func (x *CreateQuotaRequest) String() string {
 func (*CreateQuotaRequest) ProtoMessage() {}
 
 func (x *CreateQuotaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[64]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4300,7 +4471,7 @@ func (x *CreateQuotaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateQuotaRequest.ProtoReflect.Descriptor instead.
 func (*CreateQuotaRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{64}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CreateQuotaRequest) GetQuota() *Quota {
@@ -4319,7 +4490,7 @@ type UpdateQuotaRequest struct {
 
 func (x *UpdateQuotaRequest) Reset() {
 	*x = UpdateQuotaRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[65]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4331,7 +4502,7 @@ func (x *UpdateQuotaRequest) String() string {
 func (*UpdateQuotaRequest) ProtoMessage() {}
 
 func (x *UpdateQuotaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[65]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4344,7 +4515,7 @@ func (x *UpdateQuotaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateQuotaRequest.ProtoReflect.Descriptor instead.
 func (*UpdateQuotaRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{65}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *UpdateQuotaRequest) GetQuota() *Quota {
@@ -4363,7 +4534,7 @@ type QuotaResponse struct {
 
 func (x *QuotaResponse) Reset() {
 	*x = QuotaResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[66]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4375,7 +4546,7 @@ func (x *QuotaResponse) String() string {
 func (*QuotaResponse) ProtoMessage() {}
 
 func (x *QuotaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[66]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4388,7 +4559,7 @@ func (x *QuotaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuotaResponse.ProtoReflect.Descriptor instead.
 func (*QuotaResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{66}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *QuotaResponse) GetQuota() *Quota {
@@ -4407,7 +4578,7 @@ type DeleteQuotaRequest struct {
 
 func (x *DeleteQuotaRequest) Reset() {
 	*x = DeleteQuotaRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[67]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4419,7 +4590,7 @@ func (x *DeleteQuotaRequest) String() string {
 func (*DeleteQuotaRequest) ProtoMessage() {}
 
 func (x *DeleteQuotaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[67]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4432,7 +4603,7 @@ func (x *DeleteQuotaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteQuotaRequest.ProtoReflect.Descriptor instead.
 func (*DeleteQuotaRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{67}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *DeleteQuotaRequest) GetId() int64 {
@@ -4450,7 +4621,7 @@ type DeleteQuotaResponse struct {
 
 func (x *DeleteQuotaResponse) Reset() {
 	*x = DeleteQuotaResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[68]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4462,7 +4633,7 @@ func (x *DeleteQuotaResponse) String() string {
 func (*DeleteQuotaResponse) ProtoMessage() {}
 
 func (x *DeleteQuotaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[68]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4475,7 +4646,7 @@ func (x *DeleteQuotaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteQuotaResponse.ProtoReflect.Descriptor instead.
 func (*DeleteQuotaResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{68}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{69}
 }
 
 type ListQuotasRequest struct {
@@ -4486,7 +4657,7 @@ type ListQuotasRequest struct {
 
 func (x *ListQuotasRequest) Reset() {
 	*x = ListQuotasRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[69]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4498,7 +4669,7 @@ func (x *ListQuotasRequest) String() string {
 func (*ListQuotasRequest) ProtoMessage() {}
 
 func (x *ListQuotasRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[69]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4511,7 +4682,7 @@ func (x *ListQuotasRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListQuotasRequest.ProtoReflect.Descriptor instead.
 func (*ListQuotasRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{69}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{70}
 }
 
 type ListQuotasResponse struct {
@@ -4523,7 +4694,7 @@ type ListQuotasResponse struct {
 
 func (x *ListQuotasResponse) Reset() {
 	*x = ListQuotasResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[70]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4535,7 +4706,7 @@ func (x *ListQuotasResponse) String() string {
 func (*ListQuotasResponse) ProtoMessage() {}
 
 func (x *ListQuotasResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[70]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4548,7 +4719,7 @@ func (x *ListQuotasResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListQuotasResponse.ProtoReflect.Descriptor instead.
 func (*ListQuotasResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{70}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *ListQuotasResponse) GetQuotas() []*Quota {
@@ -4567,7 +4738,7 @@ type GetQuotaUsageRequest struct {
 
 func (x *GetQuotaUsageRequest) Reset() {
 	*x = GetQuotaUsageRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[71]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4579,7 +4750,7 @@ func (x *GetQuotaUsageRequest) String() string {
 func (*GetQuotaUsageRequest) ProtoMessage() {}
 
 func (x *GetQuotaUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[71]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4592,7 +4763,7 @@ func (x *GetQuotaUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetQuotaUsageRequest.ProtoReflect.Descriptor instead.
 func (*GetQuotaUsageRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{71}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *GetQuotaUsageRequest) GetId() int64 {
@@ -4611,7 +4782,7 @@ type GetQuotaUsageResponse struct {
 
 func (x *GetQuotaUsageResponse) Reset() {
 	*x = GetQuotaUsageResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[72]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4623,7 +4794,7 @@ func (x *GetQuotaUsageResponse) String() string {
 func (*GetQuotaUsageResponse) ProtoMessage() {}
 
 func (x *GetQuotaUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[72]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4636,7 +4807,7 @@ func (x *GetQuotaUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetQuotaUsageResponse.ProtoReflect.Descriptor instead.
 func (*GetQuotaUsageResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{72}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetQuotaUsageResponse) GetQuotas() []*Quota {
@@ -4655,7 +4826,7 @@ type ResetQuotaRequest struct {
 
 func (x *ResetQuotaRequest) Reset() {
 	*x = ResetQuotaRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[73]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4667,7 +4838,7 @@ func (x *ResetQuotaRequest) String() string {
 func (*ResetQuotaRequest) ProtoMessage() {}
 
 func (x *ResetQuotaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[73]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4680,7 +4851,7 @@ func (x *ResetQuotaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetQuotaRequest.ProtoReflect.Descriptor instead.
 func (*ResetQuotaRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{73}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *ResetQuotaRequest) GetId() int64 {
@@ -4698,7 +4869,7 @@ type ResetQuotaResponse struct {
 
 func (x *ResetQuotaResponse) Reset() {
 	*x = ResetQuotaResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[74]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4710,7 +4881,7 @@ func (x *ResetQuotaResponse) String() string {
 func (*ResetQuotaResponse) ProtoMessage() {}
 
 func (x *ResetQuotaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[74]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4723,7 +4894,7 @@ func (x *ResetQuotaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetQuotaResponse.ProtoReflect.Descriptor instead.
 func (*ResetQuotaResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{74}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{75}
 }
 
 type PathState struct {
@@ -4745,7 +4916,7 @@ type PathState struct {
 
 func (x *PathState) Reset() {
 	*x = PathState{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4757,7 +4928,7 @@ func (x *PathState) String() string {
 func (*PathState) ProtoMessage() {}
 
 func (x *PathState) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[75]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4770,7 +4941,7 @@ func (x *PathState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PathState.ProtoReflect.Descriptor instead.
 func (*PathState) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{75}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *PathState) GetPeerId() int64 {
@@ -4858,7 +5029,7 @@ type ListPathStatesRequest struct {
 
 func (x *ListPathStatesRequest) Reset() {
 	*x = ListPathStatesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4870,7 +5041,7 @@ func (x *ListPathStatesRequest) String() string {
 func (*ListPathStatesRequest) ProtoMessage() {}
 
 func (x *ListPathStatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[76]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4883,7 +5054,7 @@ func (x *ListPathStatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPathStatesRequest.ProtoReflect.Descriptor instead.
 func (*ListPathStatesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{76}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{77}
 }
 
 type ListPathStatesResponse struct {
@@ -4895,7 +5066,7 @@ type ListPathStatesResponse struct {
 
 func (x *ListPathStatesResponse) Reset() {
 	*x = ListPathStatesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4907,7 +5078,7 @@ func (x *ListPathStatesResponse) String() string {
 func (*ListPathStatesResponse) ProtoMessage() {}
 
 func (x *ListPathStatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[77]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4920,7 +5091,7 @@ func (x *ListPathStatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPathStatesResponse.ProtoReflect.Descriptor instead.
 func (*ListPathStatesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{77}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ListPathStatesResponse) GetStates() []*PathState {
@@ -4949,7 +5120,7 @@ type Policy struct {
 
 func (x *Policy) Reset() {
 	*x = Policy{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4961,7 +5132,7 @@ func (x *Policy) String() string {
 func (*Policy) ProtoMessage() {}
 
 func (x *Policy) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[78]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4974,7 +5145,7 @@ func (x *Policy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Policy.ProtoReflect.Descriptor instead.
 func (*Policy) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{78}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *Policy) GetName() string {
@@ -5062,7 +5233,7 @@ type ListPoliciesRequest struct {
 
 func (x *ListPoliciesRequest) Reset() {
 	*x = ListPoliciesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[79]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5074,7 +5245,7 @@ func (x *ListPoliciesRequest) String() string {
 func (*ListPoliciesRequest) ProtoMessage() {}
 
 func (x *ListPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[79]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5087,7 +5258,7 @@ func (x *ListPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*ListPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{79}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{80}
 }
 
 type ListPoliciesResponse struct {
@@ -5099,7 +5270,7 @@ type ListPoliciesResponse struct {
 
 func (x *ListPoliciesResponse) Reset() {
 	*x = ListPoliciesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[80]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5111,7 +5282,7 @@ func (x *ListPoliciesResponse) String() string {
 func (*ListPoliciesResponse) ProtoMessage() {}
 
 func (x *ListPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[80]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5124,7 +5295,7 @@ func (x *ListPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*ListPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{80}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ListPoliciesResponse) GetPolicies() []*Policy {
@@ -5142,7 +5313,7 @@ type ReloadPoliciesRequest struct {
 
 func (x *ReloadPoliciesRequest) Reset() {
 	*x = ReloadPoliciesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[81]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5154,7 +5325,7 @@ func (x *ReloadPoliciesRequest) String() string {
 func (*ReloadPoliciesRequest) ProtoMessage() {}
 
 func (x *ReloadPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[81]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5167,7 +5338,7 @@ func (x *ReloadPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*ReloadPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{81}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{82}
 }
 
 type ReloadPoliciesResponse struct {
@@ -5180,7 +5351,7 @@ type ReloadPoliciesResponse struct {
 
 func (x *ReloadPoliciesResponse) Reset() {
 	*x = ReloadPoliciesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[82]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5192,7 +5363,7 @@ func (x *ReloadPoliciesResponse) String() string {
 func (*ReloadPoliciesResponse) ProtoMessage() {}
 
 func (x *ReloadPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[82]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5205,7 +5376,7 @@ func (x *ReloadPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*ReloadPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{82}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *ReloadPoliciesResponse) GetLoaded() int64 {
@@ -5241,7 +5412,7 @@ type L7Flow struct {
 
 func (x *L7Flow) Reset() {
 	*x = L7Flow{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5253,7 +5424,7 @@ func (x *L7Flow) String() string {
 func (*L7Flow) ProtoMessage() {}
 
 func (x *L7Flow) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[83]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5266,7 +5437,7 @@ func (x *L7Flow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use L7Flow.ProtoReflect.Descriptor instead.
 func (*L7Flow) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{83}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *L7Flow) GetSrcIp() string {
@@ -5358,7 +5529,7 @@ type L7Total struct {
 
 func (x *L7Total) Reset() {
 	*x = L7Total{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5370,7 +5541,7 @@ func (x *L7Total) String() string {
 func (*L7Total) ProtoMessage() {}
 
 func (x *L7Total) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[84]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5383,7 +5554,7 @@ func (x *L7Total) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use L7Total.ProtoReflect.Descriptor instead.
 func (*L7Total) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{84}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *L7Total) GetPeerId() int64 {
@@ -5423,7 +5594,7 @@ type ListL7FlowsRequest struct {
 
 func (x *ListL7FlowsRequest) Reset() {
 	*x = ListL7FlowsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5435,7 +5606,7 @@ func (x *ListL7FlowsRequest) String() string {
 func (*ListL7FlowsRequest) ProtoMessage() {}
 
 func (x *ListL7FlowsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[85]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5448,7 +5619,7 @@ func (x *ListL7FlowsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListL7FlowsRequest.ProtoReflect.Descriptor instead.
 func (*ListL7FlowsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{85}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ListL7FlowsRequest) GetPeerId() int64 {
@@ -5467,7 +5638,7 @@ type ListL7FlowsResponse struct {
 
 func (x *ListL7FlowsResponse) Reset() {
 	*x = ListL7FlowsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5479,7 +5650,7 @@ func (x *ListL7FlowsResponse) String() string {
 func (*ListL7FlowsResponse) ProtoMessage() {}
 
 func (x *ListL7FlowsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[86]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5492,7 +5663,7 @@ func (x *ListL7FlowsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListL7FlowsResponse.ProtoReflect.Descriptor instead.
 func (*ListL7FlowsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{86}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ListL7FlowsResponse) GetFlows() []*L7Flow {
@@ -5511,7 +5682,7 @@ type ListL7TotalsRequest struct {
 
 func (x *ListL7TotalsRequest) Reset() {
 	*x = ListL7TotalsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5523,7 +5694,7 @@ func (x *ListL7TotalsRequest) String() string {
 func (*ListL7TotalsRequest) ProtoMessage() {}
 
 func (x *ListL7TotalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[87]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5536,7 +5707,7 @@ func (x *ListL7TotalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListL7TotalsRequest.ProtoReflect.Descriptor instead.
 func (*ListL7TotalsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{87}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *ListL7TotalsRequest) GetPeerId() int64 {
@@ -5555,7 +5726,7 @@ type ListL7TotalsResponse struct {
 
 func (x *ListL7TotalsResponse) Reset() {
 	*x = ListL7TotalsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5567,7 +5738,7 @@ func (x *ListL7TotalsResponse) String() string {
 func (*ListL7TotalsResponse) ProtoMessage() {}
 
 func (x *ListL7TotalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[88]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5580,7 +5751,7 @@ func (x *ListL7TotalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListL7TotalsResponse.ProtoReflect.Descriptor instead.
 func (*ListL7TotalsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{88}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *ListL7TotalsResponse) GetTotals() []*L7Total {
@@ -5604,7 +5775,7 @@ type Anomaly struct {
 
 func (x *Anomaly) Reset() {
 	*x = Anomaly{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5616,7 +5787,7 @@ func (x *Anomaly) String() string {
 func (*Anomaly) ProtoMessage() {}
 
 func (x *Anomaly) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[89]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5629,7 +5800,7 @@ func (x *Anomaly) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Anomaly.ProtoReflect.Descriptor instead.
 func (*Anomaly) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{89}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *Anomaly) GetDetector() string {
@@ -5684,7 +5855,7 @@ type ListAnomaliesRequest struct {
 
 func (x *ListAnomaliesRequest) Reset() {
 	*x = ListAnomaliesRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5696,7 +5867,7 @@ func (x *ListAnomaliesRequest) String() string {
 func (*ListAnomaliesRequest) ProtoMessage() {}
 
 func (x *ListAnomaliesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[90]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5709,7 +5880,7 @@ func (x *ListAnomaliesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAnomaliesRequest.ProtoReflect.Descriptor instead.
 func (*ListAnomaliesRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{90}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *ListAnomaliesRequest) GetPeerId() int64 {
@@ -5735,7 +5906,7 @@ type ListAnomaliesResponse struct {
 
 func (x *ListAnomaliesResponse) Reset() {
 	*x = ListAnomaliesResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5747,7 +5918,7 @@ func (x *ListAnomaliesResponse) String() string {
 func (*ListAnomaliesResponse) ProtoMessage() {}
 
 func (x *ListAnomaliesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[91]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5760,7 +5931,7 @@ func (x *ListAnomaliesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAnomaliesResponse.ProtoReflect.Descriptor instead.
 func (*ListAnomaliesResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{91}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *ListAnomaliesResponse) GetAlerts() []*Anomaly {
@@ -5789,7 +5960,7 @@ type Circuit struct {
 
 func (x *Circuit) Reset() {
 	*x = Circuit{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5801,7 +5972,7 @@ func (x *Circuit) String() string {
 func (*Circuit) ProtoMessage() {}
 
 func (x *Circuit) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[92]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5814,7 +5985,7 @@ func (x *Circuit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Circuit.ProtoReflect.Descriptor instead.
 func (*Circuit) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{92}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *Circuit) GetId() int64 {
@@ -5903,7 +6074,7 @@ type CreateCircuitRequest struct {
 
 func (x *CreateCircuitRequest) Reset() {
 	*x = CreateCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5915,7 +6086,7 @@ func (x *CreateCircuitRequest) String() string {
 func (*CreateCircuitRequest) ProtoMessage() {}
 
 func (x *CreateCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[93]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5928,7 +6099,7 @@ func (x *CreateCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCircuitRequest.ProtoReflect.Descriptor instead.
 func (*CreateCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{93}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *CreateCircuitRequest) GetCircuit() *Circuit {
@@ -5947,7 +6118,7 @@ type UpdateCircuitRequest struct {
 
 func (x *UpdateCircuitRequest) Reset() {
 	*x = UpdateCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5959,7 +6130,7 @@ func (x *UpdateCircuitRequest) String() string {
 func (*UpdateCircuitRequest) ProtoMessage() {}
 
 func (x *UpdateCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[94]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5972,7 +6143,7 @@ func (x *UpdateCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCircuitRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{94}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *UpdateCircuitRequest) GetCircuit() *Circuit {
@@ -5991,7 +6162,7 @@ type CircuitResponse struct {
 
 func (x *CircuitResponse) Reset() {
 	*x = CircuitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6003,7 +6174,7 @@ func (x *CircuitResponse) String() string {
 func (*CircuitResponse) ProtoMessage() {}
 
 func (x *CircuitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[95]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6016,7 +6187,7 @@ func (x *CircuitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitResponse.ProtoReflect.Descriptor instead.
 func (*CircuitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{95}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *CircuitResponse) GetCircuit() *Circuit {
@@ -6035,7 +6206,7 @@ type DeleteCircuitRequest struct {
 
 func (x *DeleteCircuitRequest) Reset() {
 	*x = DeleteCircuitRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6047,7 +6218,7 @@ func (x *DeleteCircuitRequest) String() string {
 func (*DeleteCircuitRequest) ProtoMessage() {}
 
 func (x *DeleteCircuitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[96]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6060,7 +6231,7 @@ func (x *DeleteCircuitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCircuitRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCircuitRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{96}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *DeleteCircuitRequest) GetId() int64 {
@@ -6078,7 +6249,7 @@ type DeleteCircuitResponse struct {
 
 func (x *DeleteCircuitResponse) Reset() {
 	*x = DeleteCircuitResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6090,7 +6261,7 @@ func (x *DeleteCircuitResponse) String() string {
 func (*DeleteCircuitResponse) ProtoMessage() {}
 
 func (x *DeleteCircuitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[97]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6103,7 +6274,7 @@ func (x *DeleteCircuitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCircuitResponse.ProtoReflect.Descriptor instead.
 func (*DeleteCircuitResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{97}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{98}
 }
 
 type ListCircuitsRequest struct {
@@ -6114,7 +6285,7 @@ type ListCircuitsRequest struct {
 
 func (x *ListCircuitsRequest) Reset() {
 	*x = ListCircuitsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6126,7 +6297,7 @@ func (x *ListCircuitsRequest) String() string {
 func (*ListCircuitsRequest) ProtoMessage() {}
 
 func (x *ListCircuitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[98]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6139,7 +6310,7 @@ func (x *ListCircuitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCircuitsRequest.ProtoReflect.Descriptor instead.
 func (*ListCircuitsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{98}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{99}
 }
 
 type ListCircuitsResponse struct {
@@ -6151,7 +6322,7 @@ type ListCircuitsResponse struct {
 
 func (x *ListCircuitsResponse) Reset() {
 	*x = ListCircuitsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6163,7 +6334,7 @@ func (x *ListCircuitsResponse) String() string {
 func (*ListCircuitsResponse) ProtoMessage() {}
 
 func (x *ListCircuitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[99]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6176,7 +6347,7 @@ func (x *ListCircuitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCircuitsResponse.ProtoReflect.Descriptor instead.
 func (*ListCircuitsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{99}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *ListCircuitsResponse) GetCircuits() []*Circuit {
@@ -6196,7 +6367,7 @@ type InitCARequest struct {
 
 func (x *InitCARequest) Reset() {
 	*x = InitCARequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6208,7 +6379,7 @@ func (x *InitCARequest) String() string {
 func (*InitCARequest) ProtoMessage() {}
 
 func (x *InitCARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[100]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6221,7 +6392,7 @@ func (x *InitCARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitCARequest.ProtoReflect.Descriptor instead.
 func (*InitCARequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{100}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *InitCARequest) GetTrustDomain() string {
@@ -6248,7 +6419,7 @@ type InitCAResponse struct {
 
 func (x *InitCAResponse) Reset() {
 	*x = InitCAResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6260,7 +6431,7 @@ func (x *InitCAResponse) String() string {
 func (*InitCAResponse) ProtoMessage() {}
 
 func (x *InitCAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[101]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6273,7 +6444,7 @@ func (x *InitCAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitCAResponse.ProtoReflect.Descriptor instead.
 func (*InitCAResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{101}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *InitCAResponse) GetCaPem() string {
@@ -6298,7 +6469,7 @@ type CAStatusRequest struct {
 
 func (x *CAStatusRequest) Reset() {
 	*x = CAStatusRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6310,7 +6481,7 @@ func (x *CAStatusRequest) String() string {
 func (*CAStatusRequest) ProtoMessage() {}
 
 func (x *CAStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[102]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6323,7 +6494,7 @@ func (x *CAStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAStatusRequest.ProtoReflect.Descriptor instead.
 func (*CAStatusRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{102}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{103}
 }
 
 type CAStatusResponse struct {
@@ -6339,7 +6510,7 @@ type CAStatusResponse struct {
 
 func (x *CAStatusResponse) Reset() {
 	*x = CAStatusResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6351,7 +6522,7 @@ func (x *CAStatusResponse) String() string {
 func (*CAStatusResponse) ProtoMessage() {}
 
 func (x *CAStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[103]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6364,7 +6535,7 @@ func (x *CAStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CAStatusResponse.ProtoReflect.Descriptor instead.
 func (*CAStatusResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{103}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *CAStatusResponse) GetLoaded() bool {
@@ -6416,7 +6587,7 @@ type IssueCertRequest struct {
 
 func (x *IssueCertRequest) Reset() {
 	*x = IssueCertRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6428,7 +6599,7 @@ func (x *IssueCertRequest) String() string {
 func (*IssueCertRequest) ProtoMessage() {}
 
 func (x *IssueCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[104]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6441,7 +6612,7 @@ func (x *IssueCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssueCertRequest.ProtoReflect.Descriptor instead.
 func (*IssueCertRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{104}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *IssueCertRequest) GetPeerId() int64 {
@@ -6503,7 +6674,7 @@ type IssuedCert struct {
 
 func (x *IssuedCert) Reset() {
 	*x = IssuedCert{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6515,7 +6686,7 @@ func (x *IssuedCert) String() string {
 func (*IssuedCert) ProtoMessage() {}
 
 func (x *IssuedCert) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[105]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6528,7 +6699,7 @@ func (x *IssuedCert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssuedCert.ProtoReflect.Descriptor instead.
 func (*IssuedCert) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{105}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *IssuedCert) GetSerial() string {
@@ -6603,7 +6774,7 @@ type IssueCertResponse struct {
 
 func (x *IssueCertResponse) Reset() {
 	*x = IssueCertResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6615,7 +6786,7 @@ func (x *IssueCertResponse) String() string {
 func (*IssueCertResponse) ProtoMessage() {}
 
 func (x *IssueCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[106]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6628,7 +6799,7 @@ func (x *IssueCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IssueCertResponse.ProtoReflect.Descriptor instead.
 func (*IssueCertResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{106}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *IssueCertResponse) GetCert() *IssuedCert {
@@ -6655,7 +6826,7 @@ type CertSummary struct {
 
 func (x *CertSummary) Reset() {
 	*x = CertSummary{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6667,7 +6838,7 @@ func (x *CertSummary) String() string {
 func (*CertSummary) ProtoMessage() {}
 
 func (x *CertSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[107]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6680,7 +6851,7 @@ func (x *CertSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertSummary.ProtoReflect.Descriptor instead.
 func (*CertSummary) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{107}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *CertSummary) GetSerial() string {
@@ -6755,7 +6926,7 @@ type ListCertsRequest struct {
 
 func (x *ListCertsRequest) Reset() {
 	*x = ListCertsRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6767,7 +6938,7 @@ func (x *ListCertsRequest) String() string {
 func (*ListCertsRequest) ProtoMessage() {}
 
 func (x *ListCertsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[108]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6780,7 +6951,7 @@ func (x *ListCertsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCertsRequest.ProtoReflect.Descriptor instead.
 func (*ListCertsRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{108}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *ListCertsRequest) GetPeerId() int64 {
@@ -6799,7 +6970,7 @@ type ListCertsResponse struct {
 
 func (x *ListCertsResponse) Reset() {
 	*x = ListCertsResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[109]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6811,7 +6982,7 @@ func (x *ListCertsResponse) String() string {
 func (*ListCertsResponse) ProtoMessage() {}
 
 func (x *ListCertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[109]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6824,7 +6995,7 @@ func (x *ListCertsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListCertsResponse.ProtoReflect.Descriptor instead.
 func (*ListCertsResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{109}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *ListCertsResponse) GetCerts() []*CertSummary {
@@ -6844,7 +7015,7 @@ type RevokeCertRequest struct {
 
 func (x *RevokeCertRequest) Reset() {
 	*x = RevokeCertRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[110]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6856,7 +7027,7 @@ func (x *RevokeCertRequest) String() string {
 func (*RevokeCertRequest) ProtoMessage() {}
 
 func (x *RevokeCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[110]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6869,7 +7040,7 @@ func (x *RevokeCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertRequest.ProtoReflect.Descriptor instead.
 func (*RevokeCertRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{110}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *RevokeCertRequest) GetSerial() string {
@@ -6894,7 +7065,7 @@ type RevokeCertResponse struct {
 
 func (x *RevokeCertResponse) Reset() {
 	*x = RevokeCertResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[111]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6906,7 +7077,7 @@ func (x *RevokeCertResponse) String() string {
 func (*RevokeCertResponse) ProtoMessage() {}
 
 func (x *RevokeCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[111]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6919,7 +7090,7 @@ func (x *RevokeCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeCertResponse.ProtoReflect.Descriptor instead.
 func (*RevokeCertResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{111}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{112}
 }
 
 type ExportTrustRequest struct {
@@ -6930,7 +7101,7 @@ type ExportTrustRequest struct {
 
 func (x *ExportTrustRequest) Reset() {
 	*x = ExportTrustRequest{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[112]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6942,7 +7113,7 @@ func (x *ExportTrustRequest) String() string {
 func (*ExportTrustRequest) ProtoMessage() {}
 
 func (x *ExportTrustRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[112]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6955,7 +7126,7 @@ func (x *ExportTrustRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportTrustRequest.ProtoReflect.Descriptor instead.
 func (*ExportTrustRequest) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{112}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{113}
 }
 
 type ExportTrustResponse struct {
@@ -6968,7 +7139,7 @@ type ExportTrustResponse struct {
 
 func (x *ExportTrustResponse) Reset() {
 	*x = ExportTrustResponse{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[113]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6980,7 +7151,7 @@ func (x *ExportTrustResponse) String() string {
 func (*ExportTrustResponse) ProtoMessage() {}
 
 func (x *ExportTrustResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[113]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6993,7 +7164,7 @@ func (x *ExportTrustResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportTrustResponse.ProtoReflect.Descriptor instead.
 func (*ExportTrustResponse) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{113}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *ExportTrustResponse) GetCaPem() string {
@@ -7024,7 +7195,7 @@ type HealthCheckResponse_PeerHealth struct {
 
 func (x *HealthCheckResponse_PeerHealth) Reset() {
 	*x = HealthCheckResponse_PeerHealth{}
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[114]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7036,7 +7207,7 @@ func (x *HealthCheckResponse_PeerHealth) String() string {
 func (*HealthCheckResponse_PeerHealth) ProtoMessage() {}
 
 func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_gmesh_v1_gmesh_proto_msgTypes[114]
+	mi := &file_gmesh_v1_gmesh_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7049,7 +7220,7 @@ func (x *HealthCheckResponse_PeerHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse_PeerHealth.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse_PeerHealth) Descriptor() ([]byte, []int) {
-	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{29, 0}
+	return file_gmesh_v1_gmesh_proto_rawDescGZIP(), []int{30, 0}
 }
 
 func (x *HealthCheckResponse_PeerHealth) GetPeerId() int64 {
@@ -7098,7 +7269,7 @@ var File_gmesh_v1_gmesh_proto protoreflect.FileDescriptor
 
 const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\n" +
-	"\x14gmesh/v1/gmesh.proto\x12\bgmesh.v1\"\xde\x04\n" +
+	"\x14gmesh/v1/gmesh.proto\x12\bgmesh.v1\"\x94\x05\n" +
 	"\x04Peer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12&\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x12.gmesh.v1.PeerTypeR\x04type\x12\x17\n" +
@@ -7121,7 +7292,13 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\vpacket_loss\x18\x0f \x01(\x01R\n" +
 	"packetLoss\x12.\n" +
 	"\x13last_handshake_unix\x18\x10 \x01(\x03R\x11lastHandshakeUnix\x12\x19\n" +
-	"\bscope_id\x18\x11 \x01(\x03R\ascopeId\"\xd7\x01\n" +
+	"\bscope_id\x18\x11 \x01(\x03R\ascopeId\x124\n" +
+	"\tendpoints\x18\x12 \x03(\v2\x16.gmesh.v1.PeerEndpointR\tendpoints\"\x97\x01\n" +
+	"\fPeerEndpoint\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12*\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x16.gmesh.v1.EndpointTypeR\x04type\x12\x1a\n" +
+	"\bpriority\x18\x03 \x01(\rR\bpriority\x12%\n" +
+	"\x0flast_ok_unix_ms\x18\x04 \x01(\x03R\flastOkUnixMs\"\xd7\x01\n" +
 	"\aNATInfo\x12,\n" +
 	"\bnat_type\x18\x01 \x01(\x0e2\x11.gmesh.v1.NATTypeR\anatType\x12\x1f\n" +
 	"\vexternal_ip\x18\x02 \x01(\tR\n" +
@@ -7135,13 +7312,14 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"listenPort\x12%\n" +
 	"\x0einterface_name\x18\x03 \x01(\tR\rinterfaceName\x12!\n" +
 	"\fnetwork_cidr\x18\x04 \x01(\tR\vnetworkCidr\x12\x17\n" +
-	"\anode_id\x18\x05 \x01(\tR\x06nodeId\"\xa2\x01\n" +
+	"\anode_id\x18\x05 \x01(\tR\x06nodeId\"\xd8\x01\n" +
 	"\fJoinResponse\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x01 \x01(\tR\tpublicKey\x122\n" +
 	"\x15private_key_encrypted\x18\x02 \x01(\tR\x13privateKeyEncrypted\x12#\n" +
 	"\x03nat\x18\x03 \x01(\v2\x11.gmesh.v1.NATInfoR\x03nat\x12\x1a\n" +
-	"\bendpoint\x18\x04 \x01(\tR\bendpoint\"&\n" +
+	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x124\n" +
+	"\tendpoints\x18\x05 \x03(\v2\x16.gmesh.v1.PeerEndpointR\tendpoints\"&\n" +
 	"\fLeaveRequest\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"\x0f\n" +
 	"\rLeaveResponse\"\x0f\n" +
@@ -7164,7 +7342,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x1d\n" +
 	"\n" +
-	"build_date\x18\x03 \x01(\tR\tbuildDate\"\xad\x02\n" +
+	"build_date\x18\x03 \x01(\tR\tbuildDate\"\xe3\x02\n" +
 	"\x0eAddPeerRequest\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x17\n" +
 	"\amesh_ip\x18\x02 \x01(\tR\x06meshIp\x12\x1d\n" +
@@ -7176,18 +7354,20 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\tkeepalive\x18\x06 \x01(\rR\tkeepalive\x120\n" +
 	"\n" +
 	"remote_nat\x18\a \x01(\v2\x11.gmesh.v1.NATInfoR\tremoteNat\x12=\n" +
-	"\fforce_method\x18\b \x01(\x0e2\x1a.gmesh.v1.ConnectionMethodR\vforceMethod\"5\n" +
+	"\fforce_method\x18\b \x01(\x0e2\x1a.gmesh.v1.ConnectionMethodR\vforceMethod\x124\n" +
+	"\tendpoints\x18\t \x03(\v2\x16.gmesh.v1.PeerEndpointR\tendpoints\"5\n" +
 	"\x0fAddPeerResponse\x12\"\n" +
 	"\x04peer\x18\x01 \x01(\v2\x0e.gmesh.v1.PeerR\x04peer\",\n" +
 	"\x11RemovePeerRequest\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\"\x14\n" +
-	"\x12RemovePeerResponse\"\x87\x01\n" +
+	"\x12RemovePeerResponse\"\xbd\x01\n" +
 	"\x11UpdatePeerRequest\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x1a\n" +
 	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x1f\n" +
 	"\vallowed_ips\x18\x03 \x03(\tR\n" +
 	"allowedIps\x12\x1c\n" +
-	"\tkeepalive\x18\x04 \x01(\rR\tkeepalive\"8\n" +
+	"\tkeepalive\x18\x04 \x01(\rR\tkeepalive\x124\n" +
+	"\tendpoints\x18\x05 \x03(\v2\x16.gmesh.v1.PeerEndpointR\tendpoints\"8\n" +
 	"\x12UpdatePeerResponse\x12\"\n" +
 	"\x04peer\x18\x01 \x01(\v2\x0e.gmesh.v1.PeerR\x04peer\"\x12\n" +
 	"\x10ListPeersRequest\"9\n" +
@@ -7626,7 +7806,13 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\vHEALTH_GOOD\x10\x02\x12\x13\n" +
 	"\x0fHEALTH_DEGRADED\x10\x03\x12\x0f\n" +
 	"\vHEALTH_POOR\x10\x04\x12\x12\n" +
-	"\x0eHEALTH_FAILING\x10\x05*|\n" +
+	"\x0eHEALTH_FAILING\x10\x05*s\n" +
+	"\fEndpointType\x12\x18\n" +
+	"\x14ENDPOINT_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fENDPOINT_LAN\x10\x01\x12\x10\n" +
+	"\fENDPOINT_WAN\x10\x02\x12\x11\n" +
+	"\rENDPOINT_STUN\x10\x03\x12\x12\n" +
+	"\x0eENDPOINT_RELAY\x10\x04*|\n" +
 	"\x0eFirewallAction\x12\x19\n" +
 	"\x15FW_ACTION_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fFW_ACTION_ALLOW\x10\x01\x12\x12\n" +
@@ -7713,293 +7899,300 @@ func file_gmesh_v1_gmesh_proto_rawDescGZIP() []byte {
 	return file_gmesh_v1_gmesh_proto_rawDescData
 }
 
-var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 117)
+var file_gmesh_v1_gmesh_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_gmesh_v1_gmesh_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
 var file_gmesh_v1_gmesh_proto_goTypes = []any{
 	(PeerType)(0),                          // 0: gmesh.v1.PeerType
 	(PeerStatus)(0),                        // 1: gmesh.v1.PeerStatus
 	(NATType)(0),                           // 2: gmesh.v1.NATType
 	(ConnectionMethod)(0),                  // 3: gmesh.v1.ConnectionMethod
 	(HealthStatus)(0),                      // 4: gmesh.v1.HealthStatus
-	(FirewallAction)(0),                    // 5: gmesh.v1.FirewallAction
-	(FirewallProtocol)(0),                  // 6: gmesh.v1.FirewallProtocol
-	(*Peer)(nil),                           // 7: gmesh.v1.Peer
-	(*NATInfo)(nil),                        // 8: gmesh.v1.NATInfo
-	(*JoinRequest)(nil),                    // 9: gmesh.v1.JoinRequest
-	(*JoinResponse)(nil),                   // 10: gmesh.v1.JoinResponse
-	(*LeaveRequest)(nil),                   // 11: gmesh.v1.LeaveRequest
-	(*LeaveResponse)(nil),                  // 12: gmesh.v1.LeaveResponse
-	(*StatusRequest)(nil),                  // 13: gmesh.v1.StatusRequest
-	(*StatusResponse)(nil),                 // 14: gmesh.v1.StatusResponse
-	(*VersionRequest)(nil),                 // 15: gmesh.v1.VersionRequest
-	(*VersionResponse)(nil),                // 16: gmesh.v1.VersionResponse
-	(*AddPeerRequest)(nil),                 // 17: gmesh.v1.AddPeerRequest
-	(*AddPeerResponse)(nil),                // 18: gmesh.v1.AddPeerResponse
-	(*RemovePeerRequest)(nil),              // 19: gmesh.v1.RemovePeerRequest
-	(*RemovePeerResponse)(nil),             // 20: gmesh.v1.RemovePeerResponse
-	(*UpdatePeerRequest)(nil),              // 21: gmesh.v1.UpdatePeerRequest
-	(*UpdatePeerResponse)(nil),             // 22: gmesh.v1.UpdatePeerResponse
-	(*ListPeersRequest)(nil),               // 23: gmesh.v1.ListPeersRequest
-	(*ListPeersResponse)(nil),              // 24: gmesh.v1.ListPeersResponse
-	(*GetPeerStatsRequest)(nil),            // 25: gmesh.v1.GetPeerStatsRequest
-	(*GetPeerStatsResponse)(nil),           // 26: gmesh.v1.GetPeerStatsResponse
-	(*DiscoverNATRequest)(nil),             // 27: gmesh.v1.DiscoverNATRequest
-	(*DiscoverNATResponse)(nil),            // 28: gmesh.v1.DiscoverNATResponse
-	(*HolePunchRequest)(nil),               // 29: gmesh.v1.HolePunchRequest
-	(*HolePunchResponse)(nil),              // 30: gmesh.v1.HolePunchResponse
-	(*SetupRelayRequest)(nil),              // 31: gmesh.v1.SetupRelayRequest
-	(*SetupRelayResponse)(nil),             // 32: gmesh.v1.SetupRelayResponse
-	(*AllocateWSTunnelRequest)(nil),        // 33: gmesh.v1.AllocateWSTunnelRequest
-	(*AllocateWSTunnelResponse)(nil),       // 34: gmesh.v1.AllocateWSTunnelResponse
-	(*HealthCheckRequest)(nil),             // 35: gmesh.v1.HealthCheckRequest
-	(*HealthCheckResponse)(nil),            // 36: gmesh.v1.HealthCheckResponse
-	(*ScopeConnectRequest)(nil),            // 37: gmesh.v1.ScopeConnectRequest
-	(*ScopeConnectResponse)(nil),           // 38: gmesh.v1.ScopeConnectResponse
-	(*ScopeDisconnectRequest)(nil),         // 39: gmesh.v1.ScopeDisconnectRequest
-	(*ScopeDisconnectResponse)(nil),        // 40: gmesh.v1.ScopeDisconnectResponse
-	(*FirewallRule)(nil),                   // 41: gmesh.v1.FirewallRule
-	(*ApplyFirewallRequest)(nil),           // 42: gmesh.v1.ApplyFirewallRequest
-	(*ApplyFirewallResponse)(nil),          // 43: gmesh.v1.ApplyFirewallResponse
-	(*ResetFirewallRequest)(nil),           // 44: gmesh.v1.ResetFirewallRequest
-	(*ResetFirewallResponse)(nil),          // 45: gmesh.v1.ResetFirewallResponse
-	(*GetFirewallStatusRequest)(nil),       // 46: gmesh.v1.GetFirewallStatusRequest
-	(*GetFirewallStatusResponse)(nil),      // 47: gmesh.v1.GetFirewallStatusResponse
-	(*SubscribeEventsRequest)(nil),         // 48: gmesh.v1.SubscribeEventsRequest
-	(*Event)(nil),                          // 49: gmesh.v1.Event
-	(*EgressProfile)(nil),                  // 50: gmesh.v1.EgressProfile
-	(*CreateEgressProfileRequest)(nil),     // 51: gmesh.v1.CreateEgressProfileRequest
-	(*UpdateEgressProfileRequest)(nil),     // 52: gmesh.v1.UpdateEgressProfileRequest
-	(*EgressProfileResponse)(nil),          // 53: gmesh.v1.EgressProfileResponse
-	(*DeleteEgressProfileRequest)(nil),     // 54: gmesh.v1.DeleteEgressProfileRequest
-	(*DeleteEgressProfileResponse)(nil),    // 55: gmesh.v1.DeleteEgressProfileResponse
-	(*ListEgressProfilesRequest)(nil),      // 56: gmesh.v1.ListEgressProfilesRequest
-	(*ListEgressProfilesResponse)(nil),     // 57: gmesh.v1.ListEgressProfilesResponse
-	(*EnableExitRequest)(nil),              // 58: gmesh.v1.EnableExitRequest
-	(*EnableExitResponse)(nil),             // 59: gmesh.v1.EnableExitResponse
-	(*DisableExitRequest)(nil),             // 60: gmesh.v1.DisableExitRequest
-	(*DisableExitResponse)(nil),            // 61: gmesh.v1.DisableExitResponse
-	(*IngressProfile)(nil),                 // 62: gmesh.v1.IngressProfile
-	(*CreateIngressProfileRequest)(nil),    // 63: gmesh.v1.CreateIngressProfileRequest
-	(*UpdateIngressProfileRequest)(nil),    // 64: gmesh.v1.UpdateIngressProfileRequest
-	(*IngressProfileResponse)(nil),         // 65: gmesh.v1.IngressProfileResponse
-	(*DeleteIngressProfileRequest)(nil),    // 66: gmesh.v1.DeleteIngressProfileRequest
-	(*DeleteIngressProfileResponse)(nil),   // 67: gmesh.v1.DeleteIngressProfileResponse
-	(*ListIngressProfilesRequest)(nil),     // 68: gmesh.v1.ListIngressProfilesRequest
-	(*ListIngressProfilesResponse)(nil),    // 69: gmesh.v1.ListIngressProfilesResponse
-	(*Quota)(nil),                          // 70: gmesh.v1.Quota
-	(*CreateQuotaRequest)(nil),             // 71: gmesh.v1.CreateQuotaRequest
-	(*UpdateQuotaRequest)(nil),             // 72: gmesh.v1.UpdateQuotaRequest
-	(*QuotaResponse)(nil),                  // 73: gmesh.v1.QuotaResponse
-	(*DeleteQuotaRequest)(nil),             // 74: gmesh.v1.DeleteQuotaRequest
-	(*DeleteQuotaResponse)(nil),            // 75: gmesh.v1.DeleteQuotaResponse
-	(*ListQuotasRequest)(nil),              // 76: gmesh.v1.ListQuotasRequest
-	(*ListQuotasResponse)(nil),             // 77: gmesh.v1.ListQuotasResponse
-	(*GetQuotaUsageRequest)(nil),           // 78: gmesh.v1.GetQuotaUsageRequest
-	(*GetQuotaUsageResponse)(nil),          // 79: gmesh.v1.GetQuotaUsageResponse
-	(*ResetQuotaRequest)(nil),              // 80: gmesh.v1.ResetQuotaRequest
-	(*ResetQuotaResponse)(nil),             // 81: gmesh.v1.ResetQuotaResponse
-	(*PathState)(nil),                      // 82: gmesh.v1.PathState
-	(*ListPathStatesRequest)(nil),          // 83: gmesh.v1.ListPathStatesRequest
-	(*ListPathStatesResponse)(nil),         // 84: gmesh.v1.ListPathStatesResponse
-	(*Policy)(nil),                         // 85: gmesh.v1.Policy
-	(*ListPoliciesRequest)(nil),            // 86: gmesh.v1.ListPoliciesRequest
-	(*ListPoliciesResponse)(nil),           // 87: gmesh.v1.ListPoliciesResponse
-	(*ReloadPoliciesRequest)(nil),          // 88: gmesh.v1.ReloadPoliciesRequest
-	(*ReloadPoliciesResponse)(nil),         // 89: gmesh.v1.ReloadPoliciesResponse
-	(*L7Flow)(nil),                         // 90: gmesh.v1.L7Flow
-	(*L7Total)(nil),                        // 91: gmesh.v1.L7Total
-	(*ListL7FlowsRequest)(nil),             // 92: gmesh.v1.ListL7FlowsRequest
-	(*ListL7FlowsResponse)(nil),            // 93: gmesh.v1.ListL7FlowsResponse
-	(*ListL7TotalsRequest)(nil),            // 94: gmesh.v1.ListL7TotalsRequest
-	(*ListL7TotalsResponse)(nil),           // 95: gmesh.v1.ListL7TotalsResponse
-	(*Anomaly)(nil),                        // 96: gmesh.v1.Anomaly
-	(*ListAnomaliesRequest)(nil),           // 97: gmesh.v1.ListAnomaliesRequest
-	(*ListAnomaliesResponse)(nil),          // 98: gmesh.v1.ListAnomaliesResponse
-	(*Circuit)(nil),                        // 99: gmesh.v1.Circuit
-	(*CreateCircuitRequest)(nil),           // 100: gmesh.v1.CreateCircuitRequest
-	(*UpdateCircuitRequest)(nil),           // 101: gmesh.v1.UpdateCircuitRequest
-	(*CircuitResponse)(nil),                // 102: gmesh.v1.CircuitResponse
-	(*DeleteCircuitRequest)(nil),           // 103: gmesh.v1.DeleteCircuitRequest
-	(*DeleteCircuitResponse)(nil),          // 104: gmesh.v1.DeleteCircuitResponse
-	(*ListCircuitsRequest)(nil),            // 105: gmesh.v1.ListCircuitsRequest
-	(*ListCircuitsResponse)(nil),           // 106: gmesh.v1.ListCircuitsResponse
-	(*InitCARequest)(nil),                  // 107: gmesh.v1.InitCARequest
-	(*InitCAResponse)(nil),                 // 108: gmesh.v1.InitCAResponse
-	(*CAStatusRequest)(nil),                // 109: gmesh.v1.CAStatusRequest
-	(*CAStatusResponse)(nil),               // 110: gmesh.v1.CAStatusResponse
-	(*IssueCertRequest)(nil),               // 111: gmesh.v1.IssueCertRequest
-	(*IssuedCert)(nil),                     // 112: gmesh.v1.IssuedCert
-	(*IssueCertResponse)(nil),              // 113: gmesh.v1.IssueCertResponse
-	(*CertSummary)(nil),                    // 114: gmesh.v1.CertSummary
-	(*ListCertsRequest)(nil),               // 115: gmesh.v1.ListCertsRequest
-	(*ListCertsResponse)(nil),              // 116: gmesh.v1.ListCertsResponse
-	(*RevokeCertRequest)(nil),              // 117: gmesh.v1.RevokeCertRequest
-	(*RevokeCertResponse)(nil),             // 118: gmesh.v1.RevokeCertResponse
-	(*ExportTrustRequest)(nil),             // 119: gmesh.v1.ExportTrustRequest
-	(*ExportTrustResponse)(nil),            // 120: gmesh.v1.ExportTrustResponse
-	(*HealthCheckResponse_PeerHealth)(nil), // 121: gmesh.v1.HealthCheckResponse.PeerHealth
-	nil,                                    // 122: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
-	nil,                                    // 123: gmesh.v1.Anomaly.MetricsEntry
+	(EndpointType)(0),                      // 5: gmesh.v1.EndpointType
+	(FirewallAction)(0),                    // 6: gmesh.v1.FirewallAction
+	(FirewallProtocol)(0),                  // 7: gmesh.v1.FirewallProtocol
+	(*Peer)(nil),                           // 8: gmesh.v1.Peer
+	(*PeerEndpoint)(nil),                   // 9: gmesh.v1.PeerEndpoint
+	(*NATInfo)(nil),                        // 10: gmesh.v1.NATInfo
+	(*JoinRequest)(nil),                    // 11: gmesh.v1.JoinRequest
+	(*JoinResponse)(nil),                   // 12: gmesh.v1.JoinResponse
+	(*LeaveRequest)(nil),                   // 13: gmesh.v1.LeaveRequest
+	(*LeaveResponse)(nil),                  // 14: gmesh.v1.LeaveResponse
+	(*StatusRequest)(nil),                  // 15: gmesh.v1.StatusRequest
+	(*StatusResponse)(nil),                 // 16: gmesh.v1.StatusResponse
+	(*VersionRequest)(nil),                 // 17: gmesh.v1.VersionRequest
+	(*VersionResponse)(nil),                // 18: gmesh.v1.VersionResponse
+	(*AddPeerRequest)(nil),                 // 19: gmesh.v1.AddPeerRequest
+	(*AddPeerResponse)(nil),                // 20: gmesh.v1.AddPeerResponse
+	(*RemovePeerRequest)(nil),              // 21: gmesh.v1.RemovePeerRequest
+	(*RemovePeerResponse)(nil),             // 22: gmesh.v1.RemovePeerResponse
+	(*UpdatePeerRequest)(nil),              // 23: gmesh.v1.UpdatePeerRequest
+	(*UpdatePeerResponse)(nil),             // 24: gmesh.v1.UpdatePeerResponse
+	(*ListPeersRequest)(nil),               // 25: gmesh.v1.ListPeersRequest
+	(*ListPeersResponse)(nil),              // 26: gmesh.v1.ListPeersResponse
+	(*GetPeerStatsRequest)(nil),            // 27: gmesh.v1.GetPeerStatsRequest
+	(*GetPeerStatsResponse)(nil),           // 28: gmesh.v1.GetPeerStatsResponse
+	(*DiscoverNATRequest)(nil),             // 29: gmesh.v1.DiscoverNATRequest
+	(*DiscoverNATResponse)(nil),            // 30: gmesh.v1.DiscoverNATResponse
+	(*HolePunchRequest)(nil),               // 31: gmesh.v1.HolePunchRequest
+	(*HolePunchResponse)(nil),              // 32: gmesh.v1.HolePunchResponse
+	(*SetupRelayRequest)(nil),              // 33: gmesh.v1.SetupRelayRequest
+	(*SetupRelayResponse)(nil),             // 34: gmesh.v1.SetupRelayResponse
+	(*AllocateWSTunnelRequest)(nil),        // 35: gmesh.v1.AllocateWSTunnelRequest
+	(*AllocateWSTunnelResponse)(nil),       // 36: gmesh.v1.AllocateWSTunnelResponse
+	(*HealthCheckRequest)(nil),             // 37: gmesh.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil),            // 38: gmesh.v1.HealthCheckResponse
+	(*ScopeConnectRequest)(nil),            // 39: gmesh.v1.ScopeConnectRequest
+	(*ScopeConnectResponse)(nil),           // 40: gmesh.v1.ScopeConnectResponse
+	(*ScopeDisconnectRequest)(nil),         // 41: gmesh.v1.ScopeDisconnectRequest
+	(*ScopeDisconnectResponse)(nil),        // 42: gmesh.v1.ScopeDisconnectResponse
+	(*FirewallRule)(nil),                   // 43: gmesh.v1.FirewallRule
+	(*ApplyFirewallRequest)(nil),           // 44: gmesh.v1.ApplyFirewallRequest
+	(*ApplyFirewallResponse)(nil),          // 45: gmesh.v1.ApplyFirewallResponse
+	(*ResetFirewallRequest)(nil),           // 46: gmesh.v1.ResetFirewallRequest
+	(*ResetFirewallResponse)(nil),          // 47: gmesh.v1.ResetFirewallResponse
+	(*GetFirewallStatusRequest)(nil),       // 48: gmesh.v1.GetFirewallStatusRequest
+	(*GetFirewallStatusResponse)(nil),      // 49: gmesh.v1.GetFirewallStatusResponse
+	(*SubscribeEventsRequest)(nil),         // 50: gmesh.v1.SubscribeEventsRequest
+	(*Event)(nil),                          // 51: gmesh.v1.Event
+	(*EgressProfile)(nil),                  // 52: gmesh.v1.EgressProfile
+	(*CreateEgressProfileRequest)(nil),     // 53: gmesh.v1.CreateEgressProfileRequest
+	(*UpdateEgressProfileRequest)(nil),     // 54: gmesh.v1.UpdateEgressProfileRequest
+	(*EgressProfileResponse)(nil),          // 55: gmesh.v1.EgressProfileResponse
+	(*DeleteEgressProfileRequest)(nil),     // 56: gmesh.v1.DeleteEgressProfileRequest
+	(*DeleteEgressProfileResponse)(nil),    // 57: gmesh.v1.DeleteEgressProfileResponse
+	(*ListEgressProfilesRequest)(nil),      // 58: gmesh.v1.ListEgressProfilesRequest
+	(*ListEgressProfilesResponse)(nil),     // 59: gmesh.v1.ListEgressProfilesResponse
+	(*EnableExitRequest)(nil),              // 60: gmesh.v1.EnableExitRequest
+	(*EnableExitResponse)(nil),             // 61: gmesh.v1.EnableExitResponse
+	(*DisableExitRequest)(nil),             // 62: gmesh.v1.DisableExitRequest
+	(*DisableExitResponse)(nil),            // 63: gmesh.v1.DisableExitResponse
+	(*IngressProfile)(nil),                 // 64: gmesh.v1.IngressProfile
+	(*CreateIngressProfileRequest)(nil),    // 65: gmesh.v1.CreateIngressProfileRequest
+	(*UpdateIngressProfileRequest)(nil),    // 66: gmesh.v1.UpdateIngressProfileRequest
+	(*IngressProfileResponse)(nil),         // 67: gmesh.v1.IngressProfileResponse
+	(*DeleteIngressProfileRequest)(nil),    // 68: gmesh.v1.DeleteIngressProfileRequest
+	(*DeleteIngressProfileResponse)(nil),   // 69: gmesh.v1.DeleteIngressProfileResponse
+	(*ListIngressProfilesRequest)(nil),     // 70: gmesh.v1.ListIngressProfilesRequest
+	(*ListIngressProfilesResponse)(nil),    // 71: gmesh.v1.ListIngressProfilesResponse
+	(*Quota)(nil),                          // 72: gmesh.v1.Quota
+	(*CreateQuotaRequest)(nil),             // 73: gmesh.v1.CreateQuotaRequest
+	(*UpdateQuotaRequest)(nil),             // 74: gmesh.v1.UpdateQuotaRequest
+	(*QuotaResponse)(nil),                  // 75: gmesh.v1.QuotaResponse
+	(*DeleteQuotaRequest)(nil),             // 76: gmesh.v1.DeleteQuotaRequest
+	(*DeleteQuotaResponse)(nil),            // 77: gmesh.v1.DeleteQuotaResponse
+	(*ListQuotasRequest)(nil),              // 78: gmesh.v1.ListQuotasRequest
+	(*ListQuotasResponse)(nil),             // 79: gmesh.v1.ListQuotasResponse
+	(*GetQuotaUsageRequest)(nil),           // 80: gmesh.v1.GetQuotaUsageRequest
+	(*GetQuotaUsageResponse)(nil),          // 81: gmesh.v1.GetQuotaUsageResponse
+	(*ResetQuotaRequest)(nil),              // 82: gmesh.v1.ResetQuotaRequest
+	(*ResetQuotaResponse)(nil),             // 83: gmesh.v1.ResetQuotaResponse
+	(*PathState)(nil),                      // 84: gmesh.v1.PathState
+	(*ListPathStatesRequest)(nil),          // 85: gmesh.v1.ListPathStatesRequest
+	(*ListPathStatesResponse)(nil),         // 86: gmesh.v1.ListPathStatesResponse
+	(*Policy)(nil),                         // 87: gmesh.v1.Policy
+	(*ListPoliciesRequest)(nil),            // 88: gmesh.v1.ListPoliciesRequest
+	(*ListPoliciesResponse)(nil),           // 89: gmesh.v1.ListPoliciesResponse
+	(*ReloadPoliciesRequest)(nil),          // 90: gmesh.v1.ReloadPoliciesRequest
+	(*ReloadPoliciesResponse)(nil),         // 91: gmesh.v1.ReloadPoliciesResponse
+	(*L7Flow)(nil),                         // 92: gmesh.v1.L7Flow
+	(*L7Total)(nil),                        // 93: gmesh.v1.L7Total
+	(*ListL7FlowsRequest)(nil),             // 94: gmesh.v1.ListL7FlowsRequest
+	(*ListL7FlowsResponse)(nil),            // 95: gmesh.v1.ListL7FlowsResponse
+	(*ListL7TotalsRequest)(nil),            // 96: gmesh.v1.ListL7TotalsRequest
+	(*ListL7TotalsResponse)(nil),           // 97: gmesh.v1.ListL7TotalsResponse
+	(*Anomaly)(nil),                        // 98: gmesh.v1.Anomaly
+	(*ListAnomaliesRequest)(nil),           // 99: gmesh.v1.ListAnomaliesRequest
+	(*ListAnomaliesResponse)(nil),          // 100: gmesh.v1.ListAnomaliesResponse
+	(*Circuit)(nil),                        // 101: gmesh.v1.Circuit
+	(*CreateCircuitRequest)(nil),           // 102: gmesh.v1.CreateCircuitRequest
+	(*UpdateCircuitRequest)(nil),           // 103: gmesh.v1.UpdateCircuitRequest
+	(*CircuitResponse)(nil),                // 104: gmesh.v1.CircuitResponse
+	(*DeleteCircuitRequest)(nil),           // 105: gmesh.v1.DeleteCircuitRequest
+	(*DeleteCircuitResponse)(nil),          // 106: gmesh.v1.DeleteCircuitResponse
+	(*ListCircuitsRequest)(nil),            // 107: gmesh.v1.ListCircuitsRequest
+	(*ListCircuitsResponse)(nil),           // 108: gmesh.v1.ListCircuitsResponse
+	(*InitCARequest)(nil),                  // 109: gmesh.v1.InitCARequest
+	(*InitCAResponse)(nil),                 // 110: gmesh.v1.InitCAResponse
+	(*CAStatusRequest)(nil),                // 111: gmesh.v1.CAStatusRequest
+	(*CAStatusResponse)(nil),               // 112: gmesh.v1.CAStatusResponse
+	(*IssueCertRequest)(nil),               // 113: gmesh.v1.IssueCertRequest
+	(*IssuedCert)(nil),                     // 114: gmesh.v1.IssuedCert
+	(*IssueCertResponse)(nil),              // 115: gmesh.v1.IssueCertResponse
+	(*CertSummary)(nil),                    // 116: gmesh.v1.CertSummary
+	(*ListCertsRequest)(nil),               // 117: gmesh.v1.ListCertsRequest
+	(*ListCertsResponse)(nil),              // 118: gmesh.v1.ListCertsResponse
+	(*RevokeCertRequest)(nil),              // 119: gmesh.v1.RevokeCertRequest
+	(*RevokeCertResponse)(nil),             // 120: gmesh.v1.RevokeCertResponse
+	(*ExportTrustRequest)(nil),             // 121: gmesh.v1.ExportTrustRequest
+	(*ExportTrustResponse)(nil),            // 122: gmesh.v1.ExportTrustResponse
+	(*HealthCheckResponse_PeerHealth)(nil), // 123: gmesh.v1.HealthCheckResponse.PeerHealth
+	nil,                                    // 124: gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	nil,                                    // 125: gmesh.v1.Anomaly.MetricsEntry
 }
 var file_gmesh_v1_gmesh_proto_depIdxs = []int32{
 	0,   // 0: gmesh.v1.Peer.type:type_name -> gmesh.v1.PeerType
 	1,   // 1: gmesh.v1.Peer.status:type_name -> gmesh.v1.PeerStatus
 	2,   // 2: gmesh.v1.Peer.nat_type:type_name -> gmesh.v1.NATType
 	3,   // 3: gmesh.v1.Peer.method:type_name -> gmesh.v1.ConnectionMethod
-	2,   // 4: gmesh.v1.NATInfo.nat_type:type_name -> gmesh.v1.NATType
-	8,   // 5: gmesh.v1.JoinResponse.nat:type_name -> gmesh.v1.NATInfo
-	8,   // 6: gmesh.v1.StatusResponse.nat:type_name -> gmesh.v1.NATInfo
-	7,   // 7: gmesh.v1.StatusResponse.peers:type_name -> gmesh.v1.Peer
-	8,   // 8: gmesh.v1.AddPeerRequest.remote_nat:type_name -> gmesh.v1.NATInfo
-	3,   // 9: gmesh.v1.AddPeerRequest.force_method:type_name -> gmesh.v1.ConnectionMethod
-	7,   // 10: gmesh.v1.AddPeerResponse.peer:type_name -> gmesh.v1.Peer
-	7,   // 11: gmesh.v1.UpdatePeerResponse.peer:type_name -> gmesh.v1.Peer
-	7,   // 12: gmesh.v1.ListPeersResponse.peers:type_name -> gmesh.v1.Peer
-	7,   // 13: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
-	8,   // 14: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
-	3,   // 15: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
-	121, // 16: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
-	7,   // 17: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
-	5,   // 18: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
-	6,   // 19: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
-	41,  // 20: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
-	41,  // 21: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
-	122, // 22: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
-	50,  // 23: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
-	50,  // 24: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
-	50,  // 25: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
-	50,  // 26: gmesh.v1.ListEgressProfilesResponse.profiles:type_name -> gmesh.v1.EgressProfile
-	62,  // 27: gmesh.v1.CreateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
-	62,  // 28: gmesh.v1.UpdateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
-	62,  // 29: gmesh.v1.IngressProfileResponse.profile:type_name -> gmesh.v1.IngressProfile
-	62,  // 30: gmesh.v1.ListIngressProfilesResponse.profiles:type_name -> gmesh.v1.IngressProfile
-	70,  // 31: gmesh.v1.CreateQuotaRequest.quota:type_name -> gmesh.v1.Quota
-	70,  // 32: gmesh.v1.UpdateQuotaRequest.quota:type_name -> gmesh.v1.Quota
-	70,  // 33: gmesh.v1.QuotaResponse.quota:type_name -> gmesh.v1.Quota
-	70,  // 34: gmesh.v1.ListQuotasResponse.quotas:type_name -> gmesh.v1.Quota
-	70,  // 35: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
-	82,  // 36: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
-	85,  // 37: gmesh.v1.ListPoliciesResponse.policies:type_name -> gmesh.v1.Policy
-	90,  // 38: gmesh.v1.ListL7FlowsResponse.flows:type_name -> gmesh.v1.L7Flow
-	91,  // 39: gmesh.v1.ListL7TotalsResponse.totals:type_name -> gmesh.v1.L7Total
-	123, // 40: gmesh.v1.Anomaly.metrics:type_name -> gmesh.v1.Anomaly.MetricsEntry
-	96,  // 41: gmesh.v1.ListAnomaliesResponse.alerts:type_name -> gmesh.v1.Anomaly
-	99,  // 42: gmesh.v1.CreateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
-	99,  // 43: gmesh.v1.UpdateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
-	99,  // 44: gmesh.v1.CircuitResponse.circuit:type_name -> gmesh.v1.Circuit
-	99,  // 45: gmesh.v1.ListCircuitsResponse.circuits:type_name -> gmesh.v1.Circuit
-	112, // 46: gmesh.v1.IssueCertResponse.cert:type_name -> gmesh.v1.IssuedCert
-	114, // 47: gmesh.v1.ListCertsResponse.certs:type_name -> gmesh.v1.CertSummary
-	4,   // 48: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
-	9,   // 49: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
-	11,  // 50: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
-	13,  // 51: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
-	15,  // 52: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
-	17,  // 53: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
-	19,  // 54: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
-	21,  // 55: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
-	23,  // 56: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
-	25,  // 57: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
-	27,  // 58: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
-	29,  // 59: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
-	31,  // 60: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
-	33,  // 61: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
-	35,  // 62: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
-	37,  // 63: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
-	39,  // 64: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
-	42,  // 65: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
-	44,  // 66: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
-	46,  // 67: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
-	48,  // 68: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
-	51,  // 69: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
-	52,  // 70: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
-	54,  // 71: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
-	56,  // 72: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
-	58,  // 73: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
-	60,  // 74: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
-	63,  // 75: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
-	64,  // 76: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
-	66,  // 77: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
-	68,  // 78: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
-	71,  // 79: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
-	72,  // 80: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
-	74,  // 81: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
-	76,  // 82: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
-	78,  // 83: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
-	80,  // 84: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
-	83,  // 85: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
-	86,  // 86: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
-	88,  // 87: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
-	92,  // 88: gmesh.v1.GMesh.ListL7Flows:input_type -> gmesh.v1.ListL7FlowsRequest
-	94,  // 89: gmesh.v1.GMesh.ListL7Totals:input_type -> gmesh.v1.ListL7TotalsRequest
-	97,  // 90: gmesh.v1.GMesh.ListAnomalies:input_type -> gmesh.v1.ListAnomaliesRequest
-	100, // 91: gmesh.v1.GMesh.CreateCircuit:input_type -> gmesh.v1.CreateCircuitRequest
-	101, // 92: gmesh.v1.GMesh.UpdateCircuit:input_type -> gmesh.v1.UpdateCircuitRequest
-	103, // 93: gmesh.v1.GMesh.DeleteCircuit:input_type -> gmesh.v1.DeleteCircuitRequest
-	105, // 94: gmesh.v1.GMesh.ListCircuits:input_type -> gmesh.v1.ListCircuitsRequest
-	107, // 95: gmesh.v1.GMesh.InitCA:input_type -> gmesh.v1.InitCARequest
-	109, // 96: gmesh.v1.GMesh.CAStatus:input_type -> gmesh.v1.CAStatusRequest
-	111, // 97: gmesh.v1.GMesh.IssueCert:input_type -> gmesh.v1.IssueCertRequest
-	115, // 98: gmesh.v1.GMesh.ListCerts:input_type -> gmesh.v1.ListCertsRequest
-	117, // 99: gmesh.v1.GMesh.RevokeCert:input_type -> gmesh.v1.RevokeCertRequest
-	119, // 100: gmesh.v1.GMesh.ExportTrust:input_type -> gmesh.v1.ExportTrustRequest
-	10,  // 101: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
-	12,  // 102: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
-	14,  // 103: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
-	16,  // 104: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
-	18,  // 105: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
-	20,  // 106: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
-	22,  // 107: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
-	24,  // 108: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
-	26,  // 109: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
-	28,  // 110: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
-	30,  // 111: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
-	32,  // 112: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
-	34,  // 113: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
-	36,  // 114: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
-	38,  // 115: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
-	40,  // 116: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
-	43,  // 117: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
-	45,  // 118: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
-	47,  // 119: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
-	49,  // 120: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
-	53,  // 121: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	53,  // 122: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
-	55,  // 123: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
-	57,  // 124: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
-	59,  // 125: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
-	61,  // 126: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
-	65,  // 127: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	65,  // 128: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
-	67,  // 129: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
-	69,  // 130: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
-	73,  // 131: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
-	73,  // 132: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
-	75,  // 133: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
-	77,  // 134: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
-	79,  // 135: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
-	81,  // 136: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
-	84,  // 137: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
-	87,  // 138: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
-	89,  // 139: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
-	93,  // 140: gmesh.v1.GMesh.ListL7Flows:output_type -> gmesh.v1.ListL7FlowsResponse
-	95,  // 141: gmesh.v1.GMesh.ListL7Totals:output_type -> gmesh.v1.ListL7TotalsResponse
-	98,  // 142: gmesh.v1.GMesh.ListAnomalies:output_type -> gmesh.v1.ListAnomaliesResponse
-	102, // 143: gmesh.v1.GMesh.CreateCircuit:output_type -> gmesh.v1.CircuitResponse
-	102, // 144: gmesh.v1.GMesh.UpdateCircuit:output_type -> gmesh.v1.CircuitResponse
-	104, // 145: gmesh.v1.GMesh.DeleteCircuit:output_type -> gmesh.v1.DeleteCircuitResponse
-	106, // 146: gmesh.v1.GMesh.ListCircuits:output_type -> gmesh.v1.ListCircuitsResponse
-	108, // 147: gmesh.v1.GMesh.InitCA:output_type -> gmesh.v1.InitCAResponse
-	110, // 148: gmesh.v1.GMesh.CAStatus:output_type -> gmesh.v1.CAStatusResponse
-	113, // 149: gmesh.v1.GMesh.IssueCert:output_type -> gmesh.v1.IssueCertResponse
-	116, // 150: gmesh.v1.GMesh.ListCerts:output_type -> gmesh.v1.ListCertsResponse
-	118, // 151: gmesh.v1.GMesh.RevokeCert:output_type -> gmesh.v1.RevokeCertResponse
-	120, // 152: gmesh.v1.GMesh.ExportTrust:output_type -> gmesh.v1.ExportTrustResponse
-	101, // [101:153] is the sub-list for method output_type
-	49,  // [49:101] is the sub-list for method input_type
-	49,  // [49:49] is the sub-list for extension type_name
-	49,  // [49:49] is the sub-list for extension extendee
-	0,   // [0:49] is the sub-list for field type_name
+	9,   // 4: gmesh.v1.Peer.endpoints:type_name -> gmesh.v1.PeerEndpoint
+	5,   // 5: gmesh.v1.PeerEndpoint.type:type_name -> gmesh.v1.EndpointType
+	2,   // 6: gmesh.v1.NATInfo.nat_type:type_name -> gmesh.v1.NATType
+	10,  // 7: gmesh.v1.JoinResponse.nat:type_name -> gmesh.v1.NATInfo
+	9,   // 8: gmesh.v1.JoinResponse.endpoints:type_name -> gmesh.v1.PeerEndpoint
+	10,  // 9: gmesh.v1.StatusResponse.nat:type_name -> gmesh.v1.NATInfo
+	8,   // 10: gmesh.v1.StatusResponse.peers:type_name -> gmesh.v1.Peer
+	10,  // 11: gmesh.v1.AddPeerRequest.remote_nat:type_name -> gmesh.v1.NATInfo
+	3,   // 12: gmesh.v1.AddPeerRequest.force_method:type_name -> gmesh.v1.ConnectionMethod
+	9,   // 13: gmesh.v1.AddPeerRequest.endpoints:type_name -> gmesh.v1.PeerEndpoint
+	8,   // 14: gmesh.v1.AddPeerResponse.peer:type_name -> gmesh.v1.Peer
+	9,   // 15: gmesh.v1.UpdatePeerRequest.endpoints:type_name -> gmesh.v1.PeerEndpoint
+	8,   // 16: gmesh.v1.UpdatePeerResponse.peer:type_name -> gmesh.v1.Peer
+	8,   // 17: gmesh.v1.ListPeersResponse.peers:type_name -> gmesh.v1.Peer
+	8,   // 18: gmesh.v1.GetPeerStatsResponse.peer:type_name -> gmesh.v1.Peer
+	10,  // 19: gmesh.v1.DiscoverNATResponse.nat:type_name -> gmesh.v1.NATInfo
+	3,   // 20: gmesh.v1.HolePunchResponse.method_used:type_name -> gmesh.v1.ConnectionMethod
+	123, // 21: gmesh.v1.HealthCheckResponse.peers:type_name -> gmesh.v1.HealthCheckResponse.PeerHealth
+	8,   // 22: gmesh.v1.ScopeConnectResponse.peer:type_name -> gmesh.v1.Peer
+	6,   // 23: gmesh.v1.FirewallRule.action:type_name -> gmesh.v1.FirewallAction
+	7,   // 24: gmesh.v1.FirewallRule.protocol:type_name -> gmesh.v1.FirewallProtocol
+	43,  // 25: gmesh.v1.ApplyFirewallRequest.rules:type_name -> gmesh.v1.FirewallRule
+	43,  // 26: gmesh.v1.GetFirewallStatusResponse.rules:type_name -> gmesh.v1.FirewallRule
+	124, // 27: gmesh.v1.GetFirewallStatusResponse.hit_counts:type_name -> gmesh.v1.GetFirewallStatusResponse.HitCountsEntry
+	52,  // 28: gmesh.v1.CreateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	52,  // 29: gmesh.v1.UpdateEgressProfileRequest.profile:type_name -> gmesh.v1.EgressProfile
+	52,  // 30: gmesh.v1.EgressProfileResponse.profile:type_name -> gmesh.v1.EgressProfile
+	52,  // 31: gmesh.v1.ListEgressProfilesResponse.profiles:type_name -> gmesh.v1.EgressProfile
+	64,  // 32: gmesh.v1.CreateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
+	64,  // 33: gmesh.v1.UpdateIngressProfileRequest.profile:type_name -> gmesh.v1.IngressProfile
+	64,  // 34: gmesh.v1.IngressProfileResponse.profile:type_name -> gmesh.v1.IngressProfile
+	64,  // 35: gmesh.v1.ListIngressProfilesResponse.profiles:type_name -> gmesh.v1.IngressProfile
+	72,  // 36: gmesh.v1.CreateQuotaRequest.quota:type_name -> gmesh.v1.Quota
+	72,  // 37: gmesh.v1.UpdateQuotaRequest.quota:type_name -> gmesh.v1.Quota
+	72,  // 38: gmesh.v1.QuotaResponse.quota:type_name -> gmesh.v1.Quota
+	72,  // 39: gmesh.v1.ListQuotasResponse.quotas:type_name -> gmesh.v1.Quota
+	72,  // 40: gmesh.v1.GetQuotaUsageResponse.quotas:type_name -> gmesh.v1.Quota
+	84,  // 41: gmesh.v1.ListPathStatesResponse.states:type_name -> gmesh.v1.PathState
+	87,  // 42: gmesh.v1.ListPoliciesResponse.policies:type_name -> gmesh.v1.Policy
+	92,  // 43: gmesh.v1.ListL7FlowsResponse.flows:type_name -> gmesh.v1.L7Flow
+	93,  // 44: gmesh.v1.ListL7TotalsResponse.totals:type_name -> gmesh.v1.L7Total
+	125, // 45: gmesh.v1.Anomaly.metrics:type_name -> gmesh.v1.Anomaly.MetricsEntry
+	98,  // 46: gmesh.v1.ListAnomaliesResponse.alerts:type_name -> gmesh.v1.Anomaly
+	101, // 47: gmesh.v1.CreateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
+	101, // 48: gmesh.v1.UpdateCircuitRequest.circuit:type_name -> gmesh.v1.Circuit
+	101, // 49: gmesh.v1.CircuitResponse.circuit:type_name -> gmesh.v1.Circuit
+	101, // 50: gmesh.v1.ListCircuitsResponse.circuits:type_name -> gmesh.v1.Circuit
+	114, // 51: gmesh.v1.IssueCertResponse.cert:type_name -> gmesh.v1.IssuedCert
+	116, // 52: gmesh.v1.ListCertsResponse.certs:type_name -> gmesh.v1.CertSummary
+	4,   // 53: gmesh.v1.HealthCheckResponse.PeerHealth.status:type_name -> gmesh.v1.HealthStatus
+	11,  // 54: gmesh.v1.GMesh.Join:input_type -> gmesh.v1.JoinRequest
+	13,  // 55: gmesh.v1.GMesh.Leave:input_type -> gmesh.v1.LeaveRequest
+	15,  // 56: gmesh.v1.GMesh.Status:input_type -> gmesh.v1.StatusRequest
+	17,  // 57: gmesh.v1.GMesh.Version:input_type -> gmesh.v1.VersionRequest
+	19,  // 58: gmesh.v1.GMesh.AddPeer:input_type -> gmesh.v1.AddPeerRequest
+	21,  // 59: gmesh.v1.GMesh.RemovePeer:input_type -> gmesh.v1.RemovePeerRequest
+	23,  // 60: gmesh.v1.GMesh.UpdatePeer:input_type -> gmesh.v1.UpdatePeerRequest
+	25,  // 61: gmesh.v1.GMesh.ListPeers:input_type -> gmesh.v1.ListPeersRequest
+	27,  // 62: gmesh.v1.GMesh.GetPeerStats:input_type -> gmesh.v1.GetPeerStatsRequest
+	29,  // 63: gmesh.v1.GMesh.DiscoverNAT:input_type -> gmesh.v1.DiscoverNATRequest
+	31,  // 64: gmesh.v1.GMesh.HolePunch:input_type -> gmesh.v1.HolePunchRequest
+	33,  // 65: gmesh.v1.GMesh.SetupRelay:input_type -> gmesh.v1.SetupRelayRequest
+	35,  // 66: gmesh.v1.GMesh.AllocateWSTunnel:input_type -> gmesh.v1.AllocateWSTunnelRequest
+	37,  // 67: gmesh.v1.GMesh.HealthCheck:input_type -> gmesh.v1.HealthCheckRequest
+	39,  // 68: gmesh.v1.GMesh.ScopeConnect:input_type -> gmesh.v1.ScopeConnectRequest
+	41,  // 69: gmesh.v1.GMesh.ScopeDisconnect:input_type -> gmesh.v1.ScopeDisconnectRequest
+	44,  // 70: gmesh.v1.GMesh.ApplyFirewall:input_type -> gmesh.v1.ApplyFirewallRequest
+	46,  // 71: gmesh.v1.GMesh.ResetFirewall:input_type -> gmesh.v1.ResetFirewallRequest
+	48,  // 72: gmesh.v1.GMesh.GetFirewallStatus:input_type -> gmesh.v1.GetFirewallStatusRequest
+	50,  // 73: gmesh.v1.GMesh.SubscribeEvents:input_type -> gmesh.v1.SubscribeEventsRequest
+	53,  // 74: gmesh.v1.GMesh.CreateEgressProfile:input_type -> gmesh.v1.CreateEgressProfileRequest
+	54,  // 75: gmesh.v1.GMesh.UpdateEgressProfile:input_type -> gmesh.v1.UpdateEgressProfileRequest
+	56,  // 76: gmesh.v1.GMesh.DeleteEgressProfile:input_type -> gmesh.v1.DeleteEgressProfileRequest
+	58,  // 77: gmesh.v1.GMesh.ListEgressProfiles:input_type -> gmesh.v1.ListEgressProfilesRequest
+	60,  // 78: gmesh.v1.GMesh.EnableExit:input_type -> gmesh.v1.EnableExitRequest
+	62,  // 79: gmesh.v1.GMesh.DisableExit:input_type -> gmesh.v1.DisableExitRequest
+	65,  // 80: gmesh.v1.GMesh.CreateIngressProfile:input_type -> gmesh.v1.CreateIngressProfileRequest
+	66,  // 81: gmesh.v1.GMesh.UpdateIngressProfile:input_type -> gmesh.v1.UpdateIngressProfileRequest
+	68,  // 82: gmesh.v1.GMesh.DeleteIngressProfile:input_type -> gmesh.v1.DeleteIngressProfileRequest
+	70,  // 83: gmesh.v1.GMesh.ListIngressProfiles:input_type -> gmesh.v1.ListIngressProfilesRequest
+	73,  // 84: gmesh.v1.GMesh.CreateQuota:input_type -> gmesh.v1.CreateQuotaRequest
+	74,  // 85: gmesh.v1.GMesh.UpdateQuota:input_type -> gmesh.v1.UpdateQuotaRequest
+	76,  // 86: gmesh.v1.GMesh.DeleteQuota:input_type -> gmesh.v1.DeleteQuotaRequest
+	78,  // 87: gmesh.v1.GMesh.ListQuotas:input_type -> gmesh.v1.ListQuotasRequest
+	80,  // 88: gmesh.v1.GMesh.GetQuotaUsage:input_type -> gmesh.v1.GetQuotaUsageRequest
+	82,  // 89: gmesh.v1.GMesh.ResetQuota:input_type -> gmesh.v1.ResetQuotaRequest
+	85,  // 90: gmesh.v1.GMesh.ListPathStates:input_type -> gmesh.v1.ListPathStatesRequest
+	88,  // 91: gmesh.v1.GMesh.ListPolicies:input_type -> gmesh.v1.ListPoliciesRequest
+	90,  // 92: gmesh.v1.GMesh.ReloadPolicies:input_type -> gmesh.v1.ReloadPoliciesRequest
+	94,  // 93: gmesh.v1.GMesh.ListL7Flows:input_type -> gmesh.v1.ListL7FlowsRequest
+	96,  // 94: gmesh.v1.GMesh.ListL7Totals:input_type -> gmesh.v1.ListL7TotalsRequest
+	99,  // 95: gmesh.v1.GMesh.ListAnomalies:input_type -> gmesh.v1.ListAnomaliesRequest
+	102, // 96: gmesh.v1.GMesh.CreateCircuit:input_type -> gmesh.v1.CreateCircuitRequest
+	103, // 97: gmesh.v1.GMesh.UpdateCircuit:input_type -> gmesh.v1.UpdateCircuitRequest
+	105, // 98: gmesh.v1.GMesh.DeleteCircuit:input_type -> gmesh.v1.DeleteCircuitRequest
+	107, // 99: gmesh.v1.GMesh.ListCircuits:input_type -> gmesh.v1.ListCircuitsRequest
+	109, // 100: gmesh.v1.GMesh.InitCA:input_type -> gmesh.v1.InitCARequest
+	111, // 101: gmesh.v1.GMesh.CAStatus:input_type -> gmesh.v1.CAStatusRequest
+	113, // 102: gmesh.v1.GMesh.IssueCert:input_type -> gmesh.v1.IssueCertRequest
+	117, // 103: gmesh.v1.GMesh.ListCerts:input_type -> gmesh.v1.ListCertsRequest
+	119, // 104: gmesh.v1.GMesh.RevokeCert:input_type -> gmesh.v1.RevokeCertRequest
+	121, // 105: gmesh.v1.GMesh.ExportTrust:input_type -> gmesh.v1.ExportTrustRequest
+	12,  // 106: gmesh.v1.GMesh.Join:output_type -> gmesh.v1.JoinResponse
+	14,  // 107: gmesh.v1.GMesh.Leave:output_type -> gmesh.v1.LeaveResponse
+	16,  // 108: gmesh.v1.GMesh.Status:output_type -> gmesh.v1.StatusResponse
+	18,  // 109: gmesh.v1.GMesh.Version:output_type -> gmesh.v1.VersionResponse
+	20,  // 110: gmesh.v1.GMesh.AddPeer:output_type -> gmesh.v1.AddPeerResponse
+	22,  // 111: gmesh.v1.GMesh.RemovePeer:output_type -> gmesh.v1.RemovePeerResponse
+	24,  // 112: gmesh.v1.GMesh.UpdatePeer:output_type -> gmesh.v1.UpdatePeerResponse
+	26,  // 113: gmesh.v1.GMesh.ListPeers:output_type -> gmesh.v1.ListPeersResponse
+	28,  // 114: gmesh.v1.GMesh.GetPeerStats:output_type -> gmesh.v1.GetPeerStatsResponse
+	30,  // 115: gmesh.v1.GMesh.DiscoverNAT:output_type -> gmesh.v1.DiscoverNATResponse
+	32,  // 116: gmesh.v1.GMesh.HolePunch:output_type -> gmesh.v1.HolePunchResponse
+	34,  // 117: gmesh.v1.GMesh.SetupRelay:output_type -> gmesh.v1.SetupRelayResponse
+	36,  // 118: gmesh.v1.GMesh.AllocateWSTunnel:output_type -> gmesh.v1.AllocateWSTunnelResponse
+	38,  // 119: gmesh.v1.GMesh.HealthCheck:output_type -> gmesh.v1.HealthCheckResponse
+	40,  // 120: gmesh.v1.GMesh.ScopeConnect:output_type -> gmesh.v1.ScopeConnectResponse
+	42,  // 121: gmesh.v1.GMesh.ScopeDisconnect:output_type -> gmesh.v1.ScopeDisconnectResponse
+	45,  // 122: gmesh.v1.GMesh.ApplyFirewall:output_type -> gmesh.v1.ApplyFirewallResponse
+	47,  // 123: gmesh.v1.GMesh.ResetFirewall:output_type -> gmesh.v1.ResetFirewallResponse
+	49,  // 124: gmesh.v1.GMesh.GetFirewallStatus:output_type -> gmesh.v1.GetFirewallStatusResponse
+	51,  // 125: gmesh.v1.GMesh.SubscribeEvents:output_type -> gmesh.v1.Event
+	55,  // 126: gmesh.v1.GMesh.CreateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	55,  // 127: gmesh.v1.GMesh.UpdateEgressProfile:output_type -> gmesh.v1.EgressProfileResponse
+	57,  // 128: gmesh.v1.GMesh.DeleteEgressProfile:output_type -> gmesh.v1.DeleteEgressProfileResponse
+	59,  // 129: gmesh.v1.GMesh.ListEgressProfiles:output_type -> gmesh.v1.ListEgressProfilesResponse
+	61,  // 130: gmesh.v1.GMesh.EnableExit:output_type -> gmesh.v1.EnableExitResponse
+	63,  // 131: gmesh.v1.GMesh.DisableExit:output_type -> gmesh.v1.DisableExitResponse
+	67,  // 132: gmesh.v1.GMesh.CreateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	67,  // 133: gmesh.v1.GMesh.UpdateIngressProfile:output_type -> gmesh.v1.IngressProfileResponse
+	69,  // 134: gmesh.v1.GMesh.DeleteIngressProfile:output_type -> gmesh.v1.DeleteIngressProfileResponse
+	71,  // 135: gmesh.v1.GMesh.ListIngressProfiles:output_type -> gmesh.v1.ListIngressProfilesResponse
+	75,  // 136: gmesh.v1.GMesh.CreateQuota:output_type -> gmesh.v1.QuotaResponse
+	75,  // 137: gmesh.v1.GMesh.UpdateQuota:output_type -> gmesh.v1.QuotaResponse
+	77,  // 138: gmesh.v1.GMesh.DeleteQuota:output_type -> gmesh.v1.DeleteQuotaResponse
+	79,  // 139: gmesh.v1.GMesh.ListQuotas:output_type -> gmesh.v1.ListQuotasResponse
+	81,  // 140: gmesh.v1.GMesh.GetQuotaUsage:output_type -> gmesh.v1.GetQuotaUsageResponse
+	83,  // 141: gmesh.v1.GMesh.ResetQuota:output_type -> gmesh.v1.ResetQuotaResponse
+	86,  // 142: gmesh.v1.GMesh.ListPathStates:output_type -> gmesh.v1.ListPathStatesResponse
+	89,  // 143: gmesh.v1.GMesh.ListPolicies:output_type -> gmesh.v1.ListPoliciesResponse
+	91,  // 144: gmesh.v1.GMesh.ReloadPolicies:output_type -> gmesh.v1.ReloadPoliciesResponse
+	95,  // 145: gmesh.v1.GMesh.ListL7Flows:output_type -> gmesh.v1.ListL7FlowsResponse
+	97,  // 146: gmesh.v1.GMesh.ListL7Totals:output_type -> gmesh.v1.ListL7TotalsResponse
+	100, // 147: gmesh.v1.GMesh.ListAnomalies:output_type -> gmesh.v1.ListAnomaliesResponse
+	104, // 148: gmesh.v1.GMesh.CreateCircuit:output_type -> gmesh.v1.CircuitResponse
+	104, // 149: gmesh.v1.GMesh.UpdateCircuit:output_type -> gmesh.v1.CircuitResponse
+	106, // 150: gmesh.v1.GMesh.DeleteCircuit:output_type -> gmesh.v1.DeleteCircuitResponse
+	108, // 151: gmesh.v1.GMesh.ListCircuits:output_type -> gmesh.v1.ListCircuitsResponse
+	110, // 152: gmesh.v1.GMesh.InitCA:output_type -> gmesh.v1.InitCAResponse
+	112, // 153: gmesh.v1.GMesh.CAStatus:output_type -> gmesh.v1.CAStatusResponse
+	115, // 154: gmesh.v1.GMesh.IssueCert:output_type -> gmesh.v1.IssueCertResponse
+	118, // 155: gmesh.v1.GMesh.ListCerts:output_type -> gmesh.v1.ListCertsResponse
+	120, // 156: gmesh.v1.GMesh.RevokeCert:output_type -> gmesh.v1.RevokeCertResponse
+	122, // 157: gmesh.v1.GMesh.ExportTrust:output_type -> gmesh.v1.ExportTrustResponse
+	106, // [106:158] is the sub-list for method output_type
+	54,  // [54:106] is the sub-list for method input_type
+	54,  // [54:54] is the sub-list for extension type_name
+	54,  // [54:54] is the sub-list for extension extendee
+	0,   // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_gmesh_v1_gmesh_proto_init() }
@@ -8012,8 +8205,8 @@ func file_gmesh_v1_gmesh_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gmesh_v1_gmesh_proto_rawDesc), len(file_gmesh_v1_gmesh_proto_rawDesc)),
-			NumEnums:      7,
-			NumMessages:   117,
+			NumEnums:      8,
+			NumMessages:   118,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

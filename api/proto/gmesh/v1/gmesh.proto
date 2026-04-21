@@ -178,7 +178,7 @@ message Peer {
   PeerType         type              = 2;
   string           mesh_ip           = 3;   // 10.200.x.x
   string           public_key        = 4;
-  string           endpoint          = 5;   // host:port
+  string           endpoint          = 5;   // host:port (legacy: active/preferred endpoint)
   repeated string  allowed_ips       = 6;
   PeerStatus       status            = 7;
   NATType          nat_type          = 8;
@@ -191,6 +191,31 @@ message Peer {
   double           packet_loss       = 15;
   int64            last_handshake_unix = 16;
   int64            scope_id          = 17;  // 0 for VM peers
+  // All known endpoints for this peer, ordered by priority (lowest first).
+  // Each is a PeerEndpoint carrying host:port + a type tag (lan/wan/stun/
+  // relay) so the engine can race candidates. When populated, `endpoint`
+  // (field 5) is the currently-selected/last-successful one.
+  repeated PeerEndpoint endpoints   = 18;
+}
+
+// A single candidate address where a peer might be reachable.
+message PeerEndpoint {
+  // "host:port" format. For IPv6, host must be bracketed.
+  string       address  = 1;
+  // Where this candidate came from.
+  EndpointType type     = 2;
+  // Lower = better. Typical values: lan=10, wan=50, stun=60, relay=100.
+  uint32       priority = 3;
+  // Unix ms of last successful handshake/probe via this endpoint. 0 = never.
+  int64        last_ok_unix_ms = 4;
+}
+
+enum EndpointType {
+  ENDPOINT_UNSPECIFIED = 0;
+  ENDPOINT_LAN         = 1;  // RFC1918 / link-local, same-subnet peers
+  ENDPOINT_WAN         = 2;  // Public IP, either static or DNS-resolved
+  ENDPOINT_STUN        = 3;  // Reflexive mapping discovered via STUN
+  ENDPOINT_RELAY       = 4;  // DERP-style relay fallback
 }
 
 message NATInfo {
@@ -212,10 +237,14 @@ message JoinRequest {
 }
 
 message JoinResponse {
-  string  public_key          = 1;
+  string  public_key            = 1;
   string  private_key_encrypted = 2;  // returned for backend storage (Fernet)
-  NATInfo nat                 = 3;
-  string  endpoint            = 4;    // external_ip:external_port
+  NATInfo nat                   = 3;
+  string  endpoint              = 4;  // external_ip:external_port (legacy)
+  // Every address the daemon could plausibly be reachable at. Backend
+  // stores these so other peers can race them. Populated by the daemon
+  // enumerating its own interfaces + the NAT reflexive address.
+  repeated PeerEndpoint endpoints = 5;
 }
 
 message LeaveRequest { string reason = 1; }
@@ -255,6 +284,10 @@ message AddPeerRequest {
   uint32           keepalive    = 6;
   NATInfo          remote_nat   = 7;
   ConnectionMethod force_method = 8;  // UNSPECIFIED → let engine choose
+  // Multi-endpoint candidate list. When non-empty the engine races
+  // these in priority order and ignores `endpoint` (field 4). Stays
+  // optional so older coordinators still work.
+  repeated PeerEndpoint endpoints = 9;
 }
 
 message AddPeerResponse {
@@ -269,6 +302,8 @@ message UpdatePeerRequest  {
   string           endpoint    = 2;
   repeated string  allowed_ips = 3;
   uint32           keepalive   = 4;
+  // Replaces the peer's candidate list (if non-empty). Engine re-races.
+  repeated PeerEndpoint endpoints = 5;
 }
 message UpdatePeerResponse { Peer peer = 1; }
 

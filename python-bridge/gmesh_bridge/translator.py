@@ -185,6 +185,7 @@ async def _handle_mesh_add_peer(self: Translator, msg: dict) -> dict:
         endpoint=msg.get("endpoint", ""),
         allowed_ips=msg.get("allowed_ips"),
         keepalive=int(msg.get("keepalive", 25)),
+        endpoints=msg.get("endpoints") or [],
     )
     return {
         "type": "mesh_peer_connected",
@@ -206,6 +207,7 @@ async def _handle_mesh_update_peer(self: Translator, msg: dict) -> dict:
         endpoint=msg.get("endpoint", ""),
         allowed_ips=msg.get("allowed_ips"),
         keepalive=int(msg.get("keepalive", 0)),
+        endpoints=msg.get("endpoints") or [],
     )
     return {"type": "mesh_peer_updated", "success": True, "peer_id": peer.id}
 
