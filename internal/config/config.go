@@ -120,7 +120,8 @@ type FirewallConfig struct {
 
 // RelayConfig controls relay fallback.
 type RelayConfig struct {
-	DefaultRelayURL string `yaml:"default_relay_url"` // gmesh-relay endpoint
+	DefaultRelayURL string `yaml:"default_relay_url"` // gmesh-relay endpoint, e.g. "udp://188.245.175.144:4500"
+	Secret          string `yaml:"secret"`            // HMAC shared secret (matches gmesh-relay -secret)
 	WSTunnelBuffer  int    `yaml:"ws_tunnel_buffer"`  // 2048
 }
 

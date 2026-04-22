@@ -1198,10 +1198,19 @@ func (s *Server) SetupRelay(ctx context.Context, in *gmeshv1.SetupRelayRequest) 
 		return nil, status.Error(codes.InvalidArgument, "relay_endpoint required")
 	}
 
-	// Build auth token. In production the HMAC secret is loaded from config.
-	// For Phase 4 the caller passes session_id as a string; we hash to 16 bytes.
+	// Build auth token. HMAC secret is loaded from Config.Relay.Secret
+	// (matches gmesh-relay's `-secret` flag). Caller supplies the session
+	// ID as a string; we hash it to 16 bytes so both peers in the same
+	// relay session derive the same tag without coordinating a UUID wire
+	// format.
 	sid := sessionIDFromString(in.RelaySessionId)
-	secret := []byte(s.Engine.Config.Relay.DefaultRelayURL) //nolint:gosec // placeholder — real secret comes from config in Phase 4.1
+	secret := []byte(s.Engine.Config.Relay.Secret)
+	if len(secret) == 0 {
+		return &gmeshv1.SetupRelayResponse{
+			Ok:    false,
+			Error: "relay.secret is not configured on this node",
+		}, nil
+	}
 	tok := relay.SignToken(secret, sid, uint64(in.PeerId)) //nolint:gosec
 
 	if _, err := s.Engine.SetupRelay(ctx, in.PeerId, in.RelayEndpoint, sid, tok); err != nil {
