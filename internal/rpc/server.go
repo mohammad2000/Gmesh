@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
@@ -79,7 +80,18 @@ func (s *Server) Start() (stop func(), err error) {
 		newAuditInterceptor(s.Audit),
 	)
 	stream := grpc.ChainStreamInterceptor(newStreamMetricsInterceptor())
-	gs := grpc.NewServer(unary, stream)
+	// Accept client keepalive pings as often as every 15s without
+	// replying with ENHANCE_YOUR_CALM+GOAWAY. grpc-go's default is 5
+	// minutes — way too high for the Python bridge whose own default
+	// is 30s. The Python agent was getting GOAWAY'd every few minutes,
+	// and the asyncio-grpc interaction during stream teardown would
+	// cascade into 'Cancelled.' on the main task and a clean agent
+	// exit that left gritivacore offline until next healthcheck.
+	kaPolicy := keepalive.EnforcementPolicy{
+		MinTime:             15 * time.Second,
+		PermitWithoutStream: true,
+	}
+	gs := grpc.NewServer(unary, stream, grpc.KeepaliveEnforcementPolicy(kaPolicy))
 	gmeshv1.RegisterGMeshServer(gs, s)
 
 	s.grpc = gs
