@@ -18,14 +18,80 @@ us catches that and falls through to the legacy Python mesh.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
-from typing import Any, Dict
+import socket
+from typing import Any, Dict, List
 
 import grpc
 
 from .client import GmeshBridge
 
 log = logging.getLogger("gmesh_bridge.translator")
+
+
+# LAN candidate networks we'll advertise as reachable over an "lan"
+# endpoint. Mirrors gmesh's internal/nat/lan.go isPrivateV4 set:
+# RFC1918, link-local, and CGNAT.
+_LAN_NETS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("100.64.0.0/10"),
+]
+
+
+def _enumerate_lan_endpoints(port: int) -> List[Dict[str, Any]]:
+    """Return every private IPv4 on a non-tunnel interface as an
+    {address, kind, priority} dict keyed to the given UDP port.
+
+    Used by the mesh_join re-entry path: when gmeshd returns
+    ALREADY_EXISTS (agent reconnected without the daemon restarting)
+    the fresh-join LAN list isn't returned, so we enumerate here so
+    the backend still sees up-to-date LAN candidates on every
+    reconnect — a phone that switches Wi-Fi networks, for example.
+    """
+    try:
+        import psutil  # lazy — agent has it, standalone tools may not
+    except ImportError:
+        return []
+
+    out: List[Dict[str, Any]] = []
+    try:
+        addrs_by_iface = psutil.net_if_addrs()
+    except Exception:
+        return []
+    for iface, addrs in addrs_by_iface.items():
+        if _is_tunnel_iface(iface):
+            continue
+        for a in addrs:
+            if a.family != socket.AF_INET:
+                continue
+            try:
+                ip = ipaddress.ip_address(a.address)
+            except ValueError:
+                continue
+            if any(ip in net for net in _LAN_NETS):
+                out.append({
+                    "address": f"{ip}:{port}",
+                    "kind": "lan",
+                    "priority": 10,
+                })
+    return out
+
+
+def _is_tunnel_iface(name: str) -> bool:
+    n = name.lower()
+    return (
+        n.startswith("utun")
+        or n.startswith("wg")
+        or n.startswith("tun")
+        or n.startswith("tap")
+        or n.startswith("gpd")
+        or n.startswith("zt")
+        or n.startswith("tailscale")
+    )
 
 
 class UnknownMessageType(Exception):
@@ -134,7 +200,14 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         public_key = st.get("public_key", "")
         private_key_encrypted = ""
         endpoint = ""
-        join_endpoints = []
+        # gmeshd only returns the LAN candidate list on a fresh Join;
+        # for already-joined re-entries we enumerate the same set in
+        # Python here so the backend still gets current interface state
+        # every time the agent re-connects. Matches internal/nat/lan.go
+        # in the Go daemon (RFC1918 + link-local + CGNAT ranges, skip
+        # tunnel interfaces).
+        port = int(st.get("listen_port") or msg.get("listen_port") or 51820)
+        join_endpoints = _enumerate_lan_endpoints(port)
         # Confirm the daemon's idea of mesh_ip matches what the backend
         # asked for. If not, the backend's request conflicts with the
         # already-joined state — surface that explicitly.
