@@ -81,6 +81,20 @@ def _enumerate_lan_endpoints(port: int) -> List[Dict[str, Any]]:
     return out
 
 
+def _same_mesh_prefix(a: str, b: str) -> bool:
+    """Return True when two mesh IPs share the same top-two octets
+    (≈ /16). Used to tolerate primary+alias setups like 10.250.0.1 +
+    10.200.0.1 on the same gmesh node — those are intentionally stacked
+    on one wg-gmesh interface via MeshPeerAddress aliases.
+    """
+    try:
+        pa = a.split(".")
+        pb = b.split(".")
+        return len(pa) >= 2 and len(pb) >= 2 and pa[0] == pb[0]
+    except Exception:
+        return False
+
+
 def _is_tunnel_iface(name: str) -> bool:
     n = name.lower()
     return (
@@ -208,16 +222,22 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         # tunnel interfaces).
         port = int(st.get("listen_port") or msg.get("listen_port") or 51820)
         join_endpoints = _enumerate_lan_endpoints(port)
-        # Confirm the daemon's idea of mesh_ip matches what the backend
-        # asked for. If not, the backend's request conflicts with the
-        # already-joined state — surface that explicitly.
-        if st.get("mesh_ip") and st["mesh_ip"] != msg["mesh_ip"]:
+        # The daemon can hold multiple mesh IPs on one WireGuard
+        # interface (primary + secondary aliases — see MeshPeerAddress
+        # in app/models/mesh_advanced.py). A node with primary
+        # 10.250.0.1 also serving 10.200.0.1 is perfectly legal and
+        # hitting mesh_join with either IP should succeed. Only raise
+        # the conflict error when the requested IP is in a completely
+        # different /16 — that's when the caller really is confused.
+        st_mesh = st.get("mesh_ip")
+        req_mesh = msg["mesh_ip"]
+        if st_mesh and st_mesh != req_mesh and not _same_mesh_prefix(st_mesh, req_mesh):
             return {
                 "type": "mesh_error",
                 "success": False,
                 "error": (
                     f"gmeshd is already joined to a DIFFERENT mesh "
-                    f"({st['mesh_ip']} vs requested {msg['mesh_ip']}). "
+                    f"({st_mesh} vs requested {req_mesh}). "
                     f"Call mesh_leave first, or use the existing mesh."
                 ),
                 "error_type": "already_joined_conflict",
