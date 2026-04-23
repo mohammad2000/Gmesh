@@ -65,17 +65,40 @@ func ipFromAddr(a net.Addr) net.IP {
 	return nil
 }
 
-// isTunnelInterface matches macOS utun*, Linux wg*, or anything
-// explicitly tagged as a wireguard/tunnel device.
+// isTunnelInterface matches tunnel and virtual container-network
+// interfaces that carry no traffic reachable from other hosts. We skip
+// them because advertising e.g. `docker0`'s 172.17.0.1 as a LAN
+// candidate poisons the remote peer's endpoint list — nothing outside
+// this host can route to that address.
 func isTunnelInterface(name string) bool {
 	n := strings.ToLower(name)
-	return strings.HasPrefix(n, "utun") ||
-		strings.HasPrefix(n, "wg") ||
-		strings.HasPrefix(n, "tun") ||
-		strings.HasPrefix(n, "tap") ||
-		strings.HasPrefix(n, "gpd") || // gmesh's own
-		strings.HasPrefix(n, "zt") || // ZeroTier
-		strings.HasPrefix(n, "tailscale")
+	switch {
+	// WireGuard, userspace tunnels, platform-specific VPN devices.
+	case strings.HasPrefix(n, "utun"),
+		strings.HasPrefix(n, "wg"),
+		strings.HasPrefix(n, "tun"),
+		strings.HasPrefix(n, "tap"),
+		strings.HasPrefix(n, "gpd"), // gmesh's own
+		strings.HasPrefix(n, "zt"),  // ZeroTier
+		strings.HasPrefix(n, "tailscale"):
+		return true
+	// Container / CNI virtual interfaces. Their IPs live entirely
+	// inside this host and never route across the internet.
+	case strings.HasPrefix(n, "docker"),
+		strings.HasPrefix(n, "br-"), // docker/compose user-defined bridges
+		strings.HasPrefix(n, "veth"),
+		strings.HasPrefix(n, "cni"),
+		strings.HasPrefix(n, "cali"), // Calico
+		strings.HasPrefix(n, "flannel"),
+		strings.HasPrefix(n, "weave"),
+		strings.HasPrefix(n, "cilium"),
+		strings.HasPrefix(n, "podman"),
+		strings.HasPrefix(n, "virbr"), // libvirt
+		strings.HasPrefix(n, "vnet"),  // KVM/QEMU
+		strings.HasPrefix(n, "kube"):
+		return true
+	}
+	return false
 }
 
 // isPrivateV4 returns true for RFC1918, link-local, and CGNAT ranges.

@@ -96,16 +96,17 @@ def _same_mesh_prefix(a: str, b: str) -> bool:
 
 
 def _is_tunnel_iface(name: str) -> bool:
+    # Skip tunnel interfaces AND container/CNI virtual bridges. Their IPs
+    # (docker0 → 172.17.0.1, br-* → 172.18.0.1, etc.) live entirely
+    # inside this host and advertising them as LAN candidates poisons
+    # the remote peer's endpoint list. Mirrors internal/nat/lan.go.
     n = name.lower()
-    return (
-        n.startswith("utun")
-        or n.startswith("wg")
-        or n.startswith("tun")
-        or n.startswith("tap")
-        or n.startswith("gpd")
-        or n.startswith("zt")
-        or n.startswith("tailscale")
+    prefixes = (
+        "utun", "wg", "tun", "tap", "gpd", "zt", "tailscale",
+        "docker", "br-", "veth", "cni", "cali", "flannel",
+        "weave", "cilium", "podman", "virbr", "vnet", "kube",
     )
+    return any(n.startswith(p) for p in prefixes)
 
 
 class UnknownMessageType(Exception):

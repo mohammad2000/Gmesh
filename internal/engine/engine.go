@@ -380,6 +380,23 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 	if err := e.WG.SetPrivateKey(ctx, e.iface, e.privKey); err != nil {
 		return fmt.Errorf("set private key: %w", err)
 	}
+	// Build the set of pubkeys we expect to own after rehydrate. Anything
+	// currently in the kernel WG interface that isn't in this set is a
+	// stale entry from before this daemon's lifetime — most commonly
+	// left over when the remote peer rotated its keypair and the
+	// backend's mesh_add_peer only added the new pubkey without
+	// removing the old one. Clearing those ghost peers is essential
+	// because WG's allowed-ips match is per-peer, and a ghost peer
+	// with the right IPs but the wrong pubkey blackholes mesh traffic
+	// on its own — we saw `10.200.0.2/32` sticky on a stale pubkey
+	// while the live pubkey held `(none)` and nothing could route.
+	keep := make(map[string]struct{}, len(st.Peers))
+	for _, p := range st.Peers {
+		if p.PublicKey != "" {
+			keep[p.PublicKey] = struct{}{}
+		}
+	}
+
 	reapplied := 0
 	for _, p := range st.Peers {
 		if p.PublicKey == "" {
@@ -401,8 +418,32 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 		}
 		reapplied++
 	}
+
+	// Now purge kernel WG peers that aren't in the persisted set.
+	// Failures are non-fatal: if ListPeers doesn't work we just leave
+	// the kernel state alone rather than tearing everything down.
+	purged := 0
+	if dumps, err := e.WG.ListPeers(ctx, e.iface); err == nil {
+		for _, d := range dumps {
+			if _, ok := keep[d.PublicKey]; ok {
+				continue
+			}
+			if err := e.WG.RemovePeer(ctx, e.iface, d.PublicKey); err != nil {
+				e.Log.Warn("rehydrate: purge stale peer failed",
+					"pubkey", d.PublicKey, "error", err)
+				continue
+			}
+			purged++
+			e.Log.Info("rehydrate: purged stale WG peer",
+				"pubkey", d.PublicKey, "allowed_ips", d.AllowedIPs)
+		}
+	} else {
+		e.Log.Warn("rehydrate: could not list WG peers for purge",
+			"iface", e.iface, "error", err)
+	}
+
 	e.Log.Info("rehydrated WG interface", "iface", e.iface, "addr", addrCIDR,
-		"listen_port", listenPort, "peers_reapplied", reapplied)
+		"listen_port", listenPort, "peers_reapplied", reapplied, "peers_purged", purged)
 	return nil
 }
 
@@ -1414,6 +1455,35 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 		p.Endpoint = initialEndpoint
 	}
 
+	// If this peer ID already exists with a DIFFERENT pubkey (because
+	// the remote gmeshd restarted and generated a fresh keypair), the
+	// kernel still holds the old pubkey as a separate WG peer. Adding
+	// the new pubkey without first removing the old one leaves WG in a
+	// split state: the stale pubkey keeps its allowed-ips but never
+	// handshakes, and the mesh IP traffic gets dropped because it
+	// matches the ghost peer's AllowedIPs, not the live one's. Clean
+	// up first so the new peer owns the mesh IP outright.
+	if existing, ok := e.Peers.Get(p.ID); ok && existing.PublicKey != "" && existing.PublicKey != p.PublicKey {
+		e.Log.Info("peer pubkey rotated; removing stale WG entry",
+			"peer", p.ID, "old_pubkey", existing.PublicKey, "new_pubkey", p.PublicKey)
+		if e.Racer != nil {
+			e.Racer.Stop(p.ID)
+		}
+		if err := e.WG.RemovePeer(ctx, e.Interface(), existing.PublicKey); err != nil {
+			e.Log.Warn("remove stale pubkey failed (continuing)",
+				"peer", p.ID, "old_pubkey", existing.PublicKey, "error", err)
+		}
+	}
+
+	// Defensive AllowedIPs floor: never let WG end up with an empty
+	// allowed-ips list on this peer. ReplaceAllowedIPs=true means an
+	// empty slice blackholes mesh traffic for this pubkey. At minimum
+	// we advertise the peer's mesh IP so intra-mesh routing keeps
+	// working even if the caller forgot to populate the field.
+	if len(p.AllowedIPs) == 0 && p.MeshIP != "" {
+		p.AllowedIPs = []string{p.MeshIP + "/32"}
+	}
+
 	if err := e.WG.AddPeer(ctx, e.Interface(), wireguard.PeerConfig{
 		PublicKey:                   p.PublicKey,
 		Endpoint:                    initialEndpoint,
@@ -1479,8 +1549,15 @@ func (e *Engine) UpdatePeer(ctx context.Context, peerID int64, endpoint string, 
 	if endpoint != "" {
 		p.Endpoint = endpoint
 	}
-	if allowedIPs != nil {
+	// Only overwrite AllowedIPs when the caller passed a non-empty
+	// list. A callback carrying allowedIPs=[] used to blackhole mesh
+	// traffic because WG's ReplaceAllowedIPs=true would drop the mesh
+	// IP from the peer entry. If the caller really wants to clear them,
+	// they should pass RemovePeer + AddPeer explicitly.
+	if len(allowedIPs) > 0 {
 		p.AllowedIPs = allowedIPs
+	} else if len(p.AllowedIPs) == 0 && p.MeshIP != "" {
+		p.AllowedIPs = []string{p.MeshIP + "/32"}
 	}
 	ka := e.keepalive
 	if keepalive > 0 {
