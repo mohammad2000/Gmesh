@@ -369,8 +369,19 @@ func (e *Engine) rehydrate() error {
 // daemon startup. Idempotent: if the interface already exists (unlikely
 // on startup but possible in tests), CreateInterface handles re-init.
 func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error {
+	// Compose the mesh IP with its CIDR prefix. state.json stores the
+	// prefix separately from mesh_ip, and older state files written
+	// before the NetworkCIDR column was added may lack it entirely.
+	// Fall back to the daemon's configured CIDR so ifaceAddAddr can
+	// install the subnet route on macOS — without the slash, BSD's
+	// ifconfig runs but the accompanying `route add -net` is skipped
+	// and peer traffic blackholes at the default gateway.
 	addrCIDR := e.meshIP
-	if prefix := maskFromCIDR(st.Node.NetworkCIDR); prefix != "" {
+	cidr := st.Node.NetworkCIDR
+	if cidr == "" {
+		cidr = e.Config.WireGuard.NetworkCIDR
+	}
+	if prefix := maskFromCIDR(cidr); prefix != "" {
 		addrCIDR = e.meshIP + "/" + prefix
 	}
 	listenPort := uint16(st.Node.ListenPort)
@@ -416,6 +427,13 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 			e.Log.Warn("rehydrate: re-add peer failed", "peer_id", p.ID, "error", err)
 			continue
 		}
+		// NOTE: we deliberately do NOT call e.Routing.Ensure() here.
+		// ifaceAddAddr already installed the mesh subnet route
+		// (10.200.0.0/16) via the REAL interface name, which covers
+		// all peers. Ensure takes the LOGICAL name (e.iface ==
+		// "wg-gritiva") which on macOS isn't what /sbin/route expects
+		// (it wants utunN). Routing.Ensure for the per-peer /32 is
+		// redundant anyway as long as the subnet route is present.
 		reapplied++
 	}
 
