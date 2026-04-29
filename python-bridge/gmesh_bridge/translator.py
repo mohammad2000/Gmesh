@@ -444,6 +444,103 @@ _HANDLERS = {
 }
 
 
+
+
+# ── Ingress profile bridge handlers ───────────────────────────────────
+# Backend → agent → bridge → gmeshd. The agent emits mesh.ingress.created
+# / mesh.ingress.removed / mesh.ingress.error to the backend after the
+# RPC returns; the backend uses those acks to flip
+# mesh_ingress_profiles.status.
+
+def _ingress_payload_from_msg(msg: dict) -> dict:
+    """Backend may send the IngressProfile fields either at top level or
+    nested under `data`. Normalise both shapes into a flat dict the
+    client.ingress_to_proto helper understands."""
+    p = dict(msg.get("data") or {})
+    for k in (
+        "id", "name", "enabled",
+        "backend_peer_id", "backend_scope_id", "backend_ip", "backend_port",
+        "edge_peer_id", "edge_port", "protocol",
+        "allowed_source_cidrs", "require_mtls",
+    ):
+        if k in msg and k not in p:
+            p[k] = msg[k]
+    return p
+
+
+async def _handle_mesh_ingress_create(self: Translator, msg: dict) -> dict:
+    profile = _ingress_payload_from_msg(msg)
+    try:
+        result = await self.bridge.ingress_create(profile)
+        return {
+            "type":     "mesh.ingress.created",
+            "success":  True,
+            "id":       result.get("id"),
+            "profile_id": result.get("id"),
+            "profile":  result,
+        }
+    except Exception as ex:
+        return {
+            "type":     "mesh.ingress.error",
+            "success":  False,
+            "id":       profile.get("id"),
+            "profile_id": profile.get("id"),
+            "error":    str(ex),
+            "operation": "create",
+        }
+
+
+async def _handle_mesh_ingress_update(self: Translator, msg: dict) -> dict:
+    profile = _ingress_payload_from_msg(msg)
+    try:
+        result = await self.bridge.ingress_update(profile)
+        return {
+            "type":     "mesh.ingress.created",
+            "success":  True,
+            "id":       result.get("id"),
+            "profile_id": result.get("id"),
+            "profile":  result,
+        }
+    except Exception as ex:
+        return {
+            "type":     "mesh.ingress.error",
+            "success":  False,
+            "id":       profile.get("id"),
+            "profile_id": profile.get("id"),
+            "error":    str(ex),
+            "operation": "update",
+        }
+
+
+async def _handle_mesh_ingress_delete(self: Translator, msg: dict) -> dict:
+    p = msg.get("data") or {}
+    pid = int(msg.get("id") or p.get("id") or msg.get("profile_id") or 0)
+    if pid <= 0:
+        return {
+            "type":     "mesh.ingress.error",
+            "success":  False,
+            "error":    "missing profile id",
+            "operation": "delete",
+        }
+    try:
+        await self.bridge.ingress_delete(pid)
+        return {
+            "type":     "mesh.ingress.removed",
+            "success":  True,
+            "id":       pid,
+            "profile_id": pid,
+        }
+    except Exception as ex:
+        return {
+            "type":     "mesh.ingress.error",
+            "success":  False,
+            "id":       pid,
+            "profile_id": pid,
+            "error":    str(ex),
+            "operation": "delete",
+        }
+
+
 def _error_type_for(inbound_type: str) -> str:
     if inbound_type.startswith("scope_"):
         return "scope_mesh_error"
@@ -455,3 +552,9 @@ def _error_type_for(inbound_type: str) -> str:
 def known_message_types() -> list:
     """Return the sorted list of WS message types this Translator handles."""
     return sorted(_HANDLERS.keys())
+
+# Late registration: handler defs live below the _HANDLERS
+# dict literal, so we splice them in here after both exist.
+_HANDLERS["mesh_ingress_create"] = _handle_mesh_ingress_create
+_HANDLERS["mesh_ingress_update"] = _handle_mesh_ingress_update
+_HANDLERS["mesh_ingress_delete"] = _handle_mesh_ingress_delete

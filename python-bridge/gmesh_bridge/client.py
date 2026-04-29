@@ -339,6 +339,72 @@ class GmeshBridge:
             "handshake_age_s": p.handshake_age_s,
         } for p in resp.peers]
 
+
+
+    # ── Ingress profiles (Phase 12) ───────────────────────────────────
+    # Expose a backend service running on a mesh peer (optionally inside
+    # a scope) at an edge peer's public port. gmeshd installs nftables
+    # rules in the gritiva-ingress table on the edge peer.
+
+    @staticmethod
+    def _ingress_to_proto(p: dict) -> Any:
+        return gmesh_pb2.IngressProfile(
+            id=int(p.get("id", 0)),
+            name=p.get("name", ""),
+            enabled=bool(p.get("enabled", True)),
+            backend_peer_id=int(p.get("backend_peer_id", 0) or 0),
+            backend_scope_id=int(p.get("backend_scope_id", 0) or 0),
+            backend_ip=p.get("backend_ip", "") or "",
+            backend_port=int(p.get("backend_port", 0)),
+            edge_peer_id=int(p.get("edge_peer_id", 0)),
+            edge_port=int(p.get("edge_port", 0)),
+            protocol=p.get("protocol", "tcp"),
+            allowed_source_cidrs=list(p.get("allowed_source_cidrs") or []),
+            require_mtls=bool(p.get("require_mtls", False)),
+        )
+
+    @staticmethod
+    def _ingress_from_proto(p: Any) -> dict:
+        return {
+            "id": p.id,
+            "name": p.name,
+            "enabled": p.enabled,
+            "backend_peer_id": p.backend_peer_id,
+            "backend_scope_id": p.backend_scope_id,
+            "backend_ip": p.backend_ip,
+            "backend_port": p.backend_port,
+            "edge_peer_id": p.edge_peer_id,
+            "edge_port": p.edge_port,
+            "protocol": p.protocol,
+            "allowed_source_cidrs": list(p.allowed_source_cidrs),
+            "require_mtls": p.require_mtls,
+            "created_at_unix": p.created_at_unix,
+            "updated_at_unix": p.updated_at_unix,
+        }
+
+    async def ingress_create(self, profile: dict) -> dict:
+        resp = await self._stub.CreateIngressProfile(
+            gmesh_pb2.CreateIngressProfileRequest(profile=self._ingress_to_proto(profile))
+        )
+        return self._ingress_from_proto(resp.profile)
+
+    async def ingress_update(self, profile: dict) -> dict:
+        resp = await self._stub.UpdateIngressProfile(
+            gmesh_pb2.UpdateIngressProfileRequest(profile=self._ingress_to_proto(profile))
+        )
+        return self._ingress_from_proto(resp.profile)
+
+    async def ingress_delete(self, profile_id: int) -> None:
+        await self._stub.DeleteIngressProfile(
+            gmesh_pb2.DeleteIngressProfileRequest(id=int(profile_id))
+        )
+
+    async def ingress_list(self) -> List[dict]:
+        resp = await self._stub.ListIngressProfiles(
+            gmesh_pb2.ListIngressProfilesRequest()
+        )
+        return [self._ingress_from_proto(p) for p in resp.profiles]
+
     async def subscribe_events(self, types: Optional[List[str]] = None) -> AsyncIterator[dict]:
         """Yield one dict per event until the server closes the stream."""
         req = gmesh_pb2.SubscribeEventsRequest(types=list(types or []))
