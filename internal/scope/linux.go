@@ -191,7 +191,13 @@ func (m *LinuxManager) createVeth(ctx context.Context, p *Peer, mtu int) error {
 }
 
 func (m *LinuxManager) setupAddrs(ctx context.Context, p *Peer) error {
-	hostMask := strings.TrimPrefix(strings.Split(p.VethCIDR, "/")[1:][0], "")
+	// Defensive: gmeshd panicked here when VethCIDR was empty
+	// (strings.Split("", "/")[1:][0] -> index out of range).
+	vethParts := strings.Split(p.VethCIDR, "/")
+	hostMask := ""
+	if len(vethParts) >= 2 {
+		hostMask = vethParts[1]
+	}
 	if hostMask == "" {
 		hostMask = "30"
 	}
