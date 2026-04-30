@@ -167,7 +167,15 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 		}
 	}
 	if in.ListenPort == 0 {
-		in.ListenPort = 51820
+		// Same reasoning as the InterfaceName fallback above — honour
+		// /etc/gmesh/config.yaml. The 51820 hard-coded literal silently
+		// overrode whatever port the operator (or the gritiva backend's
+		// per-VM allocator: base_port + peer_index) wanted.
+		if s.Engine.Config != nil && s.Engine.Config.WireGuard.ListenPort != 0 {
+			in.ListenPort = uint32(s.Engine.Config.WireGuard.ListenPort)
+		} else {
+			in.ListenPort = 51820
+		}
 	}
 
 	res, err := s.Engine.Join(ctx, in.MeshIp, in.InterfaceName, uint16(in.ListenPort), in.NetworkCidr, in.NodeId)

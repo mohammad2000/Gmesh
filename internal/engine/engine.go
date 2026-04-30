@@ -102,6 +102,14 @@ type Engine struct {
 	privKey     string
 	networkCIDR string
 	keepalive   time.Duration
+	// listenPort is the actual UDP port the kernel WG device is bound to,
+	// captured at Join() time (or restored from state on rehydrate). The
+	// config default in cfg.WireGuard.ListenPort is only a hint; the
+	// runtime value can differ when the operator/coordinator picks per-VM
+	// ports (e.g. base_port + peer_index). State and Status must reflect
+	// the runtime value or remote peers will keep dialing a stale port
+	// after every restart.
+	listenPort uint16
 }
 
 // Options bundles the optional dependencies that vary between tests and
@@ -388,6 +396,12 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 	if err := e.WG.CreateInterface(ctx, e.iface, addrCIDR, int(e.Config.WireGuard.MTU), listenPort); err != nil {
 		return fmt.Errorf("create interface %s: %w", e.iface, err)
 	}
+	// Mirror the runtime port back into the engine so subsequent persist()
+	// calls (peer add/remove, etc.) keep recording the actual listening
+	// port instead of falling back to the config default.
+	e.mu.Lock()
+	e.listenPort = listenPort
+	e.mu.Unlock()
 	if err := e.WG.SetPrivateKey(ctx, e.iface, e.privKey); err != nil {
 		return fmt.Errorf("set private key: %w", err)
 	}
@@ -1324,9 +1338,17 @@ func (e *Engine) PubKey() string {
 	return e.pubKey
 }
 
-// ListenPort returns the WG listen port in use. Pulled from config;
-// 0 when not configured.
+// ListenPort returns the WG listen port the kernel device is actually
+// bound to (set at Join time, restored from state on rehydrate). Falls
+// back to the config default before any successful Join. Status RPC
+// reads through this so the agent and panel always see the runtime
+// port, never the stale config hint.
 func (e *Engine) ListenPort() uint16 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.listenPort != 0 {
+		return e.listenPort
+	}
 	return e.Config.WireGuard.ListenPort
 }
 
@@ -1384,6 +1406,7 @@ func (e *Engine) Join(ctx context.Context, meshIP, iface string, listenPort uint
 	e.privKey = kp.Private
 	e.pubKey = kp.Public
 	e.networkCIDR = networkCIDR
+	e.listenPort = listenPort
 	e.mu.Unlock()
 
 	if err := e.persist(); err != nil {
@@ -1630,11 +1653,15 @@ func (e *Engine) RefreshPeerStats(ctx context.Context) ([]*peer.Peer, error) {
 
 func (e *Engine) persist() error {
 	e.mu.RLock()
+	listenPort := e.listenPort
+	if listenPort == 0 {
+		listenPort = e.Config.WireGuard.ListenPort
+	}
 	st := state.State{
 		Node: state.NodeState{
 			MeshIP:      e.meshIP,
 			Interface:   e.iface,
-			ListenPort:  e.Config.WireGuard.ListenPort,
+			ListenPort:  listenPort,
 			PrivateKey:  e.privKey,
 			PublicKey:   e.pubKey,
 			NodeID:      e.nodeID,
