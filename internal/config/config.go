@@ -82,7 +82,7 @@ type LogConfig struct {
 
 // WireGuardConfig controls the WG interface lifecycle.
 type WireGuardConfig struct {
-	Interface        string `yaml:"interface"`         // "wg-gritiva"
+	Interface        string `yaml:"interface"`         // "wg-gmesh"
 	ListenPort       uint16 `yaml:"listen_port"`       // 51820
 	MTU              uint16 `yaml:"mtu"`               // 1420
 	KeepaliveSeconds uint16 `yaml:"keepalive_seconds"` // 25
@@ -140,7 +140,7 @@ func Default() *Config {
 		},
 		Log: LogConfig{Format: "text", Level: "info"},
 		WireGuard: WireGuardConfig{
-			Interface:        "wg-gritiva",
+			Interface:        "wg-gmesh",
 			ListenPort:       51820,
 			MTU:              1420,
 			KeepaliveSeconds: 25,

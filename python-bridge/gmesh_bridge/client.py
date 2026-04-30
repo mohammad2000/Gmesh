@@ -136,7 +136,7 @@ class GmeshBridge:
 
     # ── Lifecycle ──────────────────────────────────────────────────────
 
-    async def join(self, *, mesh_ip: str, listen_port: int, interface_name: str = "wg-gritiva",
+    async def join(self, *, mesh_ip: str, listen_port: int, interface_name: str = "wg-gmesh",
                    network_cidr: str = "10.200.0.0/16", node_id: str = "") -> dict:
         resp = await self._stub.Join(gmesh_pb2.JoinRequest(
             mesh_ip=mesh_ip, listen_port=listen_port, interface_name=interface_name,

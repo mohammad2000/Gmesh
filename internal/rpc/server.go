@@ -154,7 +154,17 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 		return nil, status.Error(codes.InvalidArgument, "mesh_ip is required")
 	}
 	if in.InterfaceName == "" {
-		in.InterfaceName = "wg-gritiva"
+		// Honour what the operator put in /etc/gmesh/config.yaml. Falling
+		// back to a hard-coded "wg-gritiva" here meant a node booted with
+		// `interface: wg-gmesh` in its config still ended up creating
+		// `wg-gritiva` on the wire — every nftables rule in egress/circuit
+		// is keyed on `wg-gmesh`, so the firewall + NAT silently dropped
+		// inter-mesh traffic.
+		if s.Engine.Config != nil && s.Engine.Config.WireGuard.Interface != "" {
+			in.InterfaceName = s.Engine.Config.WireGuard.Interface
+		} else {
+			in.InterfaceName = "wg-gmesh"
+		}
 	}
 	if in.ListenPort == 0 {
 		in.ListenPort = 51820

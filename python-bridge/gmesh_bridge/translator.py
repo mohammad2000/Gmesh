@@ -173,7 +173,7 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
         res = await self.bridge.join(
             mesh_ip=msg["mesh_ip"],
             listen_port=int(msg.get("listen_port", 51820)),
-            interface_name=msg.get("interface_name", "wg-gritiva"),
+            interface_name=msg.get("interface_name", "wg-gmesh"),
             network_cidr=msg.get("network_cidr", "10.200.0.0/16"),
             node_id=msg.get("node_id", ""),
         )
