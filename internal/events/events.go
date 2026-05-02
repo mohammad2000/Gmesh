@@ -31,6 +31,7 @@ const (
 	TypePeerMethodChange  = "peer_method_change"
 	TypePeerAdded         = "peer_added"
 	TypePeerRemoved       = "peer_removed"
+	TypePeerStuck         = "peer_stuck"
 	TypeHealthUpdate      = "health_update"
 	TypeNATChanged        = "nat_changed"
 	TypeFirewallApplied   = "firewall_applied"

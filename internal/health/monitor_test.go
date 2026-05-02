@@ -160,6 +160,85 @@ func TestMonitorNoPeersEmitsNothing(t *testing.T) {
 	}
 }
 
+func TestMonitorEmitsPeerStuck(t *testing.T) {
+	p := &peer.Peer{
+		ID:       42,
+		Status:   peer.StatusConnecting,
+		Endpoint: "1.2.3.4:51820",
+		Method:   3, // STUN_HOLE_PUNCH
+	}
+	src := &fakeSource{peers: []*peer.Peer{p}}
+	bus := &collector{}
+	m := NewMonitor(src, bus, silentLog())
+	// Tighten threshold + repeat for fast assertion.
+	m.StuckThreshold = 50 * time.Millisecond
+	m.StuckRepeatInterval = 50 * time.Millisecond
+
+	// First tick records first-seen; should NOT emit yet.
+	m.Tick(context.Background())
+	if got := len(bus.byType(events.TypePeerStuck)); got != 0 {
+		t.Fatalf("peer_stuck events after first tick = %d; want 0", got)
+	}
+
+	// Wait past the threshold and tick again.
+	time.Sleep(80 * time.Millisecond)
+	m.Tick(context.Background())
+	stuck := bus.byType(events.TypePeerStuck)
+	if len(stuck) != 1 {
+		t.Fatalf("peer_stuck events after threshold = %d; want 1", len(stuck))
+	}
+
+	var pl map[string]any
+	if err := json.Unmarshal(stuck[0].Payload, &pl); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if pl["status"] != "connecting" {
+		t.Errorf("status = %v; want connecting", pl["status"])
+	}
+	if pl["endpoint"] != "1.2.3.4:51820" {
+		t.Errorf("endpoint = %v; want 1.2.3.4:51820", pl["endpoint"])
+	}
+
+	// Recovering moves out of the stuck status set: another tick with
+	// status=CONNECTED should NOT emit further peer_stuck events.
+	p.Status = peer.StatusConnected
+	p.LastHandshake = time.Now()
+	p.LatencyMS = 20
+	p.Method = 1 // DIRECT
+	m.Tick(context.Background())
+	if got := len(bus.byType(events.TypePeerStuck)); got != 1 {
+		t.Errorf("peer_stuck count after recovery = %d; want 1 (no new emits)", got)
+	}
+}
+
+func TestMonitorPeerStuckCooldown(t *testing.T) {
+	p := &peer.Peer{ID: 7, Status: peer.StatusEstablishing}
+	src := &fakeSource{peers: []*peer.Peer{p}}
+	bus := &collector{}
+	m := NewMonitor(src, bus, silentLog())
+	m.StuckThreshold = 10 * time.Millisecond
+	m.StuckRepeatInterval = 200 * time.Millisecond
+
+	// Cross the threshold once.
+	m.Tick(context.Background())
+	time.Sleep(20 * time.Millisecond)
+	m.Tick(context.Background())
+
+	// Two more ticks well within the repeat window — should still be 1.
+	m.Tick(context.Background())
+	m.Tick(context.Background())
+	if got := len(bus.byType(events.TypePeerStuck)); got != 1 {
+		t.Fatalf("peer_stuck events under cooldown = %d; want 1", got)
+	}
+
+	// Sleep past the repeat interval and tick again — second emit allowed.
+	time.Sleep(220 * time.Millisecond)
+	m.Tick(context.Background())
+	if got := len(bus.byType(events.TypePeerStuck)); got != 2 {
+		t.Fatalf("peer_stuck events after cooldown = %d; want 2", got)
+	}
+}
+
 func TestMethodQualityRank(t *testing.T) {
 	cases := map[int]int{
 		1: 100, // direct

@@ -61,10 +61,26 @@ type Monitor struct {
 	// FailingTicksBeforeDisconnect is the number of consecutive FAILING
 	// scores before we emit peer_disconnected (to absorb brief blips).
 	FailingTicksBeforeDisconnect int // default 3
+	// StuckThreshold is how long a peer can sit in CONNECTING/ESTABLISHING
+	// before we emit peer_stuck. The signal lets the agent (and ultimately
+	// the panel) tell the difference between "connection just being
+	// established" and "racer has been chewing on candidates for ages and
+	// nothing is winning". Default 5 minutes — long enough that a normal
+	// hole-punch attempt or relay setup completes well within it, short
+	// enough that operators don't sit blind for half an hour.
+	StuckThreshold time.Duration // default 5m
+	// StuckRepeatInterval is the minimum time between consecutive
+	// peer_stuck emissions for the same peer. Without this we'd emit on
+	// every tick once threshold is exceeded — noisy and crowds the event
+	// channel. Default 5 minutes.
+	StuckRepeatInterval time.Duration // default 5m
 
-	mu           sync.Mutex
-	failingCount map[int64]int
-	lastStatus   map[int64]Status
+	mu              sync.Mutex
+	failingCount    map[int64]int
+	lastStatus      map[int64]Status
+	stuckSince      map[int64]time.Time // first time we saw peer in connecting/establishing
+	stuckLastEmit   map[int64]time.Time // last peer_stuck emit per peer
+	lastPeerStatus  map[int64]peer.Status
 }
 
 // NewMonitor returns a Monitor with defaults applied.
@@ -79,8 +95,13 @@ func NewMonitor(src PeerSource, bus Publisher, log *slog.Logger) *Monitor {
 		Interval:                     30 * time.Second,
 		DegradedInterval:             15 * time.Second,
 		FailingTicksBeforeDisconnect: 3,
+		StuckThreshold:               5 * time.Minute,
+		StuckRepeatInterval:          5 * time.Minute,
 		failingCount:                 map[int64]int{},
 		lastStatus:                   map[int64]Status{},
+		stuckSince:                   map[int64]time.Time{},
+		stuckLastEmit:                map[int64]time.Time{},
+		lastPeerStatus:               map[int64]peer.Status{},
 	}
 }
 
@@ -113,15 +134,112 @@ func (m *Monitor) Tick(ctx context.Context) bool {
 	}
 
 	any := false
+	now := time.Now()
+	seen := make(map[int64]struct{})
 	for _, p := range m.Source.Snapshot() {
+		seen[p.ID] = struct{}{}
 		score := scoreForPeer(p)
 		status := FromScore(score)
 		if status >= StatusDegraded {
 			any = true
 		}
 		m.emit(p, score, status)
+		m.checkStuck(p, now)
 	}
+	// Forget peers that have disappeared from the registry so the maps
+	// don't grow unbounded across long uptimes.
+	m.mu.Lock()
+	for id := range m.stuckSince {
+		if _, ok := seen[id]; !ok {
+			delete(m.stuckSince, id)
+			delete(m.stuckLastEmit, id)
+			delete(m.lastPeerStatus, id)
+		}
+	}
+	m.mu.Unlock()
 	return any
+}
+
+// checkStuck emits peer_stuck when a peer has been in connecting/
+// establishing for longer than StuckThreshold. Re-emits at most once
+// per StuckRepeatInterval so a peer that's been wedged for an hour
+// shows up periodically in the event stream rather than just once at
+// the threshold crossing.
+func (m *Monitor) checkStuck(p *peer.Peer, now time.Time) {
+	if m.StuckThreshold <= 0 {
+		return
+	}
+	stuck := p.Status == peer.StatusConnecting || p.Status == peer.StatusEstablishing
+
+	m.mu.Lock()
+	prevStatus, hadPrev := m.lastPeerStatus[p.ID]
+	m.lastPeerStatus[p.ID] = p.Status
+	if !stuck {
+		// Status moved out of the stuck set — clear trackers so a
+		// future stall starts a fresh deadline.
+		delete(m.stuckSince, p.ID)
+		delete(m.stuckLastEmit, p.ID)
+		m.mu.Unlock()
+		return
+	}
+	// If the peer just transitioned INTO a stuck status (was something
+	// else last tick), reset the timer to "now" so we measure the
+	// current stall, not stuck time across status changes.
+	if hadPrev && prevStatus != p.Status {
+		delete(m.stuckSince, p.ID)
+		delete(m.stuckLastEmit, p.ID)
+	}
+	first, ok := m.stuckSince[p.ID]
+	if !ok {
+		m.stuckSince[p.ID] = now
+		m.mu.Unlock()
+		return
+	}
+	stuckFor := now.Sub(first)
+	if stuckFor < m.StuckThreshold {
+		m.mu.Unlock()
+		return
+	}
+	lastEmit := m.stuckLastEmit[p.ID]
+	if !lastEmit.IsZero() && now.Sub(lastEmit) < m.StuckRepeatInterval {
+		m.mu.Unlock()
+		return
+	}
+	m.stuckLastEmit[p.ID] = now
+	m.mu.Unlock()
+
+	if m.Bus != nil {
+		m.Bus.Publish(events.New(events.TypePeerStuck, p.ID, map[string]any{
+			"status":         statusString(p.Status),
+			"stuck_for_secs": int64(stuckFor.Seconds()),
+			"endpoint":       p.Endpoint,
+			"method":         p.Method,
+			"threshold_secs": int64(m.StuckThreshold.Seconds()),
+		}))
+	}
+	m.Log.Warn("peer stuck",
+		"peer_id", p.ID,
+		"status", statusString(p.Status),
+		"stuck_for", stuckFor,
+		"endpoint", p.Endpoint,
+	)
+}
+
+func statusString(s peer.Status) string {
+	switch s {
+	case peer.StatusConnecting:
+		return "connecting"
+	case peer.StatusConnected:
+		return "connected"
+	case peer.StatusDisconnected:
+		return "disconnected"
+	case peer.StatusError:
+		return "error"
+	case peer.StatusEstablishing:
+		return "establishing"
+	default:
+		return "unspecified"
+	}
 }
 
 // scoreForPeer computes a score from peer.Peer's current fields.
