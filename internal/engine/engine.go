@@ -322,6 +322,24 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	return e, nil
 }
 
+// parseEndpointKind maps the on-disk string back to the internal enum
+// used by the racer. Mirror of peer.Endpoint.Kind.String() — kept local
+// to avoid another import cycle path through state→peer.
+func parseEndpointKind(s string) peer.EndpointKind {
+	switch s {
+	case "lan":
+		return peer.EndpointKindLAN
+	case "wan":
+		return peer.EndpointKindWAN
+	case "stun":
+		return peer.EndpointKindSTUN
+	case "relay":
+		return peer.EndpointKindRelay
+	default:
+		return peer.EndpointKindUnspecified
+	}
+}
+
 // rehydrate restores in-memory state from the on-disk file. Missing file = no-op.
 func (e *Engine) rehydrate() error {
 	st, err := e.Store.Load()
@@ -346,12 +364,30 @@ func (e *Engine) rehydrate() error {
 		if p.Type == "scope" {
 			t = peer.TypeScope
 		}
+		// Restore the candidate endpoints with their LastOK timestamps
+		// so the racer's sortedCandidates promotes the last-known-good
+		// candidate first. Empty for state files written before this
+		// column existed; in that case the racer falls back to its
+		// pure-priority ordering (which works, just slower).
+		var eps []peer.Endpoint
+		if len(p.Endpoints) > 0 {
+			eps = make([]peer.Endpoint, 0, len(p.Endpoints))
+			for _, ep := range p.Endpoints {
+				eps = append(eps, peer.Endpoint{
+					Address:  ep.Address,
+					Kind:     parseEndpointKind(ep.Kind),
+					Priority: ep.Priority,
+					LastOK:   ep.LastOK,
+				})
+			}
+		}
 		e.Peers.Upsert(&peer.Peer{
 			ID:         p.ID,
 			Type:       t,
 			MeshIP:     p.MeshIP,
 			PublicKey:  p.PublicKey,
 			Endpoint:   p.Endpoint,
+			Endpoints:  eps,
 			AllowedIPs: p.AllowedIPs,
 			Status:     peer.StatusConnecting, // will be refreshed by health loop
 			ScopeID:    p.ScopeID,
@@ -1676,6 +1712,22 @@ func (e *Engine) persist() error {
 		if p.Type == peer.TypeScope {
 			t = "scope"
 		}
+		// Persist the full candidate list with LastOK so that on
+		// restart the racer can promote the previously-winning
+		// endpoint instead of paying 15s per candidate to re-discover
+		// what worked last time.
+		var eps []state.EndpointEntry
+		if len(p.Endpoints) > 0 {
+			eps = make([]state.EndpointEntry, 0, len(p.Endpoints))
+			for _, ep := range p.Endpoints {
+				eps = append(eps, state.EndpointEntry{
+					Address:  ep.Address,
+					Kind:     ep.Kind.String(),
+					Priority: ep.Priority,
+					LastOK:   ep.LastOK,
+				})
+			}
+		}
 		st.Peers = append(st.Peers, state.PeerEntry{
 			ID:         p.ID,
 			Type:       t,
@@ -1684,6 +1736,7 @@ func (e *Engine) persist() error {
 			Endpoint:   p.Endpoint,
 			AllowedIPs: p.AllowedIPs,
 			ScopeID:    p.ScopeID,
+			Endpoints:  eps,
 		})
 	}
 	return e.Store.Save(&st)

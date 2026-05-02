@@ -48,6 +48,22 @@ type PeerEntry struct {
 	Endpoint   string   `json:"endpoint"`
 	AllowedIPs []string `json:"allowed_ips"`
 	ScopeID    int64    `json:"scope_id,omitempty"`
+	// Endpoints carries the candidate list (LAN/WAN/STUN/relay) and
+	// LastOK timestamps so the racer can prefer the previously-
+	// successful endpoint after gmeshd restart, instead of cold-racing
+	// every candidate from scratch and burning 15s per failed candidate.
+	// Optional — older state files predate this column.
+	Endpoints []EndpointEntry `json:"endpoints,omitempty"`
+}
+
+// EndpointEntry persists a single candidate. Mirrors peer.Endpoint
+// but lives in the storage layer so we don't import peer from state
+// (and don't accidentally store internal-only fields).
+type EndpointEntry struct {
+	Address  string    `json:"address"`
+	Kind     string    `json:"kind"`     // "lan" | "wan" | "stun" | "relay"
+	Priority uint32    `json:"priority"`
+	LastOK   time.Time `json:"last_ok,omitempty"`
 }
 
 // Store is a thread-safe state file manager.
