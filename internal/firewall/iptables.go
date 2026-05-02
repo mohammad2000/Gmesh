@@ -40,6 +40,56 @@ func NewIptables(chain string, log *slog.Logger) *IptablesBackend {
 	return &IptablesBackend{Chain: chain, Log: log}
 }
 
+// iptables is xtables-lock-based: any concurrent invocation (e.g.
+// docker, fail2ban, ufw, another gmeshd unit during reload) makes our
+// call fail with "Another app is currently holding the xtables lock".
+// Pass -w 10 so iptables waits up to 10s for the lock instead of
+// failing fast — this is the single biggest cause of transient Apply
+// failures in production and the kernel itself queues the wait.
+//
+// Helper prepends -w 10 to the user args. Goes through runCmd so the
+// nft path (which doesn't need -w) is unchanged.
+func iptablesRunWithLock(ctx context.Context, args ...string) (string, error) {
+	full := make([]string, 0, len(args)+2)
+	full = append(full, "-w", "10")
+	full = append(full, args...)
+	return runCmd(ctx, "iptables", full...)
+}
+
+// iptablesRetryRunWithLock wraps iptablesRunWithLock with a small
+// exponential-backoff retry. -w handles xtables-lock contention; this
+// retry covers the rarer transient failures (kernel module just
+// loaded, iptables binary upgrade race, etc.). Three attempts with
+// 100ms / 500ms / 2.5s waits — bounded so a genuinely-broken iptables
+// install fails fast.
+func iptablesRetryRunWithLock(ctx context.Context, args ...string) (string, error) {
+	var lastErr error
+	delays := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 2500 * time.Millisecond}
+	for i := 0; i < 3; i++ {
+		out, err := iptablesRunWithLock(ctx, args...)
+		if err == nil {
+			return out, nil
+		}
+		lastErr = err
+		// Don't burn budget on errors that won't change with retry —
+		// "no such chain", missing required arg, etc. xtables-lock and
+		// EAGAIN-style errors mention "lock" or "Resource temporarily
+		// unavailable" and benefit from waiting.
+		msg := err.Error()
+		if !strings.Contains(msg, "lock") &&
+			!strings.Contains(msg, "Resource temporarily") &&
+			!strings.Contains(msg, "Try again") {
+			return out, err
+		}
+		select {
+		case <-ctx.Done():
+			return out, ctx.Err()
+		case <-time.After(delays[i]):
+		}
+	}
+	return "", lastErr
+}
+
 // Name returns "iptables".
 func (b *IptablesBackend) Name() string { return "iptables" }
 
@@ -48,15 +98,15 @@ func (b *IptablesBackend) Ensure(ctx context.Context) error {
 	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
 		chain := b.Chain + "_" + direction
 		// -N creates only if absent; the "Chain already exists" error we ignore.
-		if _, err := runCmd(ctx, "iptables", "-N", chain); err != nil && !strings.Contains(err.Error(), "exists") {
+		if _, err := iptablesRetryRunWithLock(ctx, "-N", chain); err != nil && !strings.Contains(err.Error(), "exists") {
 			return fmt.Errorf("iptables -N %s: %w", chain, err)
 		}
 		// Install the jump from the built-in chain.
 		jumpArgs := []string{"-C", direction, "-j", chain}
-		if _, err := runCmd(ctx, "iptables", jumpArgs...); err != nil {
+		if _, err := iptablesRunWithLock(ctx, jumpArgs...); err != nil {
 			// Not there — install.
 			addArgs := []string{"-I", direction, "-j", chain}
-			if _, err := runCmd(ctx, "iptables", addArgs...); err != nil {
+			if _, err := iptablesRetryRunWithLock(ctx, addArgs...); err != nil {
 				return fmt.Errorf("iptables -I %s -j %s: %w", direction, chain, err)
 			}
 		}
@@ -69,7 +119,7 @@ func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (in
 	live := FilterLive(rules, time.Now())
 
 	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
-		if _, err := runCmd(ctx, "iptables", "-F", b.Chain+"_"+direction); err != nil {
+		if _, err := iptablesRetryRunWithLock(ctx, "-F", b.Chain+"_"+direction); err != nil {
 			return 0, len(live), []error{fmt.Errorf("flush %s: %w", b.Chain+"_"+direction, err)}
 		}
 	}
@@ -82,7 +132,7 @@ func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (in
 			if len(args) == 0 {
 				continue
 			}
-			if _, err := runCmd(ctx, "iptables", args...); err != nil {
+			if _, err := iptablesRetryRunWithLock(ctx, args...); err != nil {
 				failed++
 				errs = append(errs, fmt.Errorf("rule %d: %w", r.ID, err))
 			} else {
@@ -101,7 +151,7 @@ func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (in
 func (b *IptablesBackend) Reset(ctx context.Context) error {
 	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
 		chain := b.Chain + "_" + direction
-		_, _ = runCmd(ctx, "iptables", "-F", chain)
+		_, _ = iptablesRunWithLock(ctx, "-F", chain)
 	}
 	b.mu.Lock()
 	b.lastApplied = nil
