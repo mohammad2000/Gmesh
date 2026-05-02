@@ -94,6 +94,29 @@ func (m *DarwinManager) List() []Route {
 	return out
 }
 
+// PurgeStale on Darwin operates on the tracked map only. Walking the
+// macOS routing table to identify mesh-owned routes is more involved
+// than `ip -o route show dev X` (no equivalent dev filter without
+// netstat parsing) and gmeshd on macOS is dev-only — leaks here are a
+// dev-machine annoyance, not a prod concern. Production Linux path
+// gets the real implementation.
+func (m *DarwinManager) PurgeStale(_ context.Context, iface string, keep map[string]struct{}) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	removed := 0
+	for k, r := range m.routes {
+		if r.Interface != iface {
+			continue
+		}
+		if _, ok := keep[r.MeshIP]; ok {
+			continue
+		}
+		delete(m.routes, k)
+		removed++
+	}
+	return removed, nil
+}
+
 // runCmd executes a command and returns trimmed output on error.
 func runCmd(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)

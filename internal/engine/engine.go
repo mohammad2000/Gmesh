@@ -510,6 +510,28 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 			"iface", e.iface, "error", err)
 	}
 
+	// Routes can leak across crash boundaries: a daemon that died
+	// after RemovePeer freed the in-memory peer but before
+	// Routing.Remove fired leaves a /32 host route in the kernel
+	// pointing at the dead peer. Build the keep set from current peers
+	// + own mesh IP and let Routing.PurgeStale sweep the rest.
+	if e.Routing != nil {
+		keepIPs := make(map[string]struct{}, len(st.Peers)+1)
+		for _, p := range st.Peers {
+			if p.MeshIP != "" {
+				keepIPs[p.MeshIP] = struct{}{}
+			}
+		}
+		if e.meshIP != "" {
+			keepIPs[e.meshIP] = struct{}{}
+		}
+		if n, perr := e.Routing.PurgeStale(ctx, e.iface, keepIPs); perr != nil {
+			e.Log.Warn("rehydrate: route purge failed", "error", perr)
+		} else if n > 0 {
+			e.Log.Info("rehydrate: purged stale routes", "count", n)
+		}
+	}
+
 	e.Log.Info("rehydrated WG interface", "iface", e.iface, "addr", addrCIDR,
 		"listen_port", listenPort, "peers_reapplied", reapplied, "peers_purged", purged)
 	return nil

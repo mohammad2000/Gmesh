@@ -98,6 +98,61 @@ func (m *LinuxManager) List() []Route {
 	return out
 }
 
+// PurgeStale walks the kernel's per-peer host routes on iface and
+// removes any whose destination IP isn't in keep. Used by rehydrate
+// to eliminate routes left behind by a daemon that died after
+// RemovePeer was issued but before Routing.Remove fired.
+//
+// Only `dev <iface>` /32 (and /128) routes are considered; the mesh
+// subnet route (e.g. 10.200.0.0/16) is left alone because that's
+// owned by the address-add, not by per-peer Ensure.
+func (m *LinuxManager) PurgeStale(ctx context.Context, iface string, keep map[string]struct{}) (int, error) {
+	if iface == "" {
+		return 0, nil
+	}
+	cmd := exec.CommandContext(ctx, "ip", "-o", "route", "show", "dev", iface)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("ip route show dev %s: %w", iface, err)
+	}
+
+	removed := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// First field of `ip -o route show dev wg-gmesh` is the dest.
+		// Skip subnet routes (anything not /32 or /128 — those are
+		// per-peer host routes).
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		dest := fields[0]
+		if !strings.HasSuffix(dest, "/32") && !strings.HasSuffix(dest, "/128") &&
+			!strings.Contains(dest, "/") /* bare IP also a host route */ {
+			// bare IP form ("10.200.0.5") — treat as /32.
+		} else if !strings.HasSuffix(dest, "/32") && !strings.HasSuffix(dest, "/128") {
+			continue
+		}
+		bareIP := strings.TrimSuffix(strings.TrimSuffix(dest, "/32"), "/128")
+		if _, ok := keep[bareIP]; ok {
+			continue
+		}
+		// Removing through our own Remove() also clears the in-memory
+		// tracker, so List() stays consistent with the kernel.
+		if err := m.Remove(ctx, bareIP, iface); err != nil {
+			m.Log.Warn("purge stale route failed",
+				"mesh_ip", bareIP, "iface", iface, "error", err)
+			continue
+		}
+		removed++
+		m.Log.Info("purged stale route", "mesh_ip", bareIP, "iface", iface)
+	}
+	return removed, nil
+}
+
 // run executes a command and returns trimmed output on error.
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)

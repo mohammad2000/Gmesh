@@ -38,6 +38,15 @@ type Manager interface {
 	// List returns all routes currently tracked by this manager (not the
 	// full kernel routing table).
 	List() []Route
+
+	// PurgeStale lists per-peer host routes on iface in the kernel and
+	// removes any whose mesh IP isn't in keep. Returns the number of
+	// routes removed. Used at rehydrate time so a daemon that crashed
+	// after a peer was removed (but before the route was deleted)
+	// doesn't leak the route forever. Empty keep set means "remove
+	// every per-peer route on iface" — caller is responsible for not
+	// passing that accidentally.
+	PurgeStale(ctx context.Context, iface string, keep map[string]struct{}) (int, error)
 }
 
 // Route is a single tracked route.
@@ -82,6 +91,26 @@ func (m *InMemory) List() []Route {
 		out = append(out, r)
 	}
 	return out
+}
+
+// PurgeStale on InMemory only operates on the tracked map (no kernel
+// state to consult). Useful for tests that exercise the engine's
+// rehydrate purge path with a fake routing manager.
+func (m *InMemory) PurgeStale(_ context.Context, iface string, keep map[string]struct{}) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	removed := 0
+	for k, r := range m.routes {
+		if r.Interface != iface {
+			continue
+		}
+		if _, ok := keep[r.MeshIP]; ok {
+			continue
+		}
+		delete(m.routes, k)
+		removed++
+	}
+	return removed, nil
 }
 
 // ErrNotImplemented is returned by real backends still under construction.
