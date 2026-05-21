@@ -224,10 +224,10 @@ func (m *LinuxManager) setupAddrs(ctx context.Context, p *Peer) error {
 
 func (m *LinuxManager) setupWGInNetns(ctx context.Context, p *Peer, mtu int) error {
 	iface := "wg-scope"
-	if err := runNetns(ctx, p.Netns, "ip", "link", "add", iface, "type", "wireguard"); err != nil {
+	if err := runNetnsIdempotent(ctx, p.Netns, "ip", "link", "add", iface, "type", "wireguard"); err != nil {
 		return fmt.Errorf("add wg-scope: %w", err)
 	}
-	if err := runNetns(ctx, p.Netns, "ip", "addr", "add", p.MeshIP+"/16", "dev", iface); err != nil {
+	if err := runNetns(ctx, p.Netns, "ip", "addr", "replace", p.MeshIP+"/16", "dev", iface); err != nil {
 		return fmt.Errorf("wg-scope addr: %w", err)
 	}
 	if err := runNetns(ctx, p.Netns, "ip", "link", "set", "mtu", itoa(mtu), "dev", iface); err != nil {
@@ -310,6 +310,23 @@ func runNetns(ctx context.Context, ns, name string, args ...string) error {
 	full := append([]string{"netns", "exec", ns, name}, args...)
 	return run(ctx, "ip", full...)
 }
+
+// runNetnsIdempotent is a wrapper around runNetns that treats kernel
+// EEXIST ('File exists') as success. Used for ip link add operations
+// where the interface may have been created by a prior successful run
+// that gmeshd has lost track of (init respawn destroyed the netns, but
+// the wg-scope interface persisted; OR a partial cleanup left it
+// behind). Without this the scope_connect RPC bubbles up an INTERNAL
+// error to the panel, the agent's client-side recovery has to disconnect
+// + retry, and the cascade spreads. 2026-05-21.
+func runNetnsIdempotent(ctx context.Context, ns, name string, args ...string) error {
+	err := runNetns(ctx, ns, name, args...)
+	if err != nil && strings.Contains(err.Error(), "File exists") {
+		return nil
+	}
+	return err
+}
+
 
 func itoa(n int) string { return fmt.Sprintf("%d", n) }
 
