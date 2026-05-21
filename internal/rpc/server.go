@@ -58,21 +58,45 @@ func NewServer(eng *engine.Engine, log *slog.Logger, au *audit.Logger) *Server {
 	return &Server{Engine: eng, Log: log, Audit: au, cfg: eng.Config.Socket}
 }
 
-// Start creates the unix socket, registers the service, and begins serving.
-// The returned function stops the server (idempotent).
+// Start creates the listening socket, registers the service, and begins
+// serving. The returned function stops the server (idempotent).
+//
+// Two transport flavors:
+//   - Network="" (default) or "unix": Path is a filesystem socket
+//     path (Linux + macOS). chmod to cfg.Mode after bind.
+//   - Network="tcp": Path is a TCP endpoint ("127.0.0.1:51821").
+//     Used on Windows where AF_UNIX paths are awkward to administer
+//     under per-user installs.
 func (s *Server) Start() (stop func(), err error) {
-	if err := os.MkdirAll(filepath.Dir(s.cfg.Path), 0o755); err != nil {
-		return nil, fmt.Errorf("mkdir socket dir: %w", err)
+	network := s.cfg.Network
+	if network == "" {
+		network = "unix"
 	}
-	_ = os.Remove(s.cfg.Path)
 
-	ln, err := net.Listen("unix", s.cfg.Path)
-	if err != nil {
-		return nil, fmt.Errorf("listen %s: %w", s.cfg.Path, err)
-	}
-	if err := os.Chmod(s.cfg.Path, os.FileMode(s.cfg.Mode)); err != nil {
-		_ = ln.Close()
-		return nil, fmt.Errorf("chmod socket: %w", err)
+	var ln net.Listener
+	switch network {
+	case "unix":
+		if err := os.MkdirAll(filepath.Dir(s.cfg.Path), 0o755); err != nil {
+			return nil, fmt.Errorf("mkdir socket dir: %w", err)
+		}
+		_ = os.Remove(s.cfg.Path)
+		ln, err = net.Listen("unix", s.cfg.Path)
+		if err != nil {
+			return nil, fmt.Errorf("listen %s: %w", s.cfg.Path, err)
+		}
+		if s.cfg.Mode != 0 {
+			if err := os.Chmod(s.cfg.Path, os.FileMode(s.cfg.Mode)); err != nil {
+				_ = ln.Close()
+				return nil, fmt.Errorf("chmod socket: %w", err)
+			}
+		}
+	case "tcp":
+		ln, err = net.Listen("tcp", s.cfg.Path)
+		if err != nil {
+			return nil, fmt.Errorf("listen tcp %s: %w", s.cfg.Path, err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported socket network %q (expected unix|tcp)", network)
 	}
 
 	unary := grpc.ChainUnaryInterceptor(

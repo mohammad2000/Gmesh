@@ -112,9 +112,32 @@ class GmeshBridge:
         self._stub = gmesh_pb2_grpc.GMeshStub(channel)
 
     @classmethod
-    async def connect(cls, socket_path: str = "/run/gmesh.sock") -> "GmeshBridge":
+    async def connect(
+        cls,
+        socket_path: str = "/run/gmesh.sock",
+        *,
+        endpoint: str | None = None,
+    ) -> "GmeshBridge":
+        """Connect to gmeshd.
+
+        Two transport modes:
+
+        * endpoint set (preferred form): a fully-qualified grpc URL
+          such as "unix:/run/gmesh.sock" or "127.0.0.1:51821".
+          Use the TCP form on Windows where gmeshd runs with
+          socket.network: tcp because AF_UNIX paths are awkward
+          under per-user installs.
+        * socket_path (legacy form): treated as a unix socket path.
+
+        We resolve the final target string here, then hand it to
+        grpc.aio.insecure_channel.
+        """
+        if endpoint:
+            target = endpoint
+        else:
+            target = f"unix:{socket_path}"
         channel = grpc.aio.insecure_channel(
-            f"unix:{socket_path}",
+            target,
             options=[
                 ("grpc.keepalive_time_ms", 30_000),
                 ("grpc.keepalive_timeout_ms", 10_000),

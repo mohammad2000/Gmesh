@@ -16,7 +16,6 @@ import (
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/ipc"
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -135,19 +134,15 @@ func (u *userspaceManager) CreateInterface(
 	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), dlog)
 
 	// UAPI socket so wgctrl can configure it. On Linux + macOS this
-	// ends up as a unix socket under /var/run/wireguard/<name>.sock.
-	uapiFile, err := ipc.UAPIOpen(realName)
+	// is a unix socket under /var/run/wireguard/<name>.sock; on
+	// Windows it's a named pipe under \\.\pipe\ProtectedPrefix\Administrators\WireGuard\<name>.
+	// setupUAPI() lives in uapi_setup_{unix,windows}.go and hides the
+	// platform fork.
+	uapi, err := setupUAPI(realName)
 	if err != nil {
 		wgDev.Close()
 		_ = tunDev.Close()
-		return fmt.Errorf("userspace wg: uapi open: %w", err)
-	}
-	uapi, err := ipc.UAPIListen(realName, uapiFile)
-	if err != nil {
-		uapiFile.Close()
-		wgDev.Close()
-		_ = tunDev.Close()
-		return fmt.Errorf("userspace wg: uapi listen: %w", err)
+		return fmt.Errorf("userspace wg: %w", err)
 	}
 	// Accept loop — wgctrl connects to UAPI and sends one command.
 	go func() {
@@ -396,6 +391,18 @@ func ifaceUp(ctx context.Context, name string, mtu int) error {
 			return runCmd(ctx, "ifconfig", name, "mtu", fmt.Sprintf("%d", mtu))
 		}
 		return nil
+	case "windows":
+		// wintun brings the adapter UP automatically when the wireguard-go
+		// device starts pumping it. We only need to set MTU via netsh; the
+		// adapter shows up in netsh under its assigned name (same as the
+		// TUN's real name, e.g. "wg-gritiva" or "utun0" — we always use
+		// the requested name on Windows because wintun.dll has no
+		// utun-style naming restriction).
+		if mtu > 0 {
+			return runCmd(ctx, "netsh", "interface", "ipv4", "set", "subinterface",
+				name, fmt.Sprintf("mtu=%d", mtu), "store=persistent")
+		}
+		return nil
 	default:
 		return errors.New("userspace wg: interface up unsupported on " + runtime.GOOS)
 	}
@@ -434,6 +441,40 @@ func ifaceAddAddr(ctx context.Context, name, addrCIDR string) error {
 			netCIDR := normalizeNetworkCIDR(addrCIDR)
 			_ = runCmd(ctx, "route", "-q", "-n", "delete", "-net", netCIDR)
 			if err := runCmd(ctx, "route", "-q", "-n", "add", "-net", netCIDR, "-interface", name); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "windows":
+		// netsh accepts CIDR notation directly on modern Windows
+		// builds (>= 1809). Use "interface ipv4 add address" so we
+		// don't blow away any IPv6 link-local the adapter already
+		// owns; "set address" would also work but it's destructive.
+		// First best-effort delete any prior IPv4 to win a restart
+		// race with a stale lease from a previous gmeshd run.
+		ip := addrCIDR
+		if i := strings.Index(addrCIDR, "/"); i > 0 {
+			ip = addrCIDR[:i]
+		}
+		_ = runCmd(ctx, "netsh", "interface", "ipv4", "delete", "address",
+			"name="+name, "addr="+ip)
+		if err := runCmd(ctx, "netsh", "interface", "ipv4", "add", "address",
+			"name="+name, "address="+addrCIDR); err != nil {
+			return err
+		}
+		// Route the mesh CIDR via the new interface so peer traffic
+		// flows through WireGuard. route add is the historical
+		// Windows path; netsh has an equivalent but route(8) gives us
+		// the cleanest diagnostic on failure. Normalize to network
+		// base (host bits zeroed) — route on Windows rejects
+		// non-normalized CIDRs the same way macOS does.
+		if strings.Contains(addrCIDR, "/") {
+			netCIDR := normalizeNetworkCIDR(addrCIDR)
+			// best-effort delete prior route
+			_ = runCmd(ctx, "netsh", "interface", "ipv4", "delete", "route",
+				netCIDR, name)
+			if err := runCmd(ctx, "netsh", "interface", "ipv4", "add", "route",
+				netCIDR, name); err != nil {
 				return err
 			}
 		}
