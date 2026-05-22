@@ -166,6 +166,19 @@ func (u *userspaceManager) CreateInterface(
 		return fmt.Errorf("userspace wg: apply initial config: %w", err)
 	}
 
+	// wireguard-go's BindUpdate is a no-op unless the device is in the
+	// internal "up" state. On Linux the kernel module + ifaceUp() bring
+	// it up implicitly through the netlink path; on userspace builds we
+	// have to call wgDev.Up() explicitly or the UDP listen socket
+	// never binds (the wireguard-windows reference client does the same
+	// thing right after device.NewDevice). Reproducer on Windows: get=1
+	// over UAPI reports listen_port=N correctly, but Get-NetUDPEndpoint
+	// shows nothing bound on N. Calling Up() here makes the bind open.
+	if err := wgDev.Up(); err != nil {
+		u.log.Warn("userspace wg: device.Up() failed; UDP listener may not bind",
+			"name", realName, "error", err)
+	}
+
 	// Bring interface up + assign the mesh address with platform
 	// tooling. Linux uses `ip addr add`; Darwin uses `ifconfig X inet
 	// Y/prefix Y` (the second Y is the peer/destination, required by
