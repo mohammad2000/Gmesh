@@ -68,10 +68,16 @@ type AuditConfig struct {
 
 // SocketConfig controls the Unix socket exposed for gRPC.
 type SocketConfig struct {
-	Path  string `yaml:"path"`
-	Owner string `yaml:"owner"`
-	Group string `yaml:"group"`
-	Mode  uint32 `yaml:"mode"`
+	// Network is "unix" (default) or "tcp". TCP form is for hosts
+	// without AF_UNIX (Windows <17063, or to avoid pipe-permission
+	// hassles on Windows). When Network="tcp", Path is interpreted
+	// as a TCP endpoint like "127.0.0.1:51821" and Owner/Group/Mode
+	// are ignored.
+	Network string `yaml:"network"`
+	Path    string `yaml:"path"`
+	Owner   string `yaml:"owner"`
+	Group   string `yaml:"group"`
+	Mode    uint32 `yaml:"mode"`
 }
 
 // LogConfig controls logging output.
