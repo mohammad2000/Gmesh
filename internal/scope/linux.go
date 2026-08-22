@@ -170,19 +170,42 @@ func (m *LinuxManager) enableForwarding(ctx context.Context) error {
 
 func (m *LinuxManager) createNetns(ctx context.Context, p *Peer) error {
 	// `ip netns add` errors if the namespace exists — detect + skip.
+	//
+	// Whether we created it decides whether we may ever delete it. On a
+	// GritivaCore host the agent builds scope-{id} first and the running
+	// service lives inside; we are a guest there, adding a veth and a
+	// WireGuard interface alongside. Deleting someone else's namespace on
+	// rollback would take the service down with it.
 	out, _ := exec.CommandContext(ctx, "ip", "netns", "list").Output()
 	if strings.Contains(string(out), p.Netns) {
+		p.ownsNetns = false
 		return nil
 	}
-	return run(ctx, "ip", "netns", "add", p.Netns)
+	if err := run(ctx, "ip", "netns", "add", p.Netns); err != nil {
+		return err
+	}
+	p.ownsNetns = true
+	return nil
 }
 
 func (m *LinuxManager) createVeth(ctx context.Context, p *Peer, mtu int) error {
-	if err := run(ctx, "ip", "link", "add", p.VethHost, "type", "veth", "peer", "name", p.VethScope); err != nil {
-		return fmt.Errorf("veth add: %w", err)
+	// A veth left behind by an earlier attempt used to make every retry
+	// fail forever: `ip link add` reports "File exists" and there was no
+	// tolerance for it, so a half-built scope could never be repaired —
+	// only observed, stuck in CONNECTING.
+	if linkExists(ctx, p.VethHost) {
+		m.Log.Info("scope veth already present, adopting", "veth", p.VethHost, "id", p.ID)
+	} else {
+		if err := run(ctx, "ip", "link", "add", p.VethHost, "type", "veth", "peer", "name", p.VethScope); err != nil {
+			return fmt.Errorf("veth add: %w", err)
+		}
+		p.ownsVeth = true
 	}
-	if err := run(ctx, "ip", "link", "set", p.VethScope, "netns", p.Netns); err != nil {
-		return fmt.Errorf("move veth to netns: %w", err)
+	// The scope end may already have been moved by the earlier attempt.
+	if linkExists(ctx, p.VethScope) {
+		if err := run(ctx, "ip", "link", "set", p.VethScope, "netns", p.Netns); err != nil {
+			return fmt.Errorf("move veth to netns: %w", err)
+		}
 	}
 	if err := run(ctx, "ip", "link", "set", p.VethHost, "mtu", itoa(mtu)); err != nil {
 		return fmt.Errorf("set host veth mtu: %w", err)
@@ -201,10 +224,10 @@ func (m *LinuxManager) setupAddrs(ctx context.Context, p *Peer) error {
 	if hostMask == "" {
 		hostMask = "30"
 	}
-	if err := run(ctx, "ip", "addr", "add", p.VMVethIP+"/"+hostMask, "dev", p.VethHost); err != nil {
+	if err := run(ctx, "ip", "addr", "add", p.VMVethIP+"/"+hostMask, "dev", p.VethHost); err != nil && !alreadyExists(err) {
 		return fmt.Errorf("host addr: %w", err)
 	}
-	if err := runNetns(ctx, p.Netns, "ip", "addr", "add", p.ScopeVethIP+"/"+hostMask, "dev", p.VethScope); err != nil {
+	if err := runNetns(ctx, p.Netns, "ip", "addr", "add", p.ScopeVethIP+"/"+hostMask, "dev", p.VethScope); err != nil && !alreadyExists(err) {
 		return fmt.Errorf("scope addr: %w", err)
 	}
 	if err := run(ctx, "ip", "link", "set", p.VethHost, "up"); err != nil {
@@ -224,6 +247,8 @@ func (m *LinuxManager) setupAddrs(ctx context.Context, p *Peer) error {
 
 func (m *LinuxManager) setupWGInNetns(ctx context.Context, p *Peer, mtu int) error {
 	iface := "wg-scope"
+	// Re-running against an existing interface is the repair path, not an
+	// error: `wg set` below reconfigures key and port either way.
 	if err := runNetnsIdempotent(ctx, p.Netns, "ip", "link", "add", iface, "type", "wireguard"); err != nil {
 		return fmt.Errorf("add wg-scope: %w", err)
 	}
@@ -254,13 +279,18 @@ func (m *LinuxManager) setupWGInNetns(ctx context.Context, p *Peer, mtu int) err
 
 func (m *LinuxManager) setupDNAT(ctx context.Context, p *Peer) error {
 	port := itoa(int(p.ListenPort))
-	if err := run(ctx, "iptables", "-t", "nat", "-A", "PREROUTING",
+	// -C first: a retry must not stack a second identical rule. Duplicate
+	// FORWARD/PREROUTING entries are how a chain quietly grows to dozens
+	// of copies of the same line over a host's lifetime.
+	dnat := []string{"-t", "nat", "PREROUTING",
 		"-p", "udp", "--dport", port,
-		"-j", "DNAT", "--to-destination", p.ScopeVethIP+":"+port); err != nil {
+		"-j", "DNAT", "--to-destination", p.ScopeVethIP + ":" + port}
+	if err := ensureRule(ctx, dnat); err != nil {
 		return fmt.Errorf("iptables DNAT: %w", err)
 	}
-	if err := run(ctx, "iptables", "-A", "FORWARD",
-		"-d", p.ScopeVethIP, "-p", "udp", "--dport", port, "-j", "ACCEPT"); err != nil {
+	fwd := []string{"FORWARD",
+		"-d", p.ScopeVethIP, "-p", "udp", "--dport", port, "-j", "ACCEPT"}
+	if err := ensureRule(ctx, fwd); err != nil {
 		return fmt.Errorf("iptables FORWARD: %w", err)
 	}
 	return nil
@@ -283,18 +313,41 @@ func (m *LinuxManager) tearDown(ctx context.Context, p *Peer) error {
 		lastErr = err
 	}
 
-	// Delete veth (also removes scope end inside netns).
-	if err := run(ctx, "ip", "link", "del", p.VethHost); err != nil && !strings.Contains(err.Error(), "Cannot find") {
-		lastErr = err
+	// Delete veth (also removes scope end inside netns) — but only if this
+	// daemon created it. Adopting a veth an earlier attempt left behind
+	// does not make it ours to destroy on a later failure.
+	if p.ownsVeth {
+		if err := run(ctx, "ip", "link", "del", p.VethHost); err != nil && !strings.Contains(err.Error(), "Cannot find") {
+			lastErr = err
+		}
 	}
-	// Delete netns.
-	if err := run(ctx, "ip", "netns", "del", p.Netns); err != nil && !strings.Contains(err.Error(), "No such file") {
-		lastErr = err
+	// The namespace is only ever ours when we created it. On a GritivaCore
+	// host the agent builds scope-{id} and the running service lives
+	// inside; deleting it because a later step failed would take the
+	// service's networking down as collateral for a rollback.
+	if p.ownsNetns {
+		if err := run(ctx, "ip", "netns", "del", p.Netns); err != nil && !strings.Contains(err.Error(), "No such file") {
+			lastErr = err
+		}
 	}
 	return lastErr
 }
 
 // ── Small helpers ──────────────────────────────────────────────────────
+
+// linkExists reports whether a network interface is present on the host.
+func linkExists(ctx context.Context, name string) bool {
+	return exec.CommandContext(ctx, "ip", "link", "show", name).Run() == nil
+}
+
+// ensureRule appends an iptables rule unless an identical one is already
+// there. `spec` is the rule without the leading -A/-C verb.
+func ensureRule(ctx context.Context, spec []string) error {
+	if exec.CommandContext(ctx, "iptables", spliceVerb(spec, "-C")...).Run() == nil {
+		return nil // already present
+	}
+	return run(ctx, "iptables", spliceVerb(spec, "-A")...)
+}
 
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -326,7 +379,6 @@ func runNetnsIdempotent(ctx context.Context, ns, name string, args ...string) er
 	}
 	return err
 }
-
 
 func itoa(n int) string { return fmt.Sprintf("%d", n) }
 

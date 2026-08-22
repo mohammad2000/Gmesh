@@ -44,6 +44,7 @@ package scope
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,16 @@ type Peer struct {
 	PrivateKey    string // base64; returned from Connect, stored in gmeshd state
 	ListenPort    uint16 // host-visible port forwarded to the scope's WG
 	CreatedAt     time.Time
+
+	// What this daemon actually created, so a rollback undoes only its own
+	// work. The netns in particular is frequently NOT ours: on a
+	// GritivaCore host the agent builds scope-{id} first, with the running
+	// service's interfaces inside it, and Connect merely adds a veth, a
+	// WireGuard interface and a DNAT rule alongside. Tearing that namespace
+	// down because a later step failed would destroy the live service's
+	// networking — a far worse outcome than the failure being rolled back.
+	ownsNetns bool
+	ownsVeth  bool
 }
 
 // Manager owns scope lifecycle.
@@ -99,3 +110,32 @@ var ErrNotConnected = errors.New("scope: not connected")
 
 // ErrAlreadyConnected is returned by Connect when a scope is already up.
 var ErrAlreadyConnected = errors.New("scope: already connected")
+
+// ── Repair-path helpers ────────────────────────────────────────────────
+// Deliberately platform-neutral: they encode the two fiddly decisions the
+// repair path makes, and both are worth testing without a Linux host.
+
+// alreadyExists reports whether an `ip` failure is the benign "this is
+// already configured" case. Tolerating it is what makes a half-built
+// scope repairable instead of permanently stuck in CONNECTING.
+func alreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "File exists") ||
+		strings.Contains(msg, "RTNETLINK answers: File exists")
+}
+
+// spliceVerb puts an iptables verb (-A / -C) immediately before the chain
+// name, keeping any leading table selector in front of it. `-t nat -C
+// PREROUTING ...` is valid; `-C -t nat PREROUTING ...` is not.
+func spliceVerb(spec []string, verb string) []string {
+	at := 0
+	if len(spec) >= 2 && spec[0] == "-t" {
+		at = 2
+	}
+	out := append([]string{}, spec[:at]...)
+	out = append(out, verb)
+	return append(out, spec[at:]...)
+}
