@@ -123,8 +123,13 @@ func alreadyExists(err error) bool {
 		return false
 	}
 	msg := err.Error()
+	// `ip` does not have one phrase for this. Link creation says "File
+	// exists"; address assignment says "Address already assigned". Matching
+	// only the first left the repair path failing on the second — found in
+	// production retrying a scope whose wg-scope had survived a teardown.
 	return strings.Contains(msg, "File exists") ||
-		strings.Contains(msg, "RTNETLINK answers: File exists")
+		strings.Contains(msg, "RTNETLINK answers: File exists") ||
+		strings.Contains(msg, "Address already assigned")
 }
 
 // spliceVerb puts an iptables verb (-A / -C) immediately before the chain

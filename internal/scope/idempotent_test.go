@@ -86,3 +86,16 @@ func TestTearDownLeavesAForeignNamespaceAlone(t *testing.T) {
 		t.Fatal("ownership flags must round-trip")
 	}
 }
+
+// `ip` reports "already configured" with different wording depending on
+// what is being added. Matching only the link-layer phrase left the repair
+// path dying on address assignment — found in production while retrying a
+// scope whose wg-scope had outlived a teardown.
+func TestAlreadyExistsCoversAddressAssignment(t *testing.T) {
+	err := errors.New(
+		"ip netns exec scope-239 ip addr add 10.200.0.7/16 dev wg-scope: " +
+			"exit status 2 (Error: ipv4: Address already assigned.)")
+	if !alreadyExists(err) {
+		t.Fatal("address-already-assigned must be treated as benign on the repair path")
+	}
+}

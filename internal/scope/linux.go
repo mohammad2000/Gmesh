@@ -321,6 +321,18 @@ func (m *LinuxManager) tearDown(ctx context.Context, p *Peer) error {
 			lastErr = err
 		}
 	}
+	// wg-scope lives inside the namespace, so deleting the namespace used to
+	// take it with it. Now that a borrowed namespace is left standing, the
+	// interface has to be removed explicitly — otherwise it survives as an
+	// orphan holding the mesh IP, and the next Connect dies on "Address
+	// already assigned" against state nothing is tracking any more.
+	if !p.ownsNetns {
+		if err := runNetns(ctx, p.Netns, "ip", "link", "del", "wg-scope"); err != nil &&
+			!strings.Contains(err.Error(), "Cannot find") {
+			lastErr = err
+		}
+	}
+
 	// The namespace is only ever ours when we created it. On a GritivaCore
 	// host the agent builds scope-{id} and the running service lives
 	// inside; deleting it because a later step failed would take the
