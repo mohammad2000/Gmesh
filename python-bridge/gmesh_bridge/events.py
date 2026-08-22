@@ -37,8 +37,20 @@ log = logging.getLogger("gmesh_bridge.events")
 
 
 # Default filter: the subset of events the backend cares about today.
-# Client can override to include health_update for realtime dashboards.
+#
+# `health_update` is included because it is the only witness to a scope's
+# WireGuard handshake: a scope's wg-scope lives inside its netns, so it
+# never appears in the coordinator's `wg show all dump`, and the backend
+# reconciler deliberately abstains from writing a rider's handshake. Without
+# this the backend saw last_handshake=NULL forever on healthy scopes and the
+# invariant guardrail reported them as zombies every 30 seconds.
+#
+# Volume was the reason to be careful: it fires per peer per health tick
+# (30s, 15s while degraded). It maps to `mesh_metrics`, which updates
+# columns and writes no event rows — unlike `peer_connected`, whose audit
+# row is what grew mesh_events to 478k rows before anyone noticed.
 DEFAULT_TYPES = [
+    "health_update",
     "peer_connected",
     "peer_disconnected",
     "peer_method_change",
