@@ -107,7 +107,11 @@ def _translate_event(ev: Dict) -> Optional[Dict]:
     if t == "health_update":
         return {
             "type": "mesh_metrics",
+            # peer_id is ambiguous across peer kinds — a VM's is the
+            # backend's mesh_peers.id, a scope's is its scope_id. mesh_ip
+            # resolves either without guessing.
             "peer_id": peer_id,
+            "mesh_ip": payload.get("mesh_ip"),
             "latency_ms": payload.get("latency_ms"),
             "score": payload.get("score"),
             "status": payload.get("status"),

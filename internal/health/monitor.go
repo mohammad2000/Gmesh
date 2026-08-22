@@ -29,24 +29,24 @@ type Publisher interface {
 //
 // State machine per peer:
 //
-//	                  ┌─────────────┐
-//	                  │  UNKNOWN    │
-//	                  └─────┬───────┘
-//	                        │ first score
-//	                        ▼
-//	        ┌─────────────────────┐
-//	        │ Excellent/Good/...  │  score buckets
-//	        └─────┬───────┬──┬────┘
-//	              │       │  │
-//	              │ score │  │ score drops
-//	              │ ↑     │  │ to FAILING
-//	              │       │  │ for N ticks
-//	              │       ▼  ▼
-//	              │   ┌──────────────┐
-//	              │   │   FAILING    │ → emit peer_disconnected
-//	              │   └───────┬──────┘
-//	              └───────────┘
-//	              score recovers → emit peer_connected
+//	          ┌─────────────┐
+//	          │  UNKNOWN    │
+//	          └─────┬───────┘
+//	                │ first score
+//	                ▼
+//	┌─────────────────────┐
+//	│ Excellent/Good/...  │  score buckets
+//	└─────┬───────┬──┬────┘
+//	      │       │  │
+//	      │ score │  │ score drops
+//	      │ ↑     │  │ to FAILING
+//	      │       │  │ for N ticks
+//	      │       ▼  ▼
+//	      │   ┌──────────────┐
+//	      │   │   FAILING    │ → emit peer_disconnected
+//	      │   └───────┬──────┘
+//	      └───────────┘
+//	      score recovers → emit peer_connected
 //
 // On every tick we also emit a health_update event so UIs can render
 // live gauges without extra polling.
@@ -75,12 +75,12 @@ type Monitor struct {
 	// channel. Default 5 minutes.
 	StuckRepeatInterval time.Duration // default 5m
 
-	mu              sync.Mutex
-	failingCount    map[int64]int
-	lastStatus      map[int64]Status
-	stuckSince      map[int64]time.Time // first time we saw peer in connecting/establishing
-	stuckLastEmit   map[int64]time.Time // last peer_stuck emit per peer
-	lastPeerStatus  map[int64]peer.Status
+	mu             sync.Mutex
+	failingCount   map[int64]int
+	lastStatus     map[int64]Status
+	stuckSince     map[int64]time.Time // first time we saw peer in connecting/establishing
+	stuckLastEmit  map[int64]time.Time // last peer_stuck emit per peer
+	lastPeerStatus map[int64]peer.Status
 }
 
 // NewMonitor returns a Monitor with defaults applied.
@@ -305,9 +305,17 @@ func (m *Monitor) emit(p *peer.Peer, score int, now Status) {
 	m.mu.Unlock()
 
 	if m.Bus != nil {
+		// mesh_ip travels with the reading because peer IDs are not one
+		// namespace. A VM peer's ID is the backend's mesh_peers.id, passed
+		// through on mesh_add_peer; a scope's is its scope_id, assigned by
+		// ScopeConnect. A consumer resolving the integer against
+		// mesh_peers.id therefore silently misses every scope — and would
+		// write a scope's metrics onto an unrelated peer the day those two
+		// spaces collide. The mesh IP is unambiguous in either case.
 		m.Bus.Publish(events.New(events.TypeHealthUpdate, p.ID, map[string]any{
 			"score":           score,
 			"status":          now.String(),
+			"mesh_ip":         p.MeshIP,
 			"latency_ms":      p.LatencyMS,
 			"handshake_age_s": int64(time.Since(p.LastHandshake).Seconds()),
 		}))
