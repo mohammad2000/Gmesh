@@ -221,7 +221,7 @@ func TestStubReaderQueueOrder(t *testing.T) {
 	}
 }
 
-func TestMonitorRunStopsOnCtx(t *testing.T) {
+func TestMonitorRunStopsOnCtx(_ *testing.T) {
 	m := New(silent(), 20*time.Millisecond)
 	stub := NewStubReader()
 	m.Reader = stub

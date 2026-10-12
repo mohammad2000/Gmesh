@@ -130,10 +130,9 @@ func (m *LinuxManager) PurgeStale(ctx context.Context, iface string, keep map[st
 			continue
 		}
 		dest := fields[0]
-		if !strings.HasSuffix(dest, "/32") && !strings.HasSuffix(dest, "/128") &&
-			!strings.Contains(dest, "/") /* bare IP also a host route */ {
-			// bare IP form ("10.200.0.5") — treat as /32.
-		} else if !strings.HasSuffix(dest, "/32") && !strings.HasSuffix(dest, "/128") {
+		// Host routes only: "10.200.0.5/32", "fd00::5/128", or the bare
+		// IP form ("10.200.0.5") that `ip route` prints for a /32.
+		if strings.Contains(dest, "/") && !strings.HasSuffix(dest, "/32") && !strings.HasSuffix(dest, "/128") {
 			continue
 		}
 		bareIP := strings.TrimSuffix(strings.TrimSuffix(dest, "/32"), "/128")

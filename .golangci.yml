@@ -32,6 +32,8 @@ linters-settings:
       - G104  # errcheck covers it
       - G204  # subprocess with variable (we run iptables/ip/wg)
       - G301  # file perm (we intentionally use 0755 for socket dirs)
+      - G115  # int conversions of bounded values (ports, counts) into proto
+              # fields; ranges are validated where values enter the daemon
 
 issues:
   max-issues-per-linter: 0
@@ -39,3 +41,11 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters: [errcheck, gosec, unparam]
+    # Traversal strategies and the relay RPCs report a failed attempt in
+    # the result (Outcome.Error / Ok=false) so the caller can try the
+    # next method; returning nil error there is the contract.
+    - path: internal/traversal/(holepunch|strategies)\.go
+      linters: [nilerr]
+    - path: internal/rpc/server\.go
+      text: "error is not nil .* but it returns nil"
+      linters: [nilerr]

@@ -204,7 +204,7 @@ func (s *BirthdayStrategy) Attempt(ctx context.Context, pc *PeerContext) (*Outco
 	if timeout == 0 {
 		timeout = 3 * time.Second
 	}
-	center := uint16(remote.Port) //nolint:gosec
+	center := uint16(remote.Port)
 	ports := shuffledPortRange(center, portRange, s.Rng)
 
 	// Fire probes to each port in rapid succession, awaiting the first reply.

@@ -271,7 +271,7 @@ func classify(a, b *net.UDPAddr) *Info {
 		return info
 	}
 	info.ExternalIP = a.IP.String()
-	info.ExternalPort = uint16(a.Port) //nolint:gosec
+	info.ExternalPort = uint16(a.Port)
 
 	if !a.IP.Equal(b.IP) {
 		// Different external IPs — unusual (multi-homed / double-NAT).

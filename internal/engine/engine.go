@@ -218,10 +218,9 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		pm = pathmon.New(log, pathmon.Config{}, pathmon.NewPlatformProber(), &pathmonBridgePublisher{bus: bus})
 	}
 
-	var pol *policy.Engine
 	// Policy engine is constructed here but its Actor is wired below —
 	// same two-step pattern as quota.Switcher.
-	pol = policy.New(nil, logShim{log})
+	pol := policy.New(nil, logShim{log})
 
 	cir := opts.Circuit
 	if cir == nil {
@@ -242,7 +241,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		lm := mtls.NewLinux(log, cfg.MTLS.Dir)
 		// Best-effort open — a missing CA on first boot is not fatal; the
 		// operator calls InitCA when ready.
-		if err := lm.Open(); err != nil && err != mtls.ErrNotInitialised {
+		if err := lm.Open(); err != nil && !errors.Is(err, mtls.ErrNotInitialised) {
 			log.Warn("mtls Open failed — CA disabled until operator runs InitCA",
 				"dir", cfg.MTLS.Dir, "error", err)
 		}
@@ -428,7 +427,7 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 	if prefix := maskFromCIDR(cidr); prefix != "" {
 		addrCIDR = e.meshIP + "/" + prefix
 	}
-	listenPort := uint16(st.Node.ListenPort)
+	listenPort := st.Node.ListenPort
 	if err := e.WG.CreateInterface(ctx, e.iface, addrCIDR, int(e.Config.WireGuard.MTU), listenPort); err != nil {
 		return fmt.Errorf("create interface %s: %w", e.iface, err)
 	}
@@ -1175,7 +1174,7 @@ func (e *Engine) ScopeConnect(ctx context.Context, spec scope.Spec) (*scope.Peer
 // ScopeDisconnect tears down the scope's networking and removes it from
 // our peer registry + routing table.
 func (e *Engine) ScopeDisconnect(ctx context.Context, scopeID int64) error {
-	if err := e.Scope.Disconnect(ctx, scopeID); err != nil && err != scope.ErrNotConnected {
+	if err := e.Scope.Disconnect(ctx, scopeID); err != nil && !errors.Is(err, scope.ErrNotConnected) {
 		return fmt.Errorf("scope disconnect: %w", err)
 	}
 	if p, ok := e.Peers.Get(scopeID); ok && e.Routing != nil {

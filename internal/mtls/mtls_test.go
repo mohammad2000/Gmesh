@@ -2,6 +2,7 @@ package mtls
 
 import (
 	"crypto/x509"
+	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -51,7 +52,7 @@ func TestInitCAAlreadyInitialised(t *testing.T) {
 	if _, err := m.InitCA("", false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.InitCA("", false); err != ErrAlreadyInitialised {
+	if _, err := m.InitCA("", false); !errors.Is(err, ErrAlreadyInitialised) {
 		t.Errorf("second init without force: got %v; want ErrAlreadyInitialised", err)
 	}
 	if _, err := m.InitCA("", true); err != nil {
@@ -94,7 +95,7 @@ func TestIssueCertAndVerify(t *testing.T) {
 
 func TestIssueCertNotInitialised(t *testing.T) {
 	m := newLinuxT(t)
-	if _, err := m.IssueCert(CertRequest{PeerID: 1}); err != ErrNotInitialised {
+	if _, err := m.IssueCert(CertRequest{PeerID: 1}); !errors.Is(err, ErrNotInitialised) {
 		t.Errorf("got %v; want ErrNotInitialised", err)
 	}
 }
@@ -150,7 +151,7 @@ func TestRevokeCert(t *testing.T) {
 func TestRevokeMissing(t *testing.T) {
 	m := newLinuxT(t)
 	_, _ = m.InitCA("", false)
-	if err := m.RevokeCert("deadbeef", "x"); err != ErrNotFound {
+	if err := m.RevokeCert("deadbeef", "x"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("got %v; want ErrNotFound", err)
 	}
 }
@@ -172,7 +173,7 @@ func TestCustomValidityWindow(t *testing.T) {
 
 func TestOpenMissingCA(t *testing.T) {
 	m := NewLinux(silent(), filepath.Join(t.TempDir(), "nope"))
-	if err := m.Open(); err != ErrNotInitialised {
+	if err := m.Open(); !errors.Is(err, ErrNotInitialised) {
 		t.Errorf("got %v; want ErrNotInitialised", err)
 	}
 }

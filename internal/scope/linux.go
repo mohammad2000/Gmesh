@@ -99,13 +99,11 @@ func (m *LinuxManager) Connect(ctx context.Context, s Spec) (*Peer, error) {
 	success := false
 	defer func() {
 		if !success {
-			_ = m.tearDown(context.Background(), p) 
+			_ = m.tearDown(context.Background(), p)
 		}
 	}()
 
-	if err := m.enableForwarding(ctx); err != nil {
-		return nil, err
-	}
+	m.enableForwarding(ctx)
 	if err := m.createNetns(ctx, p); err != nil {
 		return nil, err
 	}
@@ -162,10 +160,9 @@ func (m *LinuxManager) List() []*Peer {
 
 // ── Setup steps ────────────────────────────────────────────────────────
 
-func (m *LinuxManager) enableForwarding(ctx context.Context) error {
+func (m *LinuxManager) enableForwarding(ctx context.Context) {
 	// Ignore failure — on managed hosts this may be set via sysctl.conf.
 	_ = run(ctx, "sysctl", "-qw", "net.ipv4.ip_forward=1")
-	return nil
 }
 
 func (m *LinuxManager) createNetns(ctx context.Context, p *Peer) error {

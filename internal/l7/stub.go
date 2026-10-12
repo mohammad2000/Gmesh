@@ -19,8 +19,8 @@ func (r *StubReader) Name() string { return "stub" }
 // Push queues one snapshot. Tests call this to drive the classifier.
 func (r *StubReader) Push(flows []Flow) {
 	r.mu.Lock()
-	copy := append([]Flow(nil), flows...)
-	r.queue = append(r.queue, copy)
+	batch := append([]Flow(nil), flows...)
+	r.queue = append(r.queue, batch)
 	r.mu.Unlock()
 }
 

@@ -219,7 +219,7 @@ func TestShuffledPortRangeClampsAtEdges(t *testing.T) {
 	}
 	ports = shuffledPortRange(65000, 2048, nil)
 	for _, p := range ports {
-		if p < 1024 || p > 65535 {
+		if p < 1024 { // uint16 already caps it at 65535
 			t.Errorf("port %d out of bounds", p)
 		}
 	}

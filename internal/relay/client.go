@@ -189,7 +189,7 @@ func (s *Session) wgToRelayLoop() {
 		}
 		s.stats.Lock()
 		s.stats.txFrames++
-		s.stats.txBytes += uint64(n) //nolint:gosec
+		s.stats.txBytes += uint64(n)
 		s.stats.Unlock()
 	}
 }
@@ -221,7 +221,7 @@ func (s *Session) relayToWGLoop() {
 			}
 			s.stats.Lock()
 			s.stats.rxFrames++
-			s.stats.rxBytes += uint64(len(payload)) 
+			s.stats.rxBytes += uint64(len(payload))
 			s.stats.Unlock()
 		case FramePONG:
 			// keepalive reply; nothing to do

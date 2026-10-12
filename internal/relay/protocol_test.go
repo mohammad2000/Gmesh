@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -44,7 +45,7 @@ func TestTokenRoundtrip(t *testing.T) {
 
 func TestTokenVerifyWrongSecret(t *testing.T) {
 	tok := SignToken([]byte("right"), [16]byte{}, 1)
-	if err := tok.Verify([]byte("wrong")); err != ErrAuthFail {
+	if err := tok.Verify([]byte("wrong")); !errors.Is(err, ErrAuthFail) {
 		t.Errorf("err = %v; want ErrAuthFail", err)
 	}
 }
@@ -52,7 +53,7 @@ func TestTokenVerifyWrongSecret(t *testing.T) {
 func TestTokenVerifyTampered(t *testing.T) {
 	tok := SignToken([]byte("s"), [16]byte{1}, 1)
 	tok.PeerID = 99 // tamper without re-signing
-	if err := tok.Verify([]byte("s")); err != ErrAuthFail {
+	if err := tok.Verify([]byte("s")); !errors.Is(err, ErrAuthFail) {
 		t.Errorf("tampered → %v; want ErrAuthFail", err)
 	}
 }

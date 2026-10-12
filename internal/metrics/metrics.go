@@ -7,6 +7,8 @@
 package metrics
 
 import (
+	"errors"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -296,7 +298,8 @@ func MustRegister() {
 	}
 	for _, c := range cols {
 		if err := Registry.Register(c); err != nil {
-			if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+			var already prometheus.AlreadyRegisteredError
+			if !errors.As(err, &already) {
 				panic(err)
 			}
 		}

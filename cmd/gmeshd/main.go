@@ -21,20 +21,24 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
-func main() {
+func main() { os.Exit(run()) }
+
+// run is main's body; it returns the exit code so deferred cleanup runs
+// before the process exits.
+func run() int {
 	cfgPath := flag.String("config", "/etc/gmesh/config.yaml", "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("gmeshd %s (%s) built %s\n", version.Version, version.Commit, version.BuildDate)
-		return
+		return 0
 	}
 
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	log := logger.Init(cfg.Log.Format, cfg.Log.Level)
@@ -61,7 +65,7 @@ func main() {
 	eng, err := engine.New(cfg, engine.Options{Log: log})
 	if err != nil {
 		log.Error("engine init failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -69,14 +73,17 @@ func main() {
 
 	if err := eng.Start(ctx); err != nil {
 		log.Error("engine start failed", "error", err)
-		os.Exit(1)
+		return 1
 	}
 
 	srv := rpc.NewServer(eng, log, auditLog)
 	stopRPC, err := srv.Start()
 	if err != nil {
 		log.Error("rpc start failed", "error", err)
-		os.Exit(1)
+		if err := eng.Stop(context.Background()); err != nil {
+			log.Error("engine stop failed", "error", err)
+		}
+		return 1
 	}
 
 	// Metrics HTTP server (optional).
@@ -104,4 +111,5 @@ func main() {
 		log.Error("engine stop failed", "error", err)
 	}
 	log.Info("goodbye")
+	return 0
 }

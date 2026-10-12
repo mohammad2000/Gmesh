@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"sync"
@@ -99,7 +100,7 @@ func TestCreateListDelete(t *testing.T) {
 	if q.PeriodEnd.IsZero() {
 		t.Error("PeriodEnd not set")
 	}
-	if _, err := m.Create(ctx, q); err != ErrExists {
+	if _, err := m.Create(ctx, q); !errors.Is(err, ErrExists) {
 		t.Errorf("duplicate → %v", err)
 	}
 	if len(m.List()) != 1 {

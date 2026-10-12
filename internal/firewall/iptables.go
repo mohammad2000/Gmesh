@@ -62,7 +62,7 @@ func iptablesRunWithLock(ctx context.Context, args ...string) (string, error) {
 // loaded, iptables binary upgrade race, etc.). Three attempts with
 // 100ms / 500ms / 2.5s waits — bounded so a genuinely-broken iptables
 // install fails fast.
-func iptablesRetryRunWithLock(ctx context.Context, args ...string) (string, error) {
+func iptablesRetryRunWithLock(ctx context.Context, args ...string) (string, error) { //nolint:unparam // output kept for parity with iptablesRunWithLock
 	var lastErr error
 	delays := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 2500 * time.Millisecond}
 	for i := 0; i < 3; i++ {

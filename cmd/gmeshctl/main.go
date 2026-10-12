@@ -93,11 +93,11 @@ func statusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show daemon + mesh status",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			resp, err := c.Status(ctx, &gmeshv1.StatusRequest{})
@@ -122,11 +122,11 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Show daemon version (via RPC)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			resp, err := c.Version(ctx, &gmeshv1.VersionRequest{})
@@ -151,11 +151,11 @@ func joinCmd() *cobra.Command {
 		Use:   "join",
 		Short: "Bring up the WireGuard interface and join the mesh",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.Join(ctx, &gmeshv1.JoinRequest{
@@ -190,11 +190,11 @@ func leaveCmd() *cobra.Command {
 		Use:   "leave",
 		Short: "Tear down the WireGuard interface and leave the mesh",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			_, err = c.Leave(ctx, &gmeshv1.LeaveRequest{Reason: reason})
@@ -222,11 +222,11 @@ func peerListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all peers",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListPeers(ctx, &gmeshv1.ListPeersRequest{})
@@ -264,11 +264,11 @@ func peerAddCmd() *cobra.Command {
 		Use:   "add",
 		Short: "Add a peer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.AddPeer(ctx, &gmeshv1.AddPeerRequest{
@@ -307,11 +307,11 @@ func peerRemoveCmd() *cobra.Command {
 		Use:   "remove",
 		Short: "Remove a peer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.RemovePeer(ctx, &gmeshv1.RemovePeerRequest{PeerId: id}); err != nil {
@@ -332,11 +332,11 @@ func peerShowCmd() *cobra.Command {
 		Use:   "show",
 		Short: "Show a single peer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.GetPeerStats(ctx, &gmeshv1.GetPeerStatsRequest{PeerId: id})
@@ -378,11 +378,11 @@ func natCmd() *cobra.Command {
 	var force bool
 	discover.Flags().BoolVar(&force, "force", false, "bypass the cache")
 	discover.RunE = func(_ *cobra.Command, _ []string) error {
-		c, close_, err := dial()
+		c, closeConn, err := dial()
 		if err != nil {
 			return err
 		}
-		defer close_()
+		defer closeConn()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		resp, err := c.DiscoverNAT(ctx, &gmeshv1.DiscoverNATRequest{ForceRefresh: force})
@@ -412,11 +412,11 @@ func holePunchCmd() *cobra.Command {
 		Use:   "hole-punch",
 		Short: "Attempt a hole-punch against --endpoint (Phase 2: DIRECT only)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.HolePunch(ctx, &gmeshv1.HolePunchRequest{
@@ -462,11 +462,11 @@ func relaySetupCmd() *cobra.Command {
 		Use:   "setup",
 		Short: "Open a gmesh-relay session for a peer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.SetupRelay(ctx, &gmeshv1.SetupRelayRequest{
@@ -505,11 +505,11 @@ func wsTunnelCmd() *cobra.Command {
 		Use:   "ws-tunnel",
 		Short: "Open a WebSocket tunnel to a backend /ws/relay endpoint",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			resp, err := c.AllocateWSTunnel(ctx, &gmeshv1.AllocateWSTunnelRequest{
@@ -554,11 +554,11 @@ func firewallStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show active backend + rule count + hit counters",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.GetFirewallStatus(ctx, &gmeshv1.GetFirewallStatusRequest{})
@@ -600,11 +600,11 @@ func firewallApplyCmd() *cobra.Command {
 				return fmt.Errorf("parse rules: %w", err)
 			}
 
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			resp, err := c.ApplyFirewall(ctx, &gmeshv1.ApplyFirewallRequest{
@@ -637,11 +637,11 @@ func firewallResetCmd() *cobra.Command {
 		Use:   "reset",
 		Short: "Flush all gmesh-managed firewall rules",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.ResetFirewall(ctx, &gmeshv1.ResetFirewallRequest{}); err != nil {
@@ -682,11 +682,11 @@ func firewallTemplatesCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("template %q not found", name)
 			}
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.ApplyFirewall(ctx, &gmeshv1.ApplyFirewallRequest{
@@ -762,11 +762,11 @@ func scopeConnectCmd() *cobra.Command {
 		Use:   "connect",
 		Short: "Create scope netns + veth + in-netns WG + DNAT rule",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			resp, err := c.ScopeConnect(ctx, &gmeshv1.ScopeConnectRequest{
@@ -810,11 +810,11 @@ func scopeDisconnectCmd() *cobra.Command {
 		Use:   "disconnect",
 		Short: "Tear down a scope's networking",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if _, err := c.ScopeDisconnect(ctx, &gmeshv1.ScopeDisconnectRequest{ScopeId: id}); err != nil {
@@ -843,11 +843,11 @@ func eventsTailCmd() *cobra.Command {
 		Use:   "tail",
 		Short: "Stream events as they happen (ctrl-c to stop)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -881,11 +881,11 @@ func healthCmd() *cobra.Command {
 		Use:   "health",
 		Short: "Per-peer health snapshot",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.HealthCheck(ctx, &gmeshv1.HealthCheckRequest{})
@@ -930,11 +930,11 @@ func egressCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Create an egress profile",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.CreateEgressProfile(ctx, &gmeshv1.CreateEgressProfileRequest{
@@ -985,11 +985,11 @@ func egressDeleteCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Remove an egress profile",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.DeleteEgressProfile(ctx, &gmeshv1.DeleteEgressProfileRequest{Id: id}); err != nil {
@@ -1009,11 +1009,11 @@ func egressListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all egress profiles",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListEgressProfiles(ctx, &gmeshv1.ListEgressProfilesRequest{})
@@ -1047,11 +1047,11 @@ func egressExitCmd() *cobra.Command {
 		Use:   "enable",
 		Short: "Install MASQUERADE + FORWARD rules so this node can be an exit",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			if _, err := c.EnableExit(ctx, &gmeshv1.EnableExitRequest{}); err != nil {
@@ -1065,11 +1065,11 @@ func egressExitCmd() *cobra.Command {
 		Use:   "disable",
 		Short: "Tear down exit rules",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.DisableExit(ctx, &gmeshv1.DisableExitRequest{}); err != nil {
@@ -1103,11 +1103,11 @@ func ingressCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Create an ingress profile (reverse port forward)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.CreateIngressProfile(ctx, &gmeshv1.CreateIngressProfileRequest{
@@ -1157,11 +1157,11 @@ func ingressDeleteCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Remove an ingress profile",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.DeleteIngressProfile(ctx, &gmeshv1.DeleteIngressProfileRequest{Id: id}); err != nil {
@@ -1181,11 +1181,11 @@ func ingressListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all ingress profiles",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListIngressProfiles(ctx, &gmeshv1.ListIngressProfilesRequest{})
@@ -1226,11 +1226,11 @@ func quotaCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Attach a byte-quota to an egress profile",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.CreateQuota(ctx, &gmeshv1.CreateQuotaRequest{
@@ -1281,11 +1281,11 @@ func quotaDeleteCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Remove a quota",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.DeleteQuota(ctx, &gmeshv1.DeleteQuotaRequest{Id: id}); err != nil {
@@ -1305,11 +1305,11 @@ func quotaListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all quotas",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListQuotas(ctx, &gmeshv1.ListQuotasRequest{})
@@ -1327,11 +1327,12 @@ func quotaListCmd() *cobra.Command {
 					frac = float64(q.UsedBytes) / float64(q.LimitBytes) * 100
 				}
 				status := "ok"
-				if q.StopFired {
+				switch {
+				case q.StopFired:
 					status = "STOP"
-				} else if q.ShiftFired {
+				case q.ShiftFired:
 					status = "SHIFTED"
-				} else if q.WarnFired {
+				case q.WarnFired:
 					status = "WARN"
 				}
 				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%d\t%d\t%.1f%%\t%s\n",
@@ -1349,11 +1350,11 @@ func quotaUsageCmd() *cobra.Command {
 		Use:   "usage",
 		Short: "Force a tick + show live usage",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.GetQuotaUsage(ctx, &gmeshv1.GetQuotaUsageRequest{Id: id})
@@ -1384,11 +1385,11 @@ func quotaResetCmd() *cobra.Command {
 		Use:   "reset",
 		Short: "Zero a quota's counter + clear latches",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.ResetQuota(ctx, &gmeshv1.ResetQuotaRequest{Id: id}); err != nil {
@@ -1414,11 +1415,11 @@ func peerUpdateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "Update a peer's endpoint / allowed-ips / keepalive",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.UpdatePeer(ctx, &gmeshv1.UpdatePeerRequest{
@@ -1458,11 +1459,11 @@ func policyListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "Show active policies",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListPolicies(ctx, &gmeshv1.ListPoliciesRequest{})
@@ -1488,11 +1489,11 @@ func policyReloadCmd() *cobra.Command {
 		Use:   "reload",
 		Short: "Re-read the configured policies directory",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ReloadPolicies(ctx, &gmeshv1.ReloadPoliciesRequest{})
@@ -1524,11 +1525,11 @@ func pathListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "Show active-probe status for every peer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListPathStates(ctx, &gmeshv1.ListPathStatesRequest{})
@@ -1567,11 +1568,11 @@ func mtlsInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Bootstrap the mesh CA (one-time per mesh)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.InitCA(ctx, &gmeshv1.InitCARequest{
@@ -1598,11 +1599,11 @@ func mtlsStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show CA loaded state + issued/revoked counts",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.CAStatus(ctx, &gmeshv1.CAStatusRequest{})
@@ -1632,11 +1633,11 @@ func mtlsIssueCmd() *cobra.Command {
 		Use:   "issue",
 		Short: "Sign a peer certificate and (optionally) save to disk",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.IssueCert(ctx, &gmeshv1.IssueCertRequest{
@@ -1703,11 +1704,11 @@ func mtlsListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List issued certificates",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListCerts(ctx, &gmeshv1.ListCertsRequest{PeerId: peerID})
@@ -1744,11 +1745,11 @@ func mtlsRevokeCmd() *cobra.Command {
 		Use:   "revoke",
 		Short: "Mark a cert revoked by serial",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.RevokeCert(ctx, &gmeshv1.RevokeCertRequest{Serial: serial, Reason: reason}); err != nil {
@@ -1770,11 +1771,11 @@ func mtlsTrustCmd() *cobra.Command {
 		Use:   "trust",
 		Short: "Print the CA root cert (trust bundle) for relying parties",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ExportTrust(ctx, &gmeshv1.ExportTrustRequest{})
@@ -1785,7 +1786,8 @@ func mtlsTrustCmd() *cobra.Command {
 				return writeJSON(resp)
 			}
 			if outFile != "" {
-				if err := os.WriteFile(outFile, []byte(resp.CaPem), 0o644); err != nil {
+				// CA certificate only (public), meant to be distributed.
+				if err := os.WriteFile(outFile, []byte(resp.CaPem), 0o644); err != nil { //nolint:gosec
 					return err
 				}
 				fmt.Printf("wrote %s (trust_domain=%s)\n", outFile, resp.TrustDomain)
@@ -1821,11 +1823,11 @@ func circuitCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Install this node's share of a multi-hop path",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			resp, err := c.CreateCircuit(ctx, &gmeshv1.CreateCircuitRequest{
@@ -1867,11 +1869,11 @@ func circuitDeleteCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Remove this node's share of a circuit",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if _, err := c.DeleteCircuit(ctx, &gmeshv1.DeleteCircuitRequest{Id: id}); err != nil {
@@ -1891,11 +1893,11 @@ func circuitListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "Show circuits this node is aware of",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListCircuits(ctx, &gmeshv1.ListCircuitsRequest{})
@@ -1937,11 +1939,11 @@ func anomalyListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "Show recent anomaly alerts (newest first)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListAnomalies(ctx, &gmeshv1.ListAnomaliesRequest{
@@ -1982,11 +1984,11 @@ func l7FlowsCmd() *cobra.Command {
 		Use:   "flows",
 		Short: "Show classified live flows",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListL7Flows(ctx, &gmeshv1.ListL7FlowsRequest{PeerId: peerID})
@@ -2017,11 +2019,11 @@ func l7TotalsCmd() *cobra.Command {
 		Use:   "totals",
 		Short: "Show per-(peer, protocol) byte/flow totals",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			c, close_, err := dial()
+			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
-			defer close_()
+			defer closeConn()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			resp, err := c.ListL7Totals(ctx, &gmeshv1.ListL7TotalsRequest{PeerId: peerID})

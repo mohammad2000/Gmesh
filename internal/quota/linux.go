@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -38,7 +37,6 @@ func NewLinux(log *slog.Logger, pub Publisher, sw Switcher) *LinuxManager {
 // ── nft counter reader ───────────────────────────────────────────────
 
 type nftReader struct {
-	mu    sync.Mutex
 	log   *slog.Logger
 	table string
 }

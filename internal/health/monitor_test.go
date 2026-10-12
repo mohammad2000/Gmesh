@@ -144,8 +144,8 @@ func TestMonitorDegradedTriggersFastTick(t *testing.T) {
 	bus := &collector{}
 	m := NewMonitor(src, bus, silentLog())
 
-	any := m.Tick(context.Background())
-	if !any {
+	degraded := m.Tick(context.Background())
+	if !degraded {
 		t.Error("expected anyDegraded=true for RELAY+no-ping peer")
 	}
 }

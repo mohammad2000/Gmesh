@@ -119,7 +119,7 @@ func TestBusCancelClosesChannel(t *testing.T) {
 	}
 }
 
-func TestBusCancelIdempotent(t *testing.T) {
+func TestBusCancelIdempotent(_ *testing.T) {
 	b := silentBus()
 	_, cancel := b.Subscribe(nil, 8)
 	cancel()

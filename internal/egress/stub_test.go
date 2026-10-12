@@ -2,6 +2,7 @@ package egress
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -32,7 +33,7 @@ func TestStubCreateListDelete(t *testing.T) {
 	}
 
 	// Duplicate Create → ErrExists.
-	if _, err := m.Create(ctx, p, "10.200.0.7", "wg-gmesh"); err != ErrExists {
+	if _, err := m.Create(ctx, p, "10.200.0.7", "wg-gmesh"); !errors.Is(err, ErrExists) {
 		t.Errorf("second Create err = %v; want ErrExists", err)
 	}
 
@@ -69,7 +70,7 @@ func TestStubUpdate(t *testing.T) {
 	}
 
 	if _, err := m.Update(ctx, &Profile{ID: 99, Name: "x", ExitPeerID: 1},
-		"10.200.0.1", "wg-gmesh"); err != ErrNotFound {
+		"10.200.0.1", "wg-gmesh"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Update(missing) err = %v; want ErrNotFound", err)
 	}
 }

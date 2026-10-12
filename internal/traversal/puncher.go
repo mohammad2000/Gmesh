@@ -150,7 +150,7 @@ func shuffledPortRange(center uint16, count int, rng *rand.Rand) []uint16 {
 	}
 	out := make([]uint16, 0, hi-lo)
 	for p := lo; p < hi; p++ {
-		out = append(out, uint16(p)) //nolint:gosec
+		out = append(out, uint16(p))
 	}
 	if rng != nil {
 		rng.Shuffle(len(out), func(i, j int) { out[i], out[j] = out[j], out[i] })

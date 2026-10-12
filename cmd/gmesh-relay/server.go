@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"sync"
@@ -153,7 +154,8 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		n, from, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
 				continue
 			}
 			if ctx.Err() != nil {
@@ -259,7 +261,7 @@ func (s *Server) handleData(from *net.UDPAddr, payload []byte) {
 	}
 	s.stats.Lock()
 	s.stats.framesForwarded++
-	s.stats.bytesForwarded += uint64(n) //nolint:gosec
+	s.stats.bytesForwarded += uint64(n)
 	s.stats.Unlock()
 }
 

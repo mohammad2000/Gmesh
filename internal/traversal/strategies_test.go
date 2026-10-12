@@ -110,7 +110,7 @@ func TestEngineLadderExhausted(t *testing.T) {
 	e := NewEngine()
 	e.Register(&DirectStrategy{Probe: &fakeProber{err: errors.New("fail")}})
 	_, history, err := e.Run(context.Background(), []Method{MethodDirect, MethodUPnPPortMap}, &PeerContext{RemoteEndpoint: "1.2.3.4:51820"})
-	if err != ErrExhausted {
+	if !errors.Is(err, ErrExhausted) {
 		t.Errorf("err = %v; want ErrExhausted", err)
 	}
 	if len(history) != 2 {

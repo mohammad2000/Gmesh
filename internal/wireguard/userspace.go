@@ -57,8 +57,9 @@ type usDevice struct {
 	tunDev tun.Device
 }
 
-// newUserspaceManager returns a ready userspace backend.
-func newUserspaceManager(log *slog.Logger) (*userspaceManager, error) {
+// newUserspaceManager returns a ready userspace backend. The error is
+// part of the backend-constructor contract shared with the kernel one.
+func newUserspaceManager(log *slog.Logger) (*userspaceManager, error) { //nolint:unparam
 	if log == nil {
 		log = slog.Default()
 	}
@@ -200,7 +201,7 @@ func (u *userspaceManager) CreateInterface(
 }
 
 // DeleteInterface tears down a previously created device. Idempotent.
-func (u *userspaceManager) DeleteInterface(ctx context.Context, name string) error {
+func (u *userspaceManager) DeleteInterface(_ context.Context, name string) error {
 	u.mu.Lock()
 	d, ok := u.devices[name]
 	delete(u.devices, name)

@@ -15,7 +15,7 @@ type fakeActor struct {
 	err   error
 }
 
-func (a *fakeActor) SwapExitPeer(_ context.Context, profile, peer int64) error {
+func (a *fakeActor) SwapExitPeer(_ context.Context, _, _ int64) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.calls = append(a.calls, "swap")

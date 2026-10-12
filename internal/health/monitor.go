@@ -133,7 +133,7 @@ func (m *Monitor) Tick(ctx context.Context) bool {
 		m.Log.Debug("refresh peer stats", "error", err)
 	}
 
-	any := false
+	degraded := false
 	now := time.Now()
 	seen := make(map[int64]struct{})
 	for _, p := range m.Source.Snapshot() {
@@ -141,7 +141,7 @@ func (m *Monitor) Tick(ctx context.Context) bool {
 		score := scoreForPeer(p)
 		status := FromScore(score)
 		if status >= StatusDegraded {
-			any = true
+			degraded = true
 		}
 		m.emit(p, score, status)
 		m.checkStuck(p, now)
@@ -157,7 +157,7 @@ func (m *Monitor) Tick(ctx context.Context) bool {
 		}
 	}
 	m.mu.Unlock()
-	return any
+	return degraded
 }
 
 // checkStuck emits peer_stuck when a peer has been in connecting/

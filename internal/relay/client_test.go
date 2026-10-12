@@ -48,7 +48,6 @@ func startTinyRelay(t *testing.T) *tinyRelay {
 					for i, p := range tr.peers {
 						if p == nil {
 							tr.peers[i] = from
-							slot = i
 							break
 						}
 					}

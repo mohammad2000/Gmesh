@@ -5,6 +5,7 @@ package rpc
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -24,7 +25,6 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/engine"
-	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/l7"
@@ -150,7 +150,7 @@ func (s *Server) Start() (stop func(), err error) {
 
 	go func() {
 		s.Log.Info("gRPC server listening", "socket", s.cfg.Path)
-		if err := gs.Serve(ln); err != nil && err != grpc.ErrServerStopped {
+		if err := gs.Serve(ln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			s.Log.Error("gRPC serve exited", "error", err)
 		}
 	}()
@@ -188,7 +188,7 @@ func (s *Server) Status(ctx context.Context, _ *gmeshv1.StatusRequest) (*gmeshv1
 		Interface:  s.Engine.Interface(),
 		PublicKey:  s.Engine.PubKey(),
 		ListenPort: uint32(s.Engine.ListenPort()),
-		PeerCount:  int32(len(peers)), //nolint:gosec // bounded by node capacity
+		PeerCount:  int32(len(peers)),
 	}
 	for _, p := range peers {
 		if p.Status == peer.StatusConnected {
@@ -231,7 +231,7 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 
 	res, err := s.Engine.Join(ctx, in.MeshIp, in.InterfaceName, uint16(in.ListenPort), in.NetworkCidr, in.NodeId)
 	if err != nil {
-		if err == engine.ErrAlreadyJoined {
+		if errors.Is(err, engine.ErrAlreadyJoined) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "join: %v", err)
@@ -241,8 +241,9 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 	// them to other peers on the same subnet. Combined with the STUN
 	// reflexive candidate, this gives downstream peers a prioritized
 	// list: LAN (priority 10) → STUN (60).
-	var candidates []*gmeshv1.PeerEndpoint
-	for _, addr := range nat.LocalEndpoints(uint32(in.ListenPort)) {
+	locals := nat.LocalEndpoints(in.ListenPort)
+	candidates := make([]*gmeshv1.PeerEndpoint, 0, len(locals))
+	for _, addr := range locals {
 		candidates = append(candidates, &gmeshv1.PeerEndpoint{
 			Address:  addr,
 			Type:     gmeshv1.EndpointType_ENDPOINT_LAN,
@@ -299,7 +300,7 @@ func (s *Server) AddPeer(ctx context.Context, in *gmeshv1.AddPeerRequest) (*gmes
 		p.IsRelayCapable = in.RemoteNat.IsRelayCapable
 	}
 	if err := s.Engine.AddPeer(ctx, p, time.Duration(in.Keepalive)*time.Second); err != nil {
-		if err == engine.ErrNotJoined {
+		if errors.Is(err, engine.ErrNotJoined) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "add_peer: %v", err)
@@ -310,7 +311,7 @@ func (s *Server) AddPeer(ctx context.Context, in *gmeshv1.AddPeerRequest) (*gmes
 // RemovePeer removes a peer.
 func (s *Server) RemovePeer(ctx context.Context, in *gmeshv1.RemovePeerRequest) (*gmeshv1.RemovePeerResponse, error) {
 	if err := s.Engine.RemovePeer(ctx, in.PeerId); err != nil {
-		if err == engine.ErrPeerNotFound {
+		if errors.Is(err, engine.ErrPeerNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "remove_peer: %v", err)
@@ -322,7 +323,7 @@ func (s *Server) RemovePeer(ctx context.Context, in *gmeshv1.RemovePeerRequest) 
 func (s *Server) UpdatePeer(ctx context.Context, in *gmeshv1.UpdatePeerRequest) (*gmeshv1.UpdatePeerResponse, error) {
 	err := s.Engine.UpdatePeer(ctx, in.PeerId, in.Endpoint, in.AllowedIps, time.Duration(in.Keepalive)*time.Second)
 	if err != nil {
-		if err == engine.ErrPeerNotFound {
+		if errors.Is(err, engine.ErrPeerNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update_peer: %v", err)
@@ -376,7 +377,7 @@ func (s *Server) HealthCheck(_ context.Context, in *gmeshv1.HealthCheckRequest) 
 		resp.Peers = append(resp.Peers, &gmeshv1.HealthCheckResponse_PeerHealth{
 			PeerId:        p.ID,
 			Status:        gmeshv1.HealthStatus(healthStatusFromScore(score)),
-			Score:         int32(score), //nolint:gosec // 0..100
+			Score:         int32(score),
 			LatencyMs:     p.LatencyMS,
 			PacketLoss:    p.PacketLoss,
 			HandshakeAgeS: int64(time.Since(p.LastHandshake).Seconds()),
@@ -439,13 +440,6 @@ func healthStatusFromScore(score int) int {
 	}
 }
 
-func min(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ── Event stream ──────────────────────────────────────────────────────
 
 // SubscribeEvents is a server-streaming RPC: subscribers get a live feed
@@ -485,17 +479,6 @@ func formatPeerID(id int64) string {
 	return fmt.Sprintf("%d", id)
 }
 
-// subscriberCount is a small helper for diagnostics/tests.
-func (s *Server) subscriberCount() int {
-	if s.Engine == nil || s.Engine.Events == nil {
-		return 0
-	}
-	return s.Engine.Events.SubscriberCount()
-}
-
-// eventsBus exposes the bus for in-process consumers.
-func (s *Server) eventsBus() *events.Bus { return s.Engine.Events }
-
 // ── Quota (Phase 13) ──────────────────────────────────────────────────
 
 func (s *Server) CreateQuota(ctx context.Context, in *gmeshv1.CreateQuotaRequest) (*gmeshv1.QuotaResponse, error) {
@@ -504,7 +487,7 @@ func (s *Server) CreateQuota(ctx context.Context, in *gmeshv1.CreateQuotaRequest
 	}
 	q, err := s.Engine.CreateQuota(ctx, quotaFromProto(in.Quota))
 	if err != nil {
-		if err == quota.ErrExists {
+		if errors.Is(err, quota.ErrExists) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "create quota: %v", err)
@@ -518,7 +501,7 @@ func (s *Server) UpdateQuota(ctx context.Context, in *gmeshv1.UpdateQuotaRequest
 	}
 	q, err := s.Engine.UpdateQuota(ctx, quotaFromProto(in.Quota))
 	if err != nil {
-		if err == quota.ErrNotFound {
+		if errors.Is(err, quota.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update quota: %v", err)
@@ -658,7 +641,7 @@ func (s *Server) CreateCircuit(ctx context.Context, in *gmeshv1.CreateCircuitReq
 	c := circuitFromProto(in.Circuit)
 	res, err := s.Engine.CreateCircuit(ctx, c)
 	if err != nil {
-		if err == circuit.ErrExists {
+		if errors.Is(err, circuit.ErrExists) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "create circuit: %v", err)
@@ -672,7 +655,7 @@ func (s *Server) UpdateCircuit(ctx context.Context, in *gmeshv1.UpdateCircuitReq
 	}
 	res, err := s.Engine.UpdateCircuit(ctx, circuitFromProto(in.Circuit))
 	if err != nil {
-		if err == circuit.ErrNotFound {
+		if errors.Is(err, circuit.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update circuit: %v", err)
@@ -722,7 +705,7 @@ func (s *Server) InitCA(_ context.Context, in *gmeshv1.InitCARequest) (*gmeshv1.
 	}
 	caPEM, err := s.Engine.MTLS.InitCA(in.TrustDomain, in.Force)
 	if err != nil {
-		if err == mtls.ErrAlreadyInitialised {
+		if errors.Is(err, mtls.ErrAlreadyInitialised) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "init ca: %v", err)
@@ -778,7 +761,7 @@ func (s *Server) IssueCert(_ context.Context, in *gmeshv1.IssueCertRequest) (*gm
 	}
 	c, err := s.Engine.MTLS.IssueCert(req)
 	if err != nil {
-		if err == mtls.ErrNotInitialised {
+		if errors.Is(err, mtls.ErrNotInitialised) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "issue cert: %v", err)
@@ -811,7 +794,7 @@ func (s *Server) RevokeCert(_ context.Context, in *gmeshv1.RevokeCertRequest) (*
 		return nil, status.Error(codes.FailedPrecondition, "mtls CA not configured")
 	}
 	if err := s.Engine.MTLS.RevokeCert(in.Serial, in.Reason); err != nil {
-		if err == mtls.ErrNotFound {
+		if errors.Is(err, mtls.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "revoke: %v", err)
@@ -953,7 +936,7 @@ func (s *Server) CreateIngressProfile(ctx context.Context, in *gmeshv1.CreateIng
 	p := ingressFromProto(in.Profile)
 	res, err := s.Engine.CreateIngress(ctx, p)
 	if err != nil {
-		if err == ingress.ErrExists {
+		if errors.Is(err, ingress.ErrExists) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "create ingress: %v", err)
@@ -967,7 +950,7 @@ func (s *Server) UpdateIngressProfile(ctx context.Context, in *gmeshv1.UpdateIng
 	}
 	res, err := s.Engine.UpdateIngress(ctx, ingressFromProto(in.Profile))
 	if err != nil {
-		if err == ingress.ErrNotFound {
+		if errors.Is(err, ingress.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update ingress: %v", err)
@@ -994,8 +977,8 @@ func ingressFromProto(p *gmeshv1.IngressProfile) *ingress.Profile {
 	return &ingress.Profile{
 		ID: p.Id, Name: p.Name, Enabled: p.Enabled,
 		BackendPeerID: p.BackendPeerId, BackendScopeID: p.BackendScopeId,
-		BackendIP: p.BackendIp, BackendPort: uint16(p.BackendPort), //nolint:gosec
-		EdgePeerID: p.EdgePeerId, EdgePort: uint16(p.EdgePort), //nolint:gosec
+		BackendIP: p.BackendIp, BackendPort: uint16(p.BackendPort),
+		EdgePeerID: p.EdgePeerId, EdgePort: uint16(p.EdgePort),
 		Protocol:       p.Protocol,
 		AllowedSources: p.AllowedSourceCidrs,
 		RequireMTLS:    p.RequireMtls,
@@ -1026,7 +1009,7 @@ func (s *Server) CreateEgressProfile(ctx context.Context, in *gmeshv1.CreateEgre
 	prof := egressFromProto(in.Profile)
 	res, err := s.Engine.CreateEgress(ctx, prof)
 	if err != nil {
-		if err == egress.ErrExists {
+		if errors.Is(err, egress.ErrExists) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "create egress: %v", err)
@@ -1041,7 +1024,7 @@ func (s *Server) UpdateEgressProfile(ctx context.Context, in *gmeshv1.UpdateEgre
 	}
 	res, err := s.Engine.UpdateEgress(ctx, egressFromProto(in.Profile))
 	if err != nil {
-		if err == egress.ErrNotFound {
+		if errors.Is(err, egress.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update egress: %v", err)
@@ -1126,11 +1109,11 @@ func (s *Server) ScopeConnect(ctx context.Context, in *gmeshv1.ScopeConnectReque
 		VMVethIP:      in.VmVethIp,
 		ScopeVethIP:   in.ScopeIp,
 		GatewayMeshIP: in.GatewayMeshIp,
-		ListenPort:    uint16(in.ListenPort), //nolint:gosec // bounded
+		ListenPort:    uint16(in.ListenPort),
 	}
 	p, err := s.Engine.ScopeConnect(ctx, spec)
 	if err != nil {
-		if err == scope.ErrAlreadyConnected {
+		if errors.Is(err, scope.ErrAlreadyConnected) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "scope connect: %v", err)
@@ -1175,8 +1158,8 @@ func (s *Server) ApplyFirewall(ctx context.Context, in *gmeshv1.ApplyFirewallReq
 	}
 	applied, failed, errs := s.Engine.ApplyFirewall(ctx, rules, in.DefaultPolicy, in.ForceReset)
 	resp := &gmeshv1.ApplyFirewallResponse{
-		AppliedCount: int32(applied), //nolint:gosec // bounded
-		FailedCount:  int32(failed),  //nolint:gosec
+		AppliedCount: int32(applied),
+		FailedCount:  int32(failed),
 	}
 	for _, e := range errs {
 		resp.Errors = append(resp.Errors, e.Error())
@@ -1200,7 +1183,7 @@ func (s *Server) GetFirewallStatus(ctx context.Context, _ *gmeshv1.GetFirewallSt
 	}
 	resp := &gmeshv1.GetFirewallStatusResponse{
 		Backend:     backend,
-		ActiveRules: int32(len(rules)), //nolint:gosec
+		ActiveRules: int32(len(rules)),
 		HitCounts:   hits,
 	}
 	for _, r := range rules {
@@ -1291,7 +1274,7 @@ func (s *Server) SetupRelay(ctx context.Context, in *gmeshv1.SetupRelayRequest) 
 			Error: "relay.secret is not configured on this node",
 		}, nil
 	}
-	tok := relay.SignToken(secret, sid, uint64(in.PeerId)) //nolint:gosec
+	tok := relay.SignToken(secret, sid, uint64(in.PeerId))
 
 	if _, err := s.Engine.SetupRelay(ctx, in.PeerId, in.RelayEndpoint, sid, tok); err != nil {
 		return &gmeshv1.SetupRelayResponse{Ok: false, Error: err.Error()}, nil
@@ -1423,7 +1406,7 @@ func peerToProto(p *peer.Peer) *gmeshv1.Peer {
 	if p.Type == peer.TypeScope {
 		pt = gmeshv1.PeerType_PEER_TYPE_SCOPE
 	}
-	var eps []*gmeshv1.PeerEndpoint
+	eps := make([]*gmeshv1.PeerEndpoint, 0, len(p.Endpoints))
 	for _, e := range p.Endpoints {
 		eps = append(eps, &gmeshv1.PeerEndpoint{
 			Address:      e.Address,

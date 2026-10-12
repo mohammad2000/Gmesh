@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -72,7 +73,7 @@ func (s *Server) Start() (func(), error) {
 
 	go func() {
 		s.Log.Info("metrics server listening", "socket", s.SocketPath)
-		if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		if err := s.srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.Log.Error("metrics serve exited", "error", err)
 		}
 	}()

@@ -82,8 +82,8 @@ func nftPolicy(p string) string {
 // ruleToNftLines renders one Rule to one or more `add rule` statements,
 // possibly across multiple chains (for Direction=Both).
 func ruleToNftLines(family, table string, r Rule) []string {
-	var out []string
 	chains := chainsForDirection(r.Direction)
+	out := make([]string, 0, len(chains))
 
 	body := ruleBody(r)
 	if body == "" {

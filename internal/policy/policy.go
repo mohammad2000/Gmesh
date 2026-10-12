@@ -178,7 +178,7 @@ func LoadDir(dir string) ([]*Policy, []error) {
 	if err != nil {
 		return nil, []error{fmt.Errorf("policy: read dir %s: %w", dir, err)}
 	}
-	var policies []*Policy
+	policies := make([]*Policy, 0, len(entries))
 	var errs []error
 	for _, e := range entries {
 		if e.IsDir() {

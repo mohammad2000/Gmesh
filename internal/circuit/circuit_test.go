@@ -2,6 +2,7 @@ package circuit
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -104,7 +105,7 @@ func TestStubCRUD(t *testing.T) {
 	if _, err := m.Create(ctx, c, "10.250.0.2", "wg-gmesh", 1); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m.Create(ctx, c, "10.250.0.2", "wg-gmesh", 1); err != ErrExists {
+	if _, err := m.Create(ctx, c, "10.250.0.2", "wg-gmesh", 1); !errors.Is(err, ErrExists) {
 		t.Errorf("dup → %v; want ErrExists", err)
 	}
 	if len(m.List()) != 1 {

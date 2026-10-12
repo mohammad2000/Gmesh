@@ -22,7 +22,11 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
-func main() {
+func main() { os.Exit(run()) }
+
+// run is main's body; it returns the exit code so deferred cleanup runs
+// before the process exits.
+func run() int {
 	addr := flag.String("addr", envOr("GMESH_RELAY_ADDR", ":4500"), "UDP listen address")
 	secret := flag.String("secret", os.Getenv("GMESH_RELAY_SECRET"), "HMAC shared secret (required)")
 	logLevel := flag.String("log-level", envOr("GMESH_RELAY_LOG", "info"), "log level")
@@ -32,11 +36,11 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("gmesh-relay %s (%s) built %s\n", version.Version, version.Commit, version.BuildDate)
-		return
+		return 0
 	}
 	if *secret == "" {
 		fmt.Fprintln(os.Stderr, "GMESH_RELAY_SECRET is required (pass via env or --secret)")
-		os.Exit(2)
+		return 2
 	}
 
 	log := logger.Init(*logFormat, *logLevel)
@@ -50,7 +54,7 @@ func main() {
 
 	if err := srv.ListenAndServe(ctx); err != nil {
 		log.Error("relay exited", "error", err)
-		os.Exit(1)
+		return 1
 	}
 	st := srv.Stats()
 	log.Info("gmesh-relay shut down",
@@ -60,6 +64,7 @@ func main() {
 		"bytes_forwarded", st.BytesForwarded,
 		"active_sessions", st.ActiveSessions,
 	)
+	return 0
 }
 
 func envOr(key, def string) string {

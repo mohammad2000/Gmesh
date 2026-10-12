@@ -438,7 +438,7 @@ func (m *LinuxManager) nftMarkRulePool(p *Profile, total int32, vmap string) str
 	body = append(body, "counter")
 	body = append(body,
 		fmt.Sprintf(`meta mark set numgen inc mod %d map { %s }`, total, vmap))
-	body = append(body, fmt.Sprintf(`ct mark set meta mark`))
+	body = append(body, `ct mark set meta mark`)
 	body = append(body, fmt.Sprintf(`comment "egress-%d"`, p.ID))
 
 	line := strings.Join(body, " ")

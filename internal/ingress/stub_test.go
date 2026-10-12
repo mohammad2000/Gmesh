@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -26,7 +27,7 @@ func TestStubCreateListDelete(t *testing.T) {
 		t.Errorf("bad create result: %+v", res)
 	}
 
-	if _, err := m.Create(ctx, p); err != ErrExists {
+	if _, err := m.Create(ctx, p); !errors.Is(err, ErrExists) {
 		t.Errorf("duplicate Create → %v; want ErrExists", err)
 	}
 
@@ -62,7 +63,7 @@ func TestStubUpdate(t *testing.T) {
 	if got.Name != "a-renamed" || got.BackendIP != "10.0.0.2" {
 		t.Errorf("update didn't take: %+v", got)
 	}
-	if _, err := m.Update(ctx, &Profile{ID: 99, Name: "x", BackendIP: "1", BackendPort: 1, EdgePort: 1}); err != ErrNotFound {
+	if _, err := m.Update(ctx, &Profile{ID: 99, Name: "x", BackendIP: "1", BackendPort: 1, EdgePort: 1}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Update(missing) → %v; want ErrNotFound", err)
 	}
 }

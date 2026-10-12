@@ -227,7 +227,7 @@ func tokenOK(ctx context.Context, token string) bool {
 var errBadToken = status.Error(codes.Unauthenticated, "missing or invalid control token")
 
 func newTokenUnaryInterceptor(token string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if !tokenOK(ctx, token) {
 			return nil, errBadToken
 		}
@@ -236,7 +236,7 @@ func newTokenUnaryInterceptor(token string) grpc.UnaryServerInterceptor {
 }
 
 func newTokenStreamInterceptor(token string) grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if !tokenOK(ss.Context(), token) {
 			return errBadToken
 		}

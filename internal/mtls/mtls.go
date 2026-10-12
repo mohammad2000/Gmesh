@@ -177,8 +177,8 @@ func spiffeURIFor(trustDomain string, peerID int64) string {
 // a unique non-zero serial; the default reader has more than enough
 // entropy that collisions are not a concern.
 func randSerial() (*big.Int, error) {
-	max := new(big.Int).Lsh(big.NewInt(1), 128)
-	return rand.Int(rand.Reader, max)
+	limit := new(big.Int).Lsh(big.NewInt(1), 128)
+	return rand.Int(rand.Reader, limit)
 }
 
 // buildCATemplate returns a fresh self-signed CA template.

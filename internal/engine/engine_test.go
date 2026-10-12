@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"sync"
@@ -160,7 +161,7 @@ func TestJoinLeaveRoundtrip(t *testing.T) {
 	}
 
 	// Second Join should fail.
-	if _, err := eng.Join(ctx, "10.200.0.7", "wg-test", 51820, "10.200.0.0/16", ""); err != ErrAlreadyJoined {
+	if _, err := eng.Join(ctx, "10.200.0.7", "wg-test", 51820, "10.200.0.0/16", ""); !errors.Is(err, ErrAlreadyJoined) {
 		t.Errorf("second Join err = %v; want ErrAlreadyJoined", err)
 	}
 
@@ -224,7 +225,7 @@ func TestAddRemoveUpdatePeer(t *testing.T) {
 		t.Error("registry still has peer after RemovePeer")
 	}
 
-	if err := eng.RemovePeer(ctx, 999); err != ErrPeerNotFound {
+	if err := eng.RemovePeer(ctx, 999); !errors.Is(err, ErrPeerNotFound) {
 		t.Errorf("RemovePeer(missing) err = %v; want ErrPeerNotFound", err)
 	}
 }

@@ -2,6 +2,7 @@ package scope
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -61,14 +62,14 @@ func TestStubDoubleConnectRejected(t *testing.T) {
 		t.Fatalf("first Connect: %v", err)
 	}
 	_, err = m.Connect(ctx, Spec{ScopeID: 1, MeshIP: "10.200.0.1", ListenPort: 51801})
-	if err != ErrAlreadyConnected {
+	if !errors.Is(err, ErrAlreadyConnected) {
 		t.Errorf("err = %v; want ErrAlreadyConnected", err)
 	}
 }
 
 func TestStubDisconnectMissing(t *testing.T) {
 	m := mustStub(t)
-	if err := m.Disconnect(context.Background(), 99); err != ErrNotConnected {
+	if err := m.Disconnect(context.Background(), 99); !errors.Is(err, ErrNotConnected) {
 		t.Errorf("err = %v; want ErrNotConnected", err)
 	}
 }
