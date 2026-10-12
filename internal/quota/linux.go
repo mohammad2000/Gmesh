@@ -18,7 +18,8 @@ import (
 // counter attached to each profile's mark rule.
 //
 // Rule shape (from internal/egress/linux.go):
-//   add rule inet gmesh-egress egress_mark_out ... meta mark set 0x1... comment "egress-<N>"
+//
+//	add rule inet gmesh-egress egress_mark_out ... meta mark set 0x1... comment "egress-<N>"
 //
 // nftables attaches a counter element automatically when `counter`
 // appears in the rule body. Our egress translator doesn't emit a

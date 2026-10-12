@@ -91,10 +91,10 @@ func (s *Session) idle(ttl time.Duration, now time.Time) bool {
 
 // Server is the relay UDP server.
 type Server struct {
-	Addr            string        // e.g. ":4500"
-	Secret          []byte        // HMAC key shared with the backend
-	SessionIdleTTL  time.Duration // default 60s
-	Log             *slog.Logger
+	Addr           string        // e.g. ":4500"
+	Secret         []byte        // HMAC key shared with the backend
+	SessionIdleTTL time.Duration // default 60s
+	Log            *slog.Logger
 
 	mu       sync.Mutex
 	sessions map[[16]byte]*Session

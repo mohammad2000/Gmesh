@@ -31,7 +31,8 @@ func NewLinuxPingProber() *LinuxPingProber {
 func (p *LinuxPingProber) Name() string { return "ping" }
 
 // rttRE extracts the RTT from iputils output.
-//   "64 bytes from 10.250.0.20: icmp_seq=1 ttl=64 time=2.80 ms"
+//
+//	"64 bytes from 10.250.0.20: icmp_seq=1 ttl=64 time=2.80 ms"
 var rttRE = regexp.MustCompile(`time=([0-9.]+)\s*ms`)
 
 // Probe runs one ping.

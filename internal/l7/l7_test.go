@@ -138,7 +138,6 @@ func TestAggregatorReset(t *testing.T) {
 	}
 }
 
-
 // Regression: the aggregator kept every 5-tuple it ever saw, so gmeshd's
 // RSS grew without bound on busy hosts. A flow absent from the next
 // snapshot must be forgotten, without giving back the bytes it counted.

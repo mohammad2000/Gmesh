@@ -20,14 +20,14 @@ import (
 //
 // Ruleset:
 //
-//   table inet gmesh-quota {
-//       chain quota_drop_out { type filter hook output priority filter; }
-//       chain quota_drop_fwd { type filter hook forward priority filter; }
-//   }
+//	table inet gmesh-quota {
+//	    chain quota_drop_out { type filter hook output priority filter; }
+//	    chain quota_drop_fwd { type filter hook forward priority filter; }
+//	}
 //
 // Per blocked profile we insert:
 //
-//   meta mark 0x1000000a counter drop comment "quota-drop-10"
+//	meta mark 0x1000000a counter drop comment "quota-drop-10"
 //
 // into both chains — `output` catches traffic originated on the host,
 // `forward` catches traffic arriving from a scope / veth / peer.

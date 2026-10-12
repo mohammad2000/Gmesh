@@ -9,7 +9,7 @@
 // declarative DSL the roadmap sketches. It covers the one use case
 // operators have asked for in production:
 //
-//     "When path_loss(peer=3) > 10% for 30s, shift profile 10 to peer 5."
+//	"When path_loss(peer=3) > 10% for 30s, shift profile 10 to peer 5."
 //
 // The full DSL (boolean composition, time-windowed predicates beyond a
 // single debounce, sub-queries) is a follow-up. The surface here is
@@ -19,18 +19,18 @@
 //
 // # File format (v1)
 //
-//   version: 1
-//   name: failover_on_high_loss
-//   when:
-//     event: path_down      # path_up | path_down | quota_shift | quota_stop | quota_warning
-//     peer_id: 3            # optional — restricts event matching
-//     profile_id: 10        # optional — for quota_* events
-//     debounce_seconds: 30  # optional — fire only if matching events arrive within this window
-//     min_count: 1          # optional (default 1)
-//   do:
-//     action: swap_exit_peer     # swap_exit_peer | enable_profile | disable_profile | reset_quota
-//     profile_id: 10
-//     to_peer_id: 5
+//	version: 1
+//	name: failover_on_high_loss
+//	when:
+//	  event: path_down      # path_up | path_down | quota_shift | quota_stop | quota_warning
+//	  peer_id: 3            # optional — restricts event matching
+//	  profile_id: 10        # optional — for quota_* events
+//	  debounce_seconds: 30  # optional — fire only if matching events arrive within this window
+//	  min_count: 1          # optional (default 1)
+//	do:
+//	  action: swap_exit_peer     # swap_exit_peer | enable_profile | disable_profile | reset_quota
+//	  profile_id: 10
+//	  to_peer_id: 5
 //
 // # Why YAML not Starlark / Rego / CEL
 //
@@ -201,13 +201,13 @@ func LoadDir(dir string) ([]*Policy, []error) {
 // Engine is the runtime: holds live policies + per-policy state for
 // debounce, accepts events, dispatches actions via an Actor.
 type Engine struct {
-	mu           sync.Mutex
-	policies     []*Policy
-	counts       map[string]int       // policy name -> match count in current window
-	windows      map[string]time.Time // policy name -> window start
+	mu            sync.Mutex
+	policies      []*Policy
+	counts        map[string]int       // policy name -> match count in current window
+	windows       map[string]time.Time // policy name -> window start
 	cooldownUntil map[string]time.Time // policy name -> earliest next-fire time
-	Actor        Actor
-	Log          Logger
+	Actor         Actor
+	Log           Logger
 }
 
 // Logger is a tiny shim so we don't depend on log/slog here. The engine

@@ -73,12 +73,12 @@ func (s Severity) String() string {
 
 // Alert is one detector's output. Higher layers wrap it into events.Event.
 type Alert struct {
-	Detector  string
-	PeerID    int64
-	Severity  Severity
-	Message   string
-	Metrics   map[string]float64
-	Observed  time.Time
+	Detector string
+	PeerID   int64
+	Severity Severity
+	Message  string
+	Metrics  map[string]float64
+	Observed time.Time
 }
 
 // Detector is the narrow contract every anomaly detector implements.

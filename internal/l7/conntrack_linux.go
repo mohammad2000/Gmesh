@@ -14,7 +14,7 @@ import (
 // ConntrackReader parses /proc/net/nf_conntrack. The line format is
 // space-separated fields; relevant lines look like:
 //
-//     ipv4     2 tcp      6 431999 ESTABLISHED src=10.250.0.1 dst=10.250.0.20 sport=52060 dport=443 packets=42 bytes=8432 src=10.250.0.20 dst=10.250.0.1 sport=443 dport=52060 packets=40 bytes=14600 [ASSURED] mark=0 use=1
+//	ipv4     2 tcp      6 431999 ESTABLISHED src=10.250.0.1 dst=10.250.0.20 sport=52060 dport=443 packets=42 bytes=8432 src=10.250.0.20 dst=10.250.0.1 sport=443 dport=52060 packets=40 bytes=14600 [ASSURED] mark=0 use=1
 //
 // The first src=/dst= pair is the ORIGINAL direction (tx); the second
 // is the REPLY direction (rx). If net.netfilter.nf_conntrack_acct=1 is

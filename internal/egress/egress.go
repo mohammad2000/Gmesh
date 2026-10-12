@@ -7,11 +7,11 @@
 // leave through peer P instead of the local default gateway." The backend
 // on the source node installs:
 //
-//   1. A dedicated routing table (number = 100 + profile.id).
-//   2. A default route in that table: via <exit_peer.mesh_ip> dev wg-gmesh.
-//   3. nftables mark rule in table `inet gmesh-egress` that stamps matching
-//      packets with fwmark = profile.id.
-//   4. An ip rule: `from fwmark X lookup T`, with priority 1000 + prio.
+//  1. A dedicated routing table (number = 100 + profile.id).
+//  2. A default route in that table: via <exit_peer.mesh_ip> dev wg-gmesh.
+//  3. nftables mark rule in table `inet gmesh-egress` that stamps matching
+//     packets with fwmark = profile.id.
+//  4. An ip rule: `from fwmark X lookup T`, with priority 1000 + prio.
 //
 // The exit peer additionally installs one-time MASQUERADE + FORWARD rules
 // (EnableExit RPC) in its own table `inet gmesh-exit`.
@@ -44,16 +44,16 @@ import (
 // Field names match the proto 1:1 for easy translation; see api/proto/
 // gmesh/v1/gmesh.proto for the wire schema.
 type Profile struct {
-	ID             int64
-	Name           string
-	Enabled        bool
-	Priority       int32
+	ID       int64
+	Name     string
+	Enabled  bool
+	Priority int32
 
-	SourceScopeID  int64
-	SourceCIDR     string
-	Protocol       string // "any" | "tcp" | "udp"
-	DestCIDR       string
-	DestPorts      string
+	SourceScopeID int64
+	SourceCIDR    string
+	Protocol      string // "any" | "tcp" | "udp"
+	DestCIDR      string
+	DestPorts     string
 
 	GeoIPCountries []string // Phase 15: ISO-3166 codes requested by user
 
@@ -64,9 +64,9 @@ type Profile struct {
 	// doesn't know about geoip internals.
 	GeoIPCIDRs []string
 
-	ExitPeerID     int64
-	ExitPool       []int64 // Phase 16: weighted pool of exit peers
-	ExitWeights    []int32 // Phase 16: same length as ExitPool
+	ExitPeerID  int64
+	ExitPool    []int64 // Phase 16: weighted pool of exit peers
+	ExitWeights []int32 // Phase 16: same length as ExitPool
 
 	// ExitPoolMeshIPs is the engine-resolved mesh IP for each ExitPool
 	// entry (same length as ExitPool). The Linux backend needs these to

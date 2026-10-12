@@ -61,9 +61,9 @@ type MetricsConfig struct {
 
 // AuditConfig controls the audit log.
 type AuditConfig struct {
-	Enabled   bool   `yaml:"enabled"`    // default true
-	Path      string `yaml:"path"`       // default /var/log/gmesh/audit.log
-	MaxBytes  int64  `yaml:"max_bytes"`  // default 10 MB
+	Enabled  bool   `yaml:"enabled"`   // default true
+	Path     string `yaml:"path"`      // default /var/log/gmesh/audit.log
+	MaxBytes int64  `yaml:"max_bytes"` // default 10 MB
 }
 
 // SocketConfig controls the Unix socket exposed for gRPC.
@@ -131,9 +131,9 @@ type HealthConfig struct {
 
 // FirewallConfig controls nftables behavior.
 type FirewallConfig struct {
-	Table       string `yaml:"table"`         // "gmesh"
-	Chain       string `yaml:"chain"`         // "mesh"
-	UseNftables bool   `yaml:"use_nftables"`  // true → nft, false → iptables legacy
+	Table       string `yaml:"table"`        // "gmesh"
+	Chain       string `yaml:"chain"`        // "mesh"
+	UseNftables bool   `yaml:"use_nftables"` // true → nft, false → iptables legacy
 }
 
 // RelayConfig controls relay fallback.

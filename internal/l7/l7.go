@@ -25,8 +25,8 @@
 //
 // Operators get the same two questions answered:
 //
-//   1. "What protocols are the mesh peers speaking right now?"
-//   2. "How is total egress split by protocol for peer N?"
+//  1. "What protocols are the mesh peers speaking right now?"
+//  2. "How is total egress split by protocol for peer N?"
 //
 // ...which is what most dashboards ask of an L7 classifier. Replacing
 // port-based guesswork with real DPI is a follow-up — this package's
@@ -57,23 +57,23 @@ type Protocol string
 // Well-known labels. This list is deliberately small — operators can
 // classify anything else via the port map or a post-processing step.
 const (
-	ProtoHTTP      Protocol = "http"
-	ProtoTLS       Protocol = "tls"
-	ProtoSSH       Protocol = "ssh"
-	ProtoDNS       Protocol = "dns"
-	ProtoQUIC      Protocol = "quic"
-	ProtoSMTP      Protocol = "smtp"
-	ProtoIMAP      Protocol = "imap"
-	ProtoPOP3      Protocol = "pop3"
-	ProtoFTP       Protocol = "ftp"
-	ProtoNTP       Protocol = "ntp"
-	ProtoRDP       Protocol = "rdp"
-	ProtoRsync     Protocol = "rsync"
-	ProtoPostgres  Protocol = "postgres"
-	ProtoMySQL     Protocol = "mysql"
-	ProtoRedis     Protocol = "redis"
-	ProtoMongoDB   Protocol = "mongodb"
-	ProtoUnknown   Protocol = "unknown"
+	ProtoHTTP     Protocol = "http"
+	ProtoTLS      Protocol = "tls"
+	ProtoSSH      Protocol = "ssh"
+	ProtoDNS      Protocol = "dns"
+	ProtoQUIC     Protocol = "quic"
+	ProtoSMTP     Protocol = "smtp"
+	ProtoIMAP     Protocol = "imap"
+	ProtoPOP3     Protocol = "pop3"
+	ProtoFTP      Protocol = "ftp"
+	ProtoNTP      Protocol = "ntp"
+	ProtoRDP      Protocol = "rdp"
+	ProtoRsync    Protocol = "rsync"
+	ProtoPostgres Protocol = "postgres"
+	ProtoMySQL    Protocol = "mysql"
+	ProtoRedis    Protocol = "redis"
+	ProtoMongoDB  Protocol = "mongodb"
+	ProtoUnknown  Protocol = "unknown"
 )
 
 // Flow is one connection's classification + counters. Deltas are
@@ -248,9 +248,9 @@ type Reader interface {
 // after two days). Totals are unaffected — they already hold the
 // bytes the dropped flow contributed.
 type Aggregator struct {
-	mu         sync.Mutex
-	perKey     map[Key]Flow // last snapshot per key
-	perProto   map[aggKey]*PerProtocolTotal
+	mu       sync.Mutex
+	perKey   map[Key]Flow // last snapshot per key
+	perProto map[aggKey]*PerProtocolTotal
 }
 
 type aggKey struct {

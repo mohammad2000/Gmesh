@@ -99,7 +99,7 @@ func DialWSTunnel(ctx context.Context, cfg WSTunnelConfig) (*WSTunnel, error) {
 
 	local, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
-		ws.Close(websocket.StatusInternalError, "local bind failed") //nolint:errcheck
+		ws.Close(websocket.StatusInternalError, "local bind failed") 
 		return nil, fmt.Errorf("local bind: %w", err)
 	}
 
@@ -207,7 +207,7 @@ func (t *WSTunnel) wsToWgLoop(ctx context.Context) {
 		}
 		t.stats.Lock()
 		t.stats.rxFrames++
-		t.stats.rxBytes += uint64(len(decoded)) //nolint:gosec
+		t.stats.rxBytes += uint64(len(decoded)) 
 		t.stats.Unlock()
 	}
 }

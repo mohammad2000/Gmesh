@@ -16,17 +16,17 @@ import (
 //
 // Ruleset (nftables table `inet gmesh-exit`):
 //
-//   table inet gmesh-exit {
-//       chain forward {
-//           type filter hook forward priority filter;
-//           iifname wg-gmesh oifname != wg-gmesh accept;
-//           iifname != wg-gmesh oifname wg-gmesh ct state established,related accept;
-//       }
-//       chain postrouting {
-//           type nat hook postrouting priority srcnat;
-//           iifname wg-gmesh oifname != wg-gmesh masquerade;
-//       }
-//   }
+//	table inet gmesh-exit {
+//	    chain forward {
+//	        type filter hook forward priority filter;
+//	        iifname wg-gmesh oifname != wg-gmesh accept;
+//	        iifname != wg-gmesh oifname wg-gmesh ct state established,related accept;
+//	    }
+//	    chain postrouting {
+//	        type nat hook postrouting priority srcnat;
+//	        iifname wg-gmesh oifname != wg-gmesh masquerade;
+//	    }
+//	}
 //
 // Also enables net.ipv4.ip_forward.
 type LinuxExitManager struct {

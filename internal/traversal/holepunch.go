@@ -172,14 +172,14 @@ func (s *SimultaneousOpenStrategy) config() PunchConfig {
 // BirthdayStrategy probes a range of destination ports near the remote's
 // last-seen external port.
 type BirthdayStrategy struct {
-	Puncher    Puncher
-	LocalAddr  *net.UDPAddr
-	PortRange  int           // total ports to probe, default 256
-	Timeout    time.Duration // default 3s
-	Spacing    time.Duration // default 5ms (tight burst)
-	Payload    []byte
-	Rng        *rand.Rand // nil → nondeterministic
-	Log        *slog.Logger
+	Puncher   Puncher
+	LocalAddr *net.UDPAddr
+	PortRange int           // total ports to probe, default 256
+	Timeout   time.Duration // default 3s
+	Spacing   time.Duration // default 5ms (tight burst)
+	Payload   []byte
+	Rng       *rand.Rand // nil → nondeterministic
+	Log       *slog.Logger
 }
 
 // Method returns MethodBirthdayPunch.

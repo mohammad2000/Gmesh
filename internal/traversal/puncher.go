@@ -22,10 +22,10 @@ type Puncher interface {
 
 // PunchConfig bundles the parameters one punch attempt needs.
 type PunchConfig struct {
-	LocalAddr *net.UDPAddr // source bind; nil → kernel-picked ephemeral
-	Remote    *net.UDPAddr // destination
-	Payload   []byte       // first byte should be nat.MagicByte to elicit an echo
-	Count     int          // number of probes to send (≥1)
+	LocalAddr *net.UDPAddr  // source bind; nil → kernel-picked ephemeral
+	Remote    *net.UDPAddr  // destination
+	Payload   []byte        // first byte should be nat.MagicByte to elicit an echo
+	Count     int           // number of probes to send (≥1)
 	Spacing   time.Duration // gap between probes (0 → burst)
 	Timeout   time.Duration // total window to hear a reply
 }

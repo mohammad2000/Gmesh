@@ -31,14 +31,14 @@ type LinuxManager struct {
 	Log *slog.Logger
 	Dir string
 
-	mu       sync.RWMutex
-	loaded   bool
-	trust    string
-	caCert   *x509.Certificate
-	caKey    any // *ecdsa.PrivateKey
-	caPEM    string
-	issued   map[string]*issuedRec // serial hex → record
-	revoked  map[string]revokeRec  // serial hex → record
+	mu      sync.RWMutex
+	loaded  bool
+	trust   string
+	caCert  *x509.Certificate
+	caKey   any // *ecdsa.PrivateKey
+	caPEM   string
+	issued  map[string]*issuedRec // serial hex → record
+	revoked map[string]revokeRec  // serial hex → record
 }
 
 type issuedRec struct {

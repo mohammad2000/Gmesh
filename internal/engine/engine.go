@@ -116,21 +116,21 @@ type Engine struct {
 // production.
 type Options struct {
 	Log       *slog.Logger
-	WG        wireguard.Manager // nil → auto-detect via wireguard.New
-	Store     *state.Store      // nil → auto-create from cfg.State
-	Responder Responder         // nil → real nat.Responder
-	NAT       *nat.Discoverer   // nil → default with configured STUN servers
-	Firewall  firewall.Backend  // nil → detect (nft → iptables → memory)
-	Scope     scope.Manager     // nil → detect (Linux or stub)
-	Routing   routing.Manager   // nil → detect (Linux or in-memory)
-	Egress    egress.Manager    // nil → detect (Linux or stub)
+	WG        wireguard.Manager  // nil → auto-detect via wireguard.New
+	Store     *state.Store       // nil → auto-create from cfg.State
+	Responder Responder          // nil → real nat.Responder
+	NAT       *nat.Discoverer    // nil → default with configured STUN servers
+	Firewall  firewall.Backend   // nil → detect (nft → iptables → memory)
+	Scope     scope.Manager      // nil → detect (Linux or stub)
+	Routing   routing.Manager    // nil → detect (Linux or in-memory)
+	Egress    egress.Manager     // nil → detect (Linux or stub)
 	Exit      egress.ExitManager // nil → detect (Linux or stub)
-	Ingress   ingress.Manager   // nil → detect (Linux or stub)
-	Quota     quota.Manager     // nil → detect (Linux or stub)
-	PathMon   *pathmon.Monitor  // nil → auto-built with platform prober
-	GeoIP     geoip.Resolver    // nil → empty stub (no GeoIP profiles allowed)
-	MTLS      mtls.Manager      // nil → construct from cfg.MTLS.Dir or disable
-	Circuit   circuit.Manager   // nil → auto-detect (Linux or stub)
+	Ingress   ingress.Manager    // nil → detect (Linux or stub)
+	Quota     quota.Manager      // nil → detect (Linux or stub)
+	PathMon   *pathmon.Monitor   // nil → auto-built with platform prober
+	GeoIP     geoip.Resolver     // nil → empty stub (no GeoIP profiles allowed)
+	MTLS      mtls.Manager       // nil → construct from cfg.MTLS.Dir or disable
+	Circuit   circuit.Manager    // nil → auto-detect (Linux or stub)
 }
 
 // New wires an Engine together.
@@ -267,29 +267,29 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 	}
 
 	e := &Engine{
-		Config:        cfg,
-		Log:           log,
-		Peers:         peer.NewRegistry(),
-		NAT:           discoverer,
-		Responder:     responder,
-		Trav:          trav,
-		WG:            wg,
-		Firewall:      fw,
-		Routing:       rt,
-		Scope:         sc,
-		Egress:        eg,
-		Exit:          ex,
-		Ingress:       ig,
-		Quota:         qu,
-		PathMon:       pm,
-		GeoIP:         gi,
-		Policies:      pol,
-		MTLS:          mm,
-		Circuit:       cir,
-		Anomaly:       anMon,
-		L7:            l7Mon,
-		Store:         store,
-		Events:        bus,
+		Config:               cfg,
+		Log:                  log,
+		Peers:                peer.NewRegistry(),
+		NAT:                  discoverer,
+		Responder:            responder,
+		Trav:                 trav,
+		WG:                   wg,
+		Firewall:             fw,
+		Routing:              rt,
+		Scope:                sc,
+		Egress:               eg,
+		Exit:                 ex,
+		Ingress:              ig,
+		Quota:                qu,
+		PathMon:              pm,
+		GeoIP:                gi,
+		Policies:             pol,
+		MTLS:                 mm,
+		Circuit:              cir,
+		Anomaly:              anMon,
+		L7:                   l7Mon,
+		Store:                store,
+		Events:               bus,
 		relaySessions:        make(map[int64]*relay.Session),
 		wsTunnels:            make(map[int64]*relay.WSTunnel),
 		exitFailoverOriginal: make(map[int64]int64),
@@ -937,12 +937,12 @@ func (e *Engine) CreateIngress(ctx context.Context, p *ingress.Profile) (*ingres
 		return nil, err
 	}
 	e.emit(events.TypeScopeConnected, p.BackendScopeID, map[string]any{
-		"kind":           "ingress_profile",
-		"profile_id":     res.ID,
-		"profile_name":   res.Name,
-		"edge_port":      res.EdgePort,
-		"backend":        fmt.Sprintf("%s:%d", res.BackendIP, res.BackendPort),
-		"backend_peer":   res.BackendPeerID,
+		"kind":         "ingress_profile",
+		"profile_id":   res.ID,
+		"profile_name": res.Name,
+		"edge_port":    res.EdgePort,
+		"backend":      fmt.Sprintf("%s:%d", res.BackendIP, res.BackendPort),
+		"backend_peer": res.BackendPeerID,
 	})
 	return res, nil
 }
@@ -1066,11 +1066,11 @@ func (e *Engine) CreateEgress(ctx context.Context, p *egress.Profile) (*egress.P
 		return nil, err
 	}
 	e.emit(events.TypePeerAdded, p.ExitPeerID, map[string]any{
-		"kind":          "egress_profile",
-		"profile_id":    res.ID,
-		"profile_name":  res.Name,
-		"source":        res.Source(),
-		"exit_peer_id":  res.ExitPeerID,
+		"kind":         "egress_profile",
+		"profile_id":   res.ID,
+		"profile_name": res.Name,
+		"source":       res.Source(),
+		"exit_peer_id": res.ExitPeerID,
 	})
 	return res, nil
 }

@@ -17,10 +17,10 @@ import (
 //
 // Ruleset layout (inside table `inet gmesh-circuit`):
 //
-//   chain circuit_source_out  hook output    priority mangle
-//   chain circuit_transit_fwd hook forward   priority mangle
-//   chain circuit_exit_post   hook postrouting priority srcnat
-//   chain circuit_exit_fwd    hook forward   priority filter
+//	chain circuit_source_out  hook output    priority mangle
+//	chain circuit_transit_fwd hook forward   priority mangle
+//	chain circuit_exit_post   hook postrouting priority srcnat
+//	chain circuit_exit_fwd    hook forward   priority filter
 //
 // Rules are per-circuit, tagged with `comment "circuit-<id>"` so the
 // delete path flushes them by comment (same pattern as egress).

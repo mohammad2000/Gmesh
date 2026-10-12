@@ -19,7 +19,7 @@ import (
 //
 // Line format (no leading "ipv4" field vs. the /proc file):
 //
-//     tcp      6 431999 ESTABLISHED src=10.0.0.1 dst=10.0.0.2 sport=52060 dport=443 packets=42 bytes=8432 src=10.0.0.2 dst=10.0.0.1 sport=443 dport=52060 packets=40 bytes=14600 [ASSURED] mark=0 use=1
+//	tcp      6 431999 ESTABLISHED src=10.0.0.1 dst=10.0.0.2 sport=52060 dport=443 packets=42 bytes=8432 src=10.0.0.2 dst=10.0.0.1 sport=443 dport=52060 packets=40 bytes=14600 [ASSURED] mark=0 use=1
 //
 // We reuse parseConntrackLine by prepending the missing "ipv4 2 " so
 // the existing parser matches. That's a shortcut — a future change

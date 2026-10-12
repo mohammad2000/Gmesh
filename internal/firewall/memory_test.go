@@ -59,7 +59,7 @@ func TestMemoryBackendScheduledRule(t *testing.T) {
 	// Rule whose schedule is disabled right now.
 	r := Rule{
 		ID: 1, Enabled: true, Action: ActionAllow, Protocol: ProtoTCP, PortRange: "22",
-		Direction: DirectionInbound,
+		Direction:   DirectionInbound,
 		ScheduleRaw: `{"windows":[{"start":"00:00","end":"00:01","days":["mon"]}], "timezone":"UTC"}`,
 	}
 

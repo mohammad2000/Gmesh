@@ -99,7 +99,7 @@ func (m *LinuxManager) Connect(ctx context.Context, s Spec) (*Peer, error) {
 	success := false
 	defer func() {
 		if !success {
-			_ = m.tearDown(context.Background(), p) //nolint:errcheck
+			_ = m.tearDown(context.Background(), p) 
 		}
 	}()
 

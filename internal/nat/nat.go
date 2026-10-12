@@ -5,16 +5,16 @@
 //
 // Classification heuristic (pragmatic, no CHANGE-REQUEST required):
 //
-//   1. Query STUN server A → mapped_A (external IP:port as seen by A).
-//   2. Query STUN server B → mapped_B.
-//   3. If mapped_A.IP == local IP and mapped_A.Port == local port → Open.
-//   4. If mapped_A == mapped_B (same external IP+port from both servers)
-//      → endpoint-independent (cone) mapping. We classify as
-//      PortRestrictedCone conservatively because most home NATs are
-//      port-restricted; hole-punching works.
-//   5. If IPs match but ports differ → Symmetric. Hole-punching will fail;
-//      fallback to relay/WS-tunnel.
-//   6. Otherwise → Unknown.
+//  1. Query STUN server A → mapped_A (external IP:port as seen by A).
+//  2. Query STUN server B → mapped_B.
+//  3. If mapped_A.IP == local IP and mapped_A.Port == local port → Open.
+//  4. If mapped_A == mapped_B (same external IP+port from both servers)
+//     → endpoint-independent (cone) mapping. We classify as
+//     PortRestrictedCone conservatively because most home NATs are
+//     port-restricted; hole-punching works.
+//  5. If IPs match but ports differ → Symmetric. Hole-punching will fail;
+//     fallback to relay/WS-tunnel.
+//  6. Otherwise → Unknown.
 //
 // This mirrors what Tailscale's `netcheck` does in practice. Distinguishing
 // full-cone from restricted-cone requires an out-of-band probe which modern

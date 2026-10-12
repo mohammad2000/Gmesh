@@ -25,10 +25,10 @@
 //
 // The CA lives in config.MTLS.CADir — a directory with:
 //
-//   ca.crt        PEM-encoded root certificate
-//   ca.key        PEM-encoded root private key (mode 0600)
-//   issued/       One file per issued cert, named <peer_id>-<serial>.json
-//   revoked.json  List of revoked serials
+//	ca.crt        PEM-encoded root certificate
+//	ca.key        PEM-encoded root private key (mode 0600)
+//	issued/       One file per issued cert, named <peer_id>-<serial>.json
+//	revoked.json  List of revoked serials
 //
 // Callers access the package through the Manager interface; the Linux
 // implementation is the only one today, but the split keeps tests stub-
@@ -70,7 +70,7 @@ type CertRequest struct {
 
 // Cert is the issued material returned to the caller.
 type Cert struct {
-	Serial     string    // hex-encoded big int
+	Serial     string // hex-encoded big int
 	PeerID     int64
 	SpiffeID   string
 	CommonName string

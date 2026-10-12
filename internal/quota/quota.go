@@ -194,9 +194,9 @@ func fwmarkForProfile(profileID int64) uint32 {
 // Event is what the Manager publishes. Wrap into events.Event at the
 // engine / rpc layer.
 type Event struct {
-	Type     string // "quota_warning" | "quota_shift" | "quota_stop" | "quota_reset"
-	QuotaID  int64
-	Payload  map[string]any
+	Type    string // "quota_warning" | "quota_shift" | "quota_stop" | "quota_reset"
+	QuotaID int64
+	Payload map[string]any
 }
 
 // Publisher consumes Events.

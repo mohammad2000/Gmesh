@@ -1216,10 +1216,10 @@ func quotaCmd() *cobra.Command {
 
 func quotaCreateCmd() *cobra.Command {
 	var (
-		id, profileID, backupID int64
-		name, period            string
-		limit                   int64
-		warn, shift, stop       float64
+		id, profileID, backupID         int64
+		name, period                    string
+		limit                           int64
+		warn, shift, stop               float64
 		enabled, hardStop, autoRollback bool
 	)
 	cmd := &cobra.Command{
@@ -1809,13 +1809,13 @@ func circuitCmd() *cobra.Command {
 
 func circuitCreateCmd() *cobra.Command {
 	var (
-		id, source        int64
-		name              string
-		hops              []int64
-		proto             string
-		destCIDR, ports   string
-		priority          int32
-		enabled           bool
+		id, source      int64
+		name            string
+		hops            []int64
+		proto           string
+		destCIDR, ports string
+		priority        int32
+		enabled         bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create",

@@ -3,10 +3,10 @@
 //
 // Scoring weights (match the Python implementation for continuity):
 //
-//	 30%  handshake freshness  (fresh <150s, stale >600s)
-//	 30%  ping success / RTT
-//	 20%  traffic volume
-//	 20%  connection-method quality (DIRECT > UPnP > HOLE_PUNCH > RELAY > WS_TUNNEL)
+//	30%  handshake freshness  (fresh <150s, stale >600s)
+//	30%  ping success / RTT
+//	20%  traffic volume
+//	20%  connection-method quality (DIRECT > UPnP > HOLE_PUNCH > RELAY > WS_TUNNEL)
 package health
 
 import (

@@ -18,15 +18,15 @@ import (
 	"google.golang.org/grpc/status"
 
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
+	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/audit"
+	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/egress"
 	"github.com/mohammad2000/Gmesh/internal/engine"
 	"github.com/mohammad2000/Gmesh/internal/events"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/ingress"
-	"github.com/mohammad2000/Gmesh/internal/anomaly"
-	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/l7"
 	"github.com/mohammad2000/Gmesh/internal/mtls"
 	"github.com/mohammad2000/Gmesh/internal/nat"
@@ -879,33 +879,33 @@ func (s *Server) ReloadPolicies(_ context.Context, _ *gmeshv1.ReloadPoliciesRequ
 
 func policyToProto(p *policy.Policy) *gmeshv1.Policy {
 	return &gmeshv1.Policy{
-		Name:             p.Name,
-		Source:           p.Source(),
-		Event:            p.When.Event,
-		PeerId:           p.When.PeerID,
-		ProfileId:        p.When.ProfileID,
-		DebounceS:        int32(p.When.DebounceSeconds),
-		MinCount:         int32(p.When.MinCount),
-		Action:           p.Do.Action,
-		ActionProfileId:  p.Do.ProfileID,
-		ActionToPeerId:   p.Do.ToPeerID,
-		ActionQuotaId:    p.Do.QuotaID,
+		Name:            p.Name,
+		Source:          p.Source(),
+		Event:           p.When.Event,
+		PeerId:          p.When.PeerID,
+		ProfileId:       p.When.ProfileID,
+		DebounceS:       int32(p.When.DebounceSeconds),
+		MinCount:        int32(p.When.MinCount),
+		Action:          p.Do.Action,
+		ActionProfileId: p.Do.ProfileID,
+		ActionToPeerId:  p.Do.ToPeerID,
+		ActionQuotaId:   p.Do.QuotaID,
 	}
 }
 
 func pathStateToProto(st pathmon.State) *gmeshv1.PathState {
 	return &gmeshv1.PathState{
-		PeerId:           st.Target.PeerID,
-		MeshIp:           st.Target.MeshIP,
-		Status:           st.Status.String(),
-		ConsecutiveOk:    int64(st.ConsecutiveOK),
-		ConsecutiveFail:  int64(st.ConsecutiveFail),
-		LastRttUs:        st.LastRTT.Microseconds(),
-		LossPct:          st.LossPct,
-		Samples:          int64(st.Samples),
-		LastSampleUnix:   st.LastSampleAt.Unix(),
-		LastUpUnix:       st.LastUpAt.Unix(),
-		LastDownUnix:     st.LastDownAt.Unix(),
+		PeerId:          st.Target.PeerID,
+		MeshIp:          st.Target.MeshIP,
+		Status:          st.Status.String(),
+		ConsecutiveOk:   int64(st.ConsecutiveOK),
+		ConsecutiveFail: int64(st.ConsecutiveFail),
+		LastRttUs:       st.LastRTT.Microseconds(),
+		LossPct:         st.LossPct,
+		Samples:         int64(st.Samples),
+		LastSampleUnix:  st.LastSampleAt.Unix(),
+		LastUpUnix:      st.LastUpAt.Unix(),
+		LastDownUnix:    st.LastDownAt.Unix(),
 	}
 }
 
@@ -930,17 +930,17 @@ func quotaToProto(q *quota.Quota) *gmeshv1.Quota {
 		LimitBytes:      q.LimitBytes,
 		UsedBytes:       q.UsedBytes,
 		WarnAt:          q.WarnAt, ShiftAt: q.ShiftAt, StopAt: q.StopAt,
-		BackupProfileId:     q.BackupProfileID,
-		HardStop:            q.HardStop,
-		AutoRollback:        q.AutoRollback,
-		ShiftedFromPeerId:   q.ShiftedFromPeerID,
-		WarnFired:           q.WarnFired,
-		ShiftFired:      q.ShiftFired,
-		StopFired:       q.StopFired,
-		PeriodStartUnix: q.PeriodStart.Unix(),
-		PeriodEndUnix:   q.PeriodEnd.Unix(),
-		CreatedAtUnix:   q.CreatedAt.Unix(),
-		UpdatedAtUnix:   q.UpdatedAt.Unix(),
+		BackupProfileId:   q.BackupProfileID,
+		HardStop:          q.HardStop,
+		AutoRollback:      q.AutoRollback,
+		ShiftedFromPeerId: q.ShiftedFromPeerID,
+		WarnFired:         q.WarnFired,
+		ShiftFired:        q.ShiftFired,
+		StopFired:         q.StopFired,
+		PeriodStartUnix:   q.PeriodStart.Unix(),
+		PeriodEndUnix:     q.PeriodEnd.Unix(),
+		CreatedAtUnix:     q.CreatedAt.Unix(),
+		UpdatedAtUnix:     q.UpdatedAt.Unix(),
 	}
 }
 
@@ -1088,10 +1088,10 @@ func egressFromProto(p *gmeshv1.EgressProfile) *egress.Profile {
 	return &egress.Profile{
 		ID: p.Id, Name: p.Name, Enabled: p.Enabled, Priority: p.Priority,
 		BackupExitPeerID: p.BackupExitPeerId,
-		SourceScopeID: p.SourceScopeId, SourceCIDR: p.SourceCidr,
+		SourceScopeID:    p.SourceScopeId, SourceCIDR: p.SourceCidr,
 		Protocol: p.Protocol, DestCIDR: p.DestCidr, DestPorts: p.DestPorts,
 		GeoIPCountries: p.GeoipCountries,
-		ExitPeerID: p.ExitPeerId, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
+		ExitPeerID:     p.ExitPeerId, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
 	}
 }
 
@@ -1101,7 +1101,7 @@ func egressToProto(p *egress.Profile) *gmeshv1.EgressProfile {
 		SourceScopeId: p.SourceScopeID, SourceCidr: p.SourceCIDR,
 		Protocol: p.Protocol, DestCidr: p.DestCIDR, DestPorts: p.DestPorts,
 		GeoipCountries: p.GeoIPCountries,
-		ExitPeerId: p.ExitPeerID, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
+		ExitPeerId:     p.ExitPeerID, ExitPool: p.ExitPool, ExitWeights: p.ExitWeights,
 		BackupExitPeerId: p.BackupExitPeerID,
 		CreatedAtUnix:    p.CreatedAt.Unix(),
 		UpdatedAtUnix:    p.UpdatedAt.Unix(),
@@ -1433,24 +1433,24 @@ func peerToProto(p *peer.Peer) *gmeshv1.Peer {
 		})
 	}
 	return &gmeshv1.Peer{
-		Id:                 p.ID,
-		Type:               pt,
-		MeshIp:             p.MeshIP,
-		PublicKey:          p.PublicKey,
-		Endpoint:           p.Endpoint,
-		Endpoints:          eps,
-		AllowedIps:         p.AllowedIPs,
-		Status:             gmeshv1.PeerStatus(p.Status),
-		NatType:            gmeshv1.NATType(p.NATType),
-		SupportsHolePunch:  p.SupportsHolePunch,
-		IsRelayCapable:     p.IsRelayCapable,
-		Method:             gmeshv1.ConnectionMethod(p.Method),
-		RxBytes:            p.RxBytes,
-		TxBytes:            p.TxBytes,
-		LatencyMs:          p.LatencyMS,
-		PacketLoss:         p.PacketLoss,
-		LastHandshakeUnix:  p.LastHandshake.Unix(),
-		ScopeId:            p.ScopeID,
+		Id:                p.ID,
+		Type:              pt,
+		MeshIp:            p.MeshIP,
+		PublicKey:         p.PublicKey,
+		Endpoint:          p.Endpoint,
+		Endpoints:         eps,
+		AllowedIps:        p.AllowedIPs,
+		Status:            gmeshv1.PeerStatus(p.Status),
+		NatType:           gmeshv1.NATType(p.NATType),
+		SupportsHolePunch: p.SupportsHolePunch,
+		IsRelayCapable:    p.IsRelayCapable,
+		Method:            gmeshv1.ConnectionMethod(p.Method),
+		RxBytes:           p.RxBytes,
+		TxBytes:           p.TxBytes,
+		LatencyMs:         p.LatencyMS,
+		PacketLoss:        p.PacketLoss,
+		LastHandshakeUnix: p.LastHandshake.Unix(),
+		ScopeId:           p.ScopeID,
 	}
 }
 

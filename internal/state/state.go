@@ -15,9 +15,9 @@ import (
 
 // State is the top-level schema written to disk.
 type State struct {
-	Version   int        `json:"version"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	Node      NodeState  `json:"node"`
+	Version   int         `json:"version"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Node      NodeState   `json:"node"`
 	Peers     []PeerEntry `json:"peers"`
 }
 
@@ -61,7 +61,7 @@ type PeerEntry struct {
 // (and don't accidentally store internal-only fields).
 type EndpointEntry struct {
 	Address  string    `json:"address"`
-	Kind     string    `json:"kind"`     // "lan" | "wan" | "stun" | "relay"
+	Kind     string    `json:"kind"` // "lan" | "wan" | "stun" | "relay"
 	Priority uint32    `json:"priority"`
 	LastOK   time.Time `json:"last_ok,omitempty"`
 }

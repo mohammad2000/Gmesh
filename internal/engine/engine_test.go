@@ -17,19 +17,21 @@ import (
 
 // fakeWG is an in-memory stand-in for wireguard.Manager.
 type fakeWG struct {
-	mu       sync.Mutex
-	iface    string
-	privKey  string
-	peers    map[string]wireguard.PeerConfig
-	dumps    map[string]wireguard.PeerDump
-	addr     string
-	port     uint16
-	mtu      int
-	deleted  bool
+	mu        sync.Mutex
+	iface     string
+	privKey   string
+	peers     map[string]wireguard.PeerConfig
+	dumps     map[string]wireguard.PeerDump
+	addr      string
+	port      uint16
+	mtu       int
+	deleted   bool
 	interfErr error
 }
 
-func newFakeWG() *fakeWG { return &fakeWG{peers: map[string]wireguard.PeerConfig{}, dumps: map[string]wireguard.PeerDump{}} }
+func newFakeWG() *fakeWG {
+	return &fakeWG{peers: map[string]wireguard.PeerConfig{}, dumps: map[string]wireguard.PeerDump{}}
+}
 
 func (f *fakeWG) Backend() wireguard.Backend { return wireguard.BackendKernel }
 func (f *fakeWG) Close() error               { return nil }

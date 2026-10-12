@@ -49,20 +49,20 @@ import (
 
 // Profile is the in-memory form of an IngressProfile.
 type Profile struct {
-	ID              int64
-	Name            string
-	Enabled         bool
-	BackendPeerID   int64
-	BackendScopeID  int64
-	BackendIP       string
-	BackendPort     uint16
-	EdgePeerID      int64
-	EdgePort        uint16
-	Protocol        string // "tcp" | "udp"
-	AllowedSources  []string
-	RequireMTLS     bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID             int64
+	Name           string
+	Enabled        bool
+	BackendPeerID  int64
+	BackendScopeID int64
+	BackendIP      string
+	BackendPort    uint16
+	EdgePeerID     int64
+	EdgePort       uint16
+	Protocol       string // "tcp" | "udp"
+	AllowedSources []string
+	RequireMTLS    bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // Validate enforces invariants before hitting the kernel.

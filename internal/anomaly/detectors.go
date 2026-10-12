@@ -164,9 +164,9 @@ type HandshakeStorm struct {
 	Cfg HandshakeStormConfig
 	Pub Publisher
 
-	mu        sync.Mutex
+	mu         sync.Mutex
 	timestamps map[int64][]time.Time
-	cd        *cooldown
+	cd         *cooldown
 }
 
 // NewHandshakeStorm returns a ready detector.
@@ -226,9 +226,9 @@ func (d *HandshakeStorm) Observe(peerID int64, at time.Time) *Alert {
 		Message: fmt.Sprintf("%d handshakes in %s (threshold=%d)",
 			count, d.Cfg.Window, d.Cfg.Threshold),
 		Metrics: map[string]float64{
-			"count":       float64(count),
-			"window_sec":  d.Cfg.Window.Seconds(),
-			"threshold":   float64(d.Cfg.Threshold),
+			"count":      float64(count),
+			"window_sec": d.Cfg.Window.Seconds(),
+			"threshold":  float64(d.Cfg.Threshold),
 		},
 	}
 	if d.Pub != nil {
@@ -265,9 +265,9 @@ type PeerFlap struct {
 	Cfg PeerFlapConfig
 	Pub Publisher
 
-	mu        sync.Mutex
+	mu         sync.Mutex
 	timestamps map[int64][]time.Time
-	cd        *cooldown
+	cd         *cooldown
 }
 
 // NewPeerFlap returns a ready detector.

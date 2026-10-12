@@ -273,7 +273,7 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 			Payload: map[string]any{
 				"egress_profile_id": q.EgressProfileID,
 				"used_bytes":        used, "limit_bytes": q.LimitBytes,
-				"fraction":          frac,
+				"fraction": frac,
 			},
 		})
 	}
@@ -285,7 +285,7 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 				"egress_profile_id": q.EgressProfileID,
 				"backup_profile_id": q.BackupProfileID,
 				"used_bytes":        used, "limit_bytes": q.LimitBytes,
-				"fraction":          frac,
+				"fraction": frac,
 			},
 		})
 	}
@@ -296,7 +296,7 @@ func (m *coreManager) evalOne(ctx context.Context, q *Quota, now time.Time) {
 			Payload: map[string]any{
 				"egress_profile_id": q.EgressProfileID,
 				"used_bytes":        used, "limit_bytes": q.LimitBytes,
-				"fraction":          frac,
+				"fraction": frac,
 			},
 		})
 	}

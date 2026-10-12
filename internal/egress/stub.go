@@ -97,10 +97,10 @@ func (m *StubManager) List() []*Profile {
 type StubExitManager struct {
 	Log *slog.Logger
 
-	mu       sync.Mutex
-	enabled  bool
-	allowed  []int64
-	iface    string
+	mu      sync.Mutex
+	enabled bool
+	allowed []int64
+	iface   string
 }
 
 // NewStubExit returns a stub exit manager.

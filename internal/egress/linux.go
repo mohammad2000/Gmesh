@@ -22,8 +22,8 @@ import (
 //     `mark` applies marks pre-routing.
 //   - One `ip rule` per profile: `from fwmark X lookup T`.
 type LinuxManager struct {
-	Log       *slog.Logger
-	NftTable  string // default "gmesh-egress"
+	Log      *slog.Logger
+	NftTable string // default "gmesh-egress"
 
 	mu       sync.Mutex
 	profiles map[int64]*Profile
@@ -326,6 +326,7 @@ add rule inet %[1]s egress_mark_out ct mark and 0xF0000000 == 0x10000000 meta ma
 // The rule body always begins with two guard matches:
 //   - oifname != @protected_oif  — skip WG + Tailscale interfaces
 //   - ip daddr != @protected_daddr — skip LAN, CGNAT, multicast, mesh
+//
 // These stop "egress everything" profiles from breaking management
 // connectivity or creating routing loops.
 func (m *LinuxManager) nftMarkRule(p *Profile, mark uint32) string {

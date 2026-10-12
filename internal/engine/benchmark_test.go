@@ -67,7 +67,7 @@ func BenchmarkStatus1000Peers(b *testing.B) {
 	for i := 1; i <= 1000; i++ {
 		_ = eng.AddPeer(ctx, &peer.Peer{
 			ID: int64(i), Type: peer.TypeVM,
-			MeshIP: fmt.Sprintf("10.200.%d.%d", i/256, i%256),
+			MeshIP:    fmt.Sprintf("10.200.%d.%d", i/256, i%256),
 			PublicKey: fmt.Sprintf("KEY%039d=", i),
 		}, 0)
 	}

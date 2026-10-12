@@ -221,7 +221,7 @@ func (s *Session) relayToWGLoop() {
 			}
 			s.stats.Lock()
 			s.stats.rxFrames++
-			s.stats.rxBytes += uint64(len(payload)) //nolint:gosec
+			s.stats.rxBytes += uint64(len(payload)) 
 			s.stats.Unlock()
 		case FramePONG:
 			// keepalive reply; nothing to do

@@ -53,10 +53,10 @@ func (t *Target) Validate() error {
 
 // Result is one probe's output.
 type Result struct {
-	RTT    time.Duration
-	Up     bool
-	When   time.Time
-	Error  string // populated when Up=false with a short reason
+	RTT   time.Duration
+	Up    bool
+	When  time.Time
+	Error string // populated when Up=false with a short reason
 }
 
 // Status is the hysteretic status of a target.
@@ -82,22 +82,22 @@ func (s Status) String() string {
 
 // State is the live view of one target.
 type State struct {
-	Target           Target
-	Status           Status
-	ConsecutiveOK    int
-	ConsecutiveFail  int
-	LastRTT          time.Duration
-	LastSampleAt     time.Time
-	LastUpAt         time.Time
-	LastDownAt       time.Time
-	LossPct          float64 // rolling window loss percentage (0..100)
-	Samples          int     // number of samples in the rolling window
+	Target          Target
+	Status          Status
+	ConsecutiveOK   int
+	ConsecutiveFail int
+	LastRTT         time.Duration
+	LastSampleAt    time.Time
+	LastUpAt        time.Time
+	LastDownAt      time.Time
+	LossPct         float64 // rolling window loss percentage (0..100)
+	Samples         int     // number of samples in the rolling window
 }
 
 // Event is emitted on status transitions (Up→Down, Down→Up).
 // Callers wrap it into events.Event at the engine boundary.
 type Event struct {
-	Type    string  // "path_up" | "path_down"
+	Type    string // "path_up" | "path_down"
 	PeerID  int64
 	MeshIP  string
 	RTT     time.Duration
@@ -123,11 +123,11 @@ type Prober interface {
 
 // Config tunes monitor behaviour. Zero values use safe defaults.
 type Config struct {
-	Interval    time.Duration // default 5s
-	Timeout     time.Duration // default 1s per probe
-	WindowSize  int           // default 10 — rolling history size per target
-	UpThreshold int           // default 2 — consecutive OKs needed to flip Down→Up
-	DownThreshold int         // default 3 — consecutive fails needed to flip Up→Down
+	Interval      time.Duration // default 5s
+	Timeout       time.Duration // default 1s per probe
+	WindowSize    int           // default 10 — rolling history size per target
+	UpThreshold   int           // default 2 — consecutive OKs needed to flip Down→Up
+	DownThreshold int           // default 3 — consecutive fails needed to flip Up→Down
 }
 
 func (c Config) defaults() Config {

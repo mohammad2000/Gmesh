@@ -2,7 +2,7 @@
 // mesh. A Circuit is an ordered list of peer IDs that traffic matching
 // the circuit's filter must traverse before reaching the destination:
 //
-//     source_node  ──wg──▶  hop[0]  ──wg──▶  hop[1]  ──wg──▶ … ──▶ exit
+//	source_node  ──wg──▶  hop[0]  ──wg──▶  hop[1]  ──wg──▶ … ──▶ exit
 //
 // # Why not Tor-style onion routing
 //
@@ -30,12 +30,12 @@
 // pushed to every node in the hop list (plus the source). Each node
 // figures out its ROLE by comparing its own peer ID with the hops:
 //
-//     Role            When                       Kernel state installed
-//     ─────────────── ────────────────────────── ─────────────────────────
-//     source          local peer = circuit src    mark + route dest → h[0]
-//     transit         local peer in hops[1..N-2]  ip_forward + mark +
-//                                                 route dest → h[i+1]
-//     exit            local peer = hops[N-1]      ip_forward + masquerade
+//	Role            When                       Kernel state installed
+//	─────────────── ────────────────────────── ─────────────────────────
+//	source          local peer = circuit src    mark + route dest → h[0]
+//	transit         local peer in hops[1..N-2]  ip_forward + mark +
+//	                                            route dest → h[i+1]
+//	exit            local peer = hops[N-1]      ip_forward + masquerade
 //
 // The source role is applied on the node that owns the circuit's
 // Source field; nodes not listed in Hops or Source become no-ops
@@ -83,9 +83,9 @@ type Role int
 
 const (
 	RoleNone    Role = iota
-	RoleSource        // mark + route to hops[0]
-	RoleTransit       // forward from prev hop to next hop
-	RoleExit          // terminate + masquerade out
+	RoleSource       // mark + route to hops[0]
+	RoleTransit      // forward from prev hop to next hop
+	RoleExit         // terminate + masquerade out
 )
 
 // String renders the role for logs.

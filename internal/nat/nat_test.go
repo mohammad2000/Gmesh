@@ -149,7 +149,7 @@ func TestResponderEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	port := uint16(conn.LocalAddr().(*net.UDPAddr).Port) //nolint:gosec
+	port := uint16(conn.LocalAddr().(*net.UDPAddr).Port) 
 	_ = conn.Close()
 
 	r := NewResponder(port, nil)
