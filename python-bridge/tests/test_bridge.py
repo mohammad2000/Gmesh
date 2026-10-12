@@ -128,12 +128,12 @@ async def _collect_n(fwd, n):
     return out
 
 
-def test_known_message_types_has_16_entries():
+def test_known_message_types():
     types = known_message_types()
-    assert len(types) == 16
+    assert len(types) == 19
     # Quick sanity check on representative entries.
     for required in ("mesh_join", "mesh_add_peer", "scope_mesh_connect",
-                     "mesh_firewall_apply"):
+                     "mesh_firewall_apply", "mesh_ingress_create"):
         assert required in types
 
 
