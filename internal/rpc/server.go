@@ -40,6 +40,9 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
+// gracefulStopTimeout bounds how long shutdown waits for in-flight RPCs.
+const gracefulStopTimeout = 3 * time.Second
+
 // Server exposes the gmesh.v1.GMesh service.
 type Server struct {
 	gmeshv1.UnimplementedGMeshServer
@@ -156,11 +159,30 @@ func (s *Server) Start() (stop func(), err error) {
 	}()
 
 	stop = func() {
-		gs.GracefulStop()
+		stopGRPC(gs, gracefulStopTimeout, s.Log)
 		_ = ln.Close()
 		_ = os.Remove(s.cfg.Path)
 	}
 	return stop, nil
+}
+
+// stopGRPC drains in-flight RPCs for up to timeout, then cuts the rest.
+// GracefulStop alone waits for every RPC, and SubscribeEvents streams only
+// end when the client hangs up, so shutdown used to hang until systemd's
+// stop timeout SIGKILLed the daemon (~1 min per restart in production).
+func stopGRPC(gs *grpc.Server, timeout time.Duration, log *slog.Logger) {
+	done := make(chan struct{})
+	go func() {
+		gs.GracefulStop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		log.Info("closing open streams to finish shutdown")
+		gs.Stop()
+		<-done
+	}
 }
 
 // ── Lifecycle ─────────────────────────────────────────────────────────
