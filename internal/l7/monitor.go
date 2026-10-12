@@ -87,7 +87,7 @@ func (m *Monitor) Tick() (int, error) {
 				Add(float64(delta))
 		}
 	}
-	metrics.L7FlowsActive.Set(float64(len(m.Agg.Flows())))
+	metrics.L7FlowsActive.Set(float64(m.Agg.Len()))
 	return len(flows), nil
 }
 

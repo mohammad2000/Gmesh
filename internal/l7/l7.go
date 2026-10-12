@@ -240,6 +240,13 @@ type Reader interface {
 // the difference is added to the aggregator; shrinking (or flow
 // disappearance) is ignored so conntrack entries ageing out don't
 // subtract real traffic.
+//
+// Each Ingest is a full snapshot of the flow table: a key absent from
+// it has aged out of conntrack and is dropped from perKey. Without
+// that, every ephemeral 5-tuple a busy host ever saw stayed resident
+// for the daemon's lifetime (~1M flows / 1.4 GB on a production node
+// after two days). Totals are unaffected — they already hold the
+// bytes the dropped flow contributed.
 type Aggregator struct {
 	mu         sync.Mutex
 	perKey     map[Key]Flow // last snapshot per key
@@ -259,12 +266,15 @@ func NewAggregator() *Aggregator {
 	}
 }
 
-// Ingest takes a fresh batch of classified flows and updates totals.
+// Ingest takes a full snapshot of classified flows, updates totals, and
+// forgets flows that are no longer in the snapshot.
 func (a *Aggregator) Ingest(flows []Flow) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	seen := make(map[Key]struct{}, len(flows))
 	for _, f := range flows {
 		k := KeyFor(f)
+		seen[k] = struct{}{}
 		prev, known := a.perKey[k]
 		var dRx, dTx int64
 		if known {
@@ -293,6 +303,18 @@ func (a *Aggregator) Ingest(flows []Flow) {
 			cur.Flows++
 		}
 	}
+	for k := range a.perKey {
+		if _, ok := seen[k]; !ok {
+			delete(a.perKey, k)
+		}
+	}
+}
+
+// Len returns the number of flows currently tracked.
+func (a *Aggregator) Len() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.perKey)
 }
 
 // Totals returns a snapshot of per-(peer, protocol) byte+flow totals.

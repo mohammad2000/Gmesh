@@ -143,8 +143,10 @@ func parseConntrackLine(line string) (Flow, bool) {
 	if origSrc == "" || origDst == "" {
 		return f, false
 	}
-	f.SrcIP = origSrc
-	f.DstIP = origDst
+	// Clone: the substrings would otherwise pin the whole scanned
+	// line in memory for as long as the flow is tracked.
+	f.SrcIP = strings.Clone(origSrc)
+	f.DstIP = strings.Clone(origDst)
 	f.SrcPort = origSport
 	f.DstPort = origDport
 	f.TxBytes = origBytes

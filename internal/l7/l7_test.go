@@ -139,6 +139,36 @@ func TestAggregatorReset(t *testing.T) {
 }
 
 
+// Regression: the aggregator kept every 5-tuple it ever saw, so gmeshd's
+// RSS grew without bound on busy hosts. A flow absent from the next
+// snapshot must be forgotten, without giving back the bytes it counted.
+func TestAggregatorEvictsAgedOutFlows(t *testing.T) {
+	a := NewAggregator()
+	c := NewClassifier()
+	flow := func(sport uint16) Flow {
+		f := Flow{L4Proto: "tcp", SrcIP: "10.0.0.1", SrcPort: sport,
+			DstIP: "10.0.0.2", DstPort: 443, RxBytes: 10, TxBytes: 10}
+		c.Classify(&f)
+		return f
+	}
+	for i := 0; i < 1000; i++ {
+		a.Ingest([]Flow{flow(uint16(10000 + i))})
+	}
+	if got := a.Len(); got != 1 {
+		t.Fatalf("tracked flows = %d after 1000 one-shot snapshots; want 1", got)
+	}
+	if got := a.Totals()[0].Bytes; got != 20*1000 {
+		t.Errorf("bytes = %d; want %d (eviction must not lose totals)", got, 20*1000)
+	}
+	if got := a.Totals()[0].Flows; got != 1000 {
+		t.Errorf("flows counter = %d; want 1000", got)
+	}
+	a.Ingest(nil)
+	if got := a.Len(); got != 0 {
+		t.Errorf("tracked flows = %d after empty snapshot; want 0", got)
+	}
+}
+
 func TestMonitorTickIntegration(t *testing.T) {
 	m := New(silent(), 0)
 	stub := NewStubReader()
