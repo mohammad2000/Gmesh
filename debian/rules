@@ -9,11 +9,17 @@ export CGO_ENABLED = 0
 override_dh_auto_build:
 	$(MAKE) build
 
+# Binaries stay in /usr/local/bin to match systemd/gmeshd.service and
+# scripts/install.sh; dh_usrlocal would reject that layout.
+override_dh_usrlocal:
+
 override_dh_auto_install:
 	install -Dm0755 bin/gmeshd     debian/gmeshd/usr/local/bin/gmeshd
 	install -Dm0755 bin/gmeshctl   debian/gmeshd/usr/local/bin/gmeshctl
 	install -Dm0755 bin/gmesh-relay debian/gmeshd/usr/local/bin/gmesh-relay
 	install -Dm0644 systemd/gmeshd.service debian/gmeshd/lib/systemd/system/gmeshd.service
 
+# Plain tests: -race (make test) needs cgo, which the static build turns
+# off. CI runs the race tests separately.
 override_dh_auto_test:
-	$(MAKE) test
+	go test ./...

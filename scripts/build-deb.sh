@@ -13,8 +13,14 @@ if ! command -v dpkg-buildpackage >/dev/null; then
     exit 1
 fi
 
-# -us: don't sign source, -uc: don't sign changes, -b: binary-only
-dpkg-buildpackage -us -uc -b
+# -us: don't sign source, -uc: don't sign changes, -b: binary-only.
+# With a Go toolchain on PATH (setup-go in CI, a tarball install), skip
+# the build-dep check: golang-go (>= 1.23) is only the apt route to Go.
+flags=(-us -uc -b)
+if command -v go >/dev/null; then
+    flags+=(-d)
+fi
+dpkg-buildpackage "${flags[@]}"
 
 # Move built .deb into dist/ for convenience
 mkdir -p dist
