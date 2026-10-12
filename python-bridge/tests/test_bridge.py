@@ -162,3 +162,21 @@ async def _collect_raw(br, n):
         if len(out) >= n:
             break
     return out
+
+
+@pytest.mark.asyncio
+async def test_token_required_when_configured(token_daemon):
+    import grpc
+
+    with pytest.raises(grpc.aio.AioRpcError) as exc:
+        await GmeshBridge.connect(socket_path=token_daemon["socket"])
+    assert exc.value.code() == grpc.StatusCode.UNAUTHENTICATED
+
+    br = await GmeshBridge.connect(
+        socket_path=token_daemon["socket"], token_file=token_daemon["token_file"]
+    )
+    try:
+        st = await br.status()
+        assert st["joined"] is False
+    finally:
+        await br.close()

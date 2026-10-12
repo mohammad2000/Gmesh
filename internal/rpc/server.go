@@ -90,7 +90,24 @@ func (s *Server) Start() (stop func(), err error) {
 				return nil, fmt.Errorf("chmod socket: %w", err)
 			}
 		}
+		if err := applySocketOwnership(s.cfg.Path, s.cfg); err != nil {
+			_ = ln.Close()
+			return nil, fmt.Errorf("chown socket: %w", err)
+		}
+		policy, err := newCredPolicy(s.cfg)
+		if err != nil {
+			_ = ln.Close()
+			return nil, err
+		}
+		ln = &credListener{Listener: ln, policy: policy, log: s.Log}
 	case "tcp":
+		if err := checkLoopback(s.cfg.Path); err != nil {
+			return nil, err
+		}
+		if s.cfg.TokenFile == "" {
+			s.Log.Warn("tcp control endpoint has no socket.token_file: any local user can drive gmeshd",
+				"endpoint", s.cfg.Path)
+		}
 		ln, err = net.Listen("tcp", s.cfg.Path)
 		if err != nil {
 			return nil, fmt.Errorf("listen tcp %s: %w", s.cfg.Path, err)
@@ -99,11 +116,21 @@ func (s *Server) Start() (stop func(), err error) {
 		return nil, fmt.Errorf("unsupported socket network %q (expected unix|tcp)", network)
 	}
 
-	unary := grpc.ChainUnaryInterceptor(
-		newMetricsInterceptor(),
-		newAuditInterceptor(s.Audit),
-	)
-	stream := grpc.ChainStreamInterceptor(newStreamMetricsInterceptor())
+	unaryIcs := []grpc.UnaryServerInterceptor{newMetricsInterceptor(), newAuditInterceptor(s.Audit)}
+	streamIcs := []grpc.StreamServerInterceptor{newStreamMetricsInterceptor()}
+	if s.cfg.TokenFile != "" {
+		token, err := loadOrCreateToken(s.cfg.TokenFile)
+		if err != nil {
+			_ = ln.Close()
+			return nil, err
+		}
+		// Token check runs after metrics/audit so rejected calls are
+		// still counted and logged.
+		unaryIcs = append(unaryIcs, newTokenUnaryInterceptor(token))
+		streamIcs = append(streamIcs, newTokenStreamInterceptor(token))
+	}
+	unary := grpc.ChainUnaryInterceptor(unaryIcs...)
+	stream := grpc.ChainStreamInterceptor(streamIcs...)
 	// Accept client keepalive pings as often as every 15s without
 	// replying with ENHANCE_YOUR_CALM+GOAWAY. grpc-go's default is 5
 	// minutes — way too high for the Python bridge whose own default

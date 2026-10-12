@@ -8,6 +8,39 @@ questions at any hour of any day:
 2. Who called which RPC, when, and did it succeed? → **audit log**.
 3. Will it hold up under fleet-scale load? → **benchmarks + latency tests**.
 
+## Control socket access
+
+Whoever can call gmeshd's gRPC API can add peers, rewrite firewall
+rules, turn the node into an exit and issue certificates, as root. The
+file mode of the socket is not trusted on its own; every connection is
+also checked:
+
+| Transport | Check |
+|---|---|
+| `unix` (Linux, macOS) | Caller's uid/gids from the kernel (`SO_PEERCRED` / `LOCAL_PEERCRED`). Allowed: root, the daemon's own user, `socket.allowed_uids`, `socket.allowed_users`, members of `socket.group`. Others are dropped before gRPC and logged as `rejected control connection`. |
+| `tcp` (Windows) | Must bind a loopback address; `0.0.0.0` or a LAN IP refuses to start. |
+| any, with `socket.token_file` | Every RPC needs `authorization: Bearer <token>`. gmeshd creates the file (0600, 256-bit random) on first start. |
+
+```yaml
+socket:
+  path: /run/gmesh.sock
+  mode: 0o660
+  group: gritiva            # chown'd on start; members may connect
+  allowed_users: [gritiva]  # or allowed_uids: [501]
+  token_file: /etc/gmesh/control.token   # optional on unix, recommended on tcp
+```
+
+Clients: `gmesh_bridge.GmeshBridge.connect(..., token_file=...)` or
+`$GMESH_TOKEN_FILE`.
+
+**Upgrading existing installs.** Linux agents run as root and need no
+change. The macOS installers run the agent as the console user against
+a 0666 socket: add that user to `socket.allowed_users` before upgrading
+gmeshd, or the agent is rejected. On Windows, set `socket.token_file`
+under a directory only SYSTEM and Administrators can read and point the
+agent at it; until then gmeshd logs a warning that any local user can
+drive it.
+
 ## Prometheus metrics
 
 Exposed over a dedicated Unix socket (`/run/gmesh-metrics.sock` by

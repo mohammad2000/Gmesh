@@ -78,6 +78,18 @@ type SocketConfig struct {
 	Owner   string `yaml:"owner"`
 	Group   string `yaml:"group"`
 	Mode    uint32 `yaml:"mode"`
+
+	// Who may use the unix socket, checked against the caller's kernel
+	// credentials on every connection. Root, the daemon's own user and
+	// members of Group are always allowed; these add more.
+	AllowedUIDs  []int    `yaml:"allowed_uids"`
+	AllowedUsers []string `yaml:"allowed_users"`
+
+	// TokenFile, when set, requires every RPC to carry
+	// "authorization: Bearer <token>". The daemon creates the file
+	// (0600, random 256-bit token) if it does not exist. Strongly
+	// recommended with Network="tcp".
+	TokenFile string `yaml:"token_file"`
 }
 
 // LogConfig controls logging output.

@@ -25,6 +25,44 @@ from gmesh.v1 import gmesh_pb2, gmesh_pb2_grpc  # noqa: E402  type: ignore
 log = logging.getLogger("gmesh_bridge.client")
 
 
+def _read_token(token_file: str | None) -> str | None:
+    """Read the gmeshd control token (socket.token_file), if configured.
+
+    Falls back to the GMESH_TOKEN_FILE environment variable. Returns None
+    when no token file is configured, which is the default for the unix
+    socket (access there is checked by the caller's uid instead).
+    """
+    path = token_file or os.environ.get("GMESH_TOKEN_FILE")
+    if not path:
+        return None
+    with open(path, encoding="ascii") as f:
+        token = f.read().strip()
+    if not token:
+        raise ValueError(f"gmesh token file {path} is empty")
+    return token
+
+
+class _TokenAuth(
+    grpc.aio.UnaryUnaryClientInterceptor,
+    grpc.aio.UnaryStreamClientInterceptor,
+):
+    """Adds "authorization: Bearer <token>" to every call."""
+
+    def __init__(self, token: str) -> None:
+        self._md = ("authorization", f"Bearer {token}")
+
+    def _with_token(self, details):
+        md = list(details.metadata or [])
+        md.append(self._md)
+        return details._replace(metadata=md)
+
+    async def intercept_unary_unary(self, continuation, details, request):
+        return await continuation(self._with_token(details), request)
+
+    async def intercept_unary_stream(self, continuation, details, request):
+        return await continuation(self._with_token(details), request)
+
+
 @dataclass
 class PeerView:
     """Read-only projection of a gmesh.v1.Peer."""
@@ -117,6 +155,7 @@ class GmeshBridge:
         socket_path: str = "/run/gmesh.sock",
         *,
         endpoint: str | None = None,
+        token_file: str | None = None,
     ) -> "GmeshBridge":
         """Connect to gmeshd.
 
@@ -131,13 +170,18 @@ class GmeshBridge:
 
         We resolve the final target string here, then hand it to
         grpc.aio.insecure_channel.
+
+        token_file (or $GMESH_TOKEN_FILE) must point at gmeshd's
+        socket.token_file when the daemon has one configured.
         """
         if endpoint:
             target = endpoint
         else:
             target = f"unix:{socket_path}"
+        token = _read_token(token_file)
         channel = grpc.aio.insecure_channel(
             target,
+            interceptors=[_TokenAuth(token)] if token else None,
             options=[
                 ("grpc.keepalive_time_ms", 30_000),
                 ("grpc.keepalive_timeout_ms", 10_000),
