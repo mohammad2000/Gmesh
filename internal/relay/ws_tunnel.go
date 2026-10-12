@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 // WSTunnel wraps WireGuard UDP datagrams in WebSocket frames addressed to
@@ -91,7 +91,8 @@ func DialWSTunnel(ctx context.Context, cfg WSTunnelConfig) (*WSTunnel, error) {
 		}
 	}
 
-	ws, _, err := websocket.Dial(dctx, cfg.URL, opts)
+	// The library closes the handshake response body itself.
+	ws, _, err := websocket.Dial(dctx, cfg.URL, opts) //nolint:bodyclose
 	if err != nil {
 		return nil, fmt.Errorf("ws dial %s: %w", cfg.URL, err)
 	}
@@ -99,7 +100,7 @@ func DialWSTunnel(ctx context.Context, cfg WSTunnelConfig) (*WSTunnel, error) {
 
 	local, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
-		ws.Close(websocket.StatusInternalError, "local bind failed") 
+		ws.Close(websocket.StatusInternalError, "local bind failed")
 		return nil, fmt.Errorf("local bind: %w", err)
 	}
 
@@ -174,7 +175,7 @@ func (t *WSTunnel) wgToWsLoop(ctx context.Context) {
 		}
 		t.stats.Lock()
 		t.stats.txFrames++
-		t.stats.txBytes += uint64(n) //nolint:gosec
+		t.stats.txBytes += uint64(n)
 		t.stats.Unlock()
 	}
 }
@@ -207,7 +208,7 @@ func (t *WSTunnel) wsToWgLoop(ctx context.Context) {
 		}
 		t.stats.Lock()
 		t.stats.rxFrames++
-		t.stats.rxBytes += uint64(len(decoded)) 
+		t.stats.rxBytes += uint64(len(decoded))
 		t.stats.Unlock()
 	}
 }

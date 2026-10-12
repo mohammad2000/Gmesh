@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 // startRelayHub emulates the GritivaCore backend's /ws/relay/{session}/{peer}

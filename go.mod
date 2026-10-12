@@ -5,6 +5,7 @@ go 1.23.1
 toolchain go1.23.2
 
 require (
+	github.com/coder/websocket v1.8.13
 	github.com/huin/goupnp v1.3.0
 	github.com/pion/stun/v2 v2.0.0
 	github.com/prometheus/client_golang v1.23.2
@@ -15,7 +16,6 @@ require (
 	google.golang.org/grpc v1.66.2
 	google.golang.org/protobuf v1.36.8
 	gopkg.in/yaml.v3 v3.0.1
-	nhooyr.io/websocket v1.8.17
 )
 
 require (
