@@ -238,7 +238,7 @@ message JoinRequest {
 
 message JoinResponse {
   string  public_key            = 1;
-  string  private_key_encrypted = 2;  // returned for backend storage (Fernet)
+  string  private_key_encrypted = 2;  // deprecated: always empty, the private key never leaves the node
   NATInfo nat                   = 3;
   string  endpoint              = 4;  // external_ip:external_port (legacy)
   // Every address the daemon could plausibly be reachable at. Backend

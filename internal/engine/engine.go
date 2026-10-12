@@ -1420,9 +1420,10 @@ func (e *Engine) PublicKey() string {
 // ── Lifecycle ──────────────────────────────────────────────────────────
 
 // JoinResult is the outcome of a successful Join.
+// The private key is deliberately not part of it: it is generated here,
+// persisted in state.json (0600) and never leaves the node.
 type JoinResult struct {
-	PublicKey  string
-	PrivateKey string // raw base64; caller is responsible for encrypting before sending over the wire
+	PublicKey string
 }
 
 // Join generates keys, brings up the WG interface, and marks this node as joined.
@@ -1485,7 +1486,7 @@ func (e *Engine) Join(ctx context.Context, meshIP, iface string, listenPort uint
 		"public_key":  kp.Public,
 		"node_id":     nodeID,
 	})
-	return &JoinResult{PublicKey: kp.Public, PrivateKey: kp.Private}, nil
+	return &JoinResult{PublicKey: kp.Public}, nil
 }
 
 // Leave tears down WireGuard and clears registry.

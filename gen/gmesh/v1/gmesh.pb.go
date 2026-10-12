@@ -891,7 +891,7 @@ func (x *JoinRequest) GetNodeId() string {
 type JoinResponse struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	PublicKey           string                 `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	PrivateKeyEncrypted string                 `protobuf:"bytes,2,opt,name=private_key_encrypted,json=privateKeyEncrypted,proto3" json:"private_key_encrypted,omitempty"` // returned for backend storage (Fernet)
+	PrivateKeyEncrypted string                 `protobuf:"bytes,2,opt,name=private_key_encrypted,json=privateKeyEncrypted,proto3" json:"private_key_encrypted,omitempty"` // deprecated: always empty, the private key never leaves the node
 	Nat                 *NATInfo               `protobuf:"bytes,3,opt,name=nat,proto3" json:"nat,omitempty"`
 	Endpoint            string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"` // external_ip:external_port (legacy)
 	// Every address the daemon could plausibly be reachable at. Backend

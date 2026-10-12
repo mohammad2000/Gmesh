@@ -224,9 +224,8 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 	}
 
 	return &gmeshv1.JoinResponse{
-		PublicKey:           res.PublicKey,
-		PrivateKeyEncrypted: res.PrivateKey, // plain for now — Phase 8 adds Fernet
-		Endpoints:           candidates,
+		PublicKey: res.PublicKey,
+		Endpoints: candidates,
 	}, nil
 }
 

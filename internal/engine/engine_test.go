@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mohammad2000/Gmesh/internal/config"
+	"github.com/mohammad2000/Gmesh/internal/crypto"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/state"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
@@ -141,7 +142,7 @@ func TestJoinLeaveRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Join: %v", err)
 	}
-	if res.PublicKey == "" || res.PrivateKey == "" {
+	if res.PublicKey == "" {
 		t.Fatal("empty keys from Join")
 	}
 	if !eng.IsJoined() {
@@ -150,8 +151,10 @@ func TestJoinLeaveRoundtrip(t *testing.T) {
 	if fw.addr != "10.200.0.7/16" {
 		t.Errorf("CreateInterface addr = %q; want 10.200.0.7/16", fw.addr)
 	}
-	if fw.privKey != res.PrivateKey {
-		t.Errorf("SetPrivateKey mismatch")
+	// The private key stays inside the daemon; check that the one
+	// installed on the interface is the pair of the returned public key.
+	if _, pub, err := crypto.ParsePrivateKey(fw.privKey); err != nil || pub != res.PublicKey {
+		t.Errorf("SetPrivateKey: installed key does not match public key (err=%v)", err)
 	}
 
 	// Second Join should fail.

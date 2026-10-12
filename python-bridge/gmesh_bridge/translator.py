@@ -178,7 +178,10 @@ async def _handle_mesh_join(self: Translator, msg: dict) -> dict:
             node_id=msg.get("node_id", ""),
         )
         public_key = res["public_key"]
-        private_key_encrypted = res.get("private_key_encrypted", "")
+        # Never forward a private key, even from an older gmeshd that
+        # still returns one: it stays on the node. The backend skips the
+        # field when it is empty.
+        private_key_encrypted = ""
         endpoint = res.get("endpoint", "")
         # JoinResponse.endpoints now carries the LAN IPs gmeshd
         # enumerated via internal/nat.LocalEndpoints (plus any reflexive

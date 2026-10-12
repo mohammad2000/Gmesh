@@ -259,15 +259,12 @@ func (m *LinuxManager) setupWGInNetns(ctx context.Context, p *Peer, mtu int) err
 		return fmt.Errorf("wg-scope mtu: %w", err)
 	}
 
-	// Set private key + listen port via `wg set` inside the netns. We use
-	// a temp file for the key since `wg set private-key` reads from a path.
-	tmp := fmt.Sprintf("/tmp/gmesh-scope-%d.key", p.ID)
-	if err := writeFile(tmp, p.PrivateKey, 0o600); err != nil {
-		return fmt.Errorf("write key tmp: %w", err)
-	}
-	defer removeFile(tmp) //nolint:errcheck
-	if err := runNetns(ctx, p.Netns, "wg", "set", iface,
-		"private-key", tmp,
+	// Set private key + listen port via `wg set` inside the netns.
+	// `wg set private-key` reads from a path; hand it the key on stdin
+	// so it never touches the filesystem (a fixed /tmp name could be
+	// pre-planted as a symlink, and a crash would leave the key behind).
+	if err := runNetnsStdin(ctx, p.Netns, p.PrivateKey, "wg", "set", iface,
+		"private-key", "/dev/stdin",
 		"listen-port", itoa(int(p.ListenPort))); err != nil {
 		return fmt.Errorf("wg set: %w", err)
 	}
@@ -362,7 +359,16 @@ func ensureRule(ctx context.Context, spec []string) error {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
+	return runStdin(ctx, "", name, args...)
+}
+
+// runStdin is run with stdin fed from the given string. Secrets passed
+// this way are kept out of the error text, which only echoes argv.
+func runStdin(ctx context.Context, stdin, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
@@ -374,6 +380,12 @@ func run(ctx context.Context, name string, args ...string) error {
 func runNetns(ctx context.Context, ns, name string, args ...string) error {
 	full := append([]string{"netns", "exec", ns, name}, args...)
 	return run(ctx, "ip", full...)
+}
+
+// runNetnsStdin is runNetns with stdin fed from the given string.
+func runNetnsStdin(ctx context.Context, ns, stdin, name string, args ...string) error {
+	full := append([]string{"netns", "exec", ns, name}, args...)
+	return runStdin(ctx, stdin, "ip", full...)
 }
 
 // runNetnsIdempotent is a wrapper around runNetns that treats kernel
@@ -393,13 +405,3 @@ func runNetnsIdempotent(ctx context.Context, ns, name string, args ...string) er
 }
 
 func itoa(n int) string { return fmt.Sprintf("%d", n) }
-
-// writeFile is a tiny helper that avoids pulling os package into the file
-// just for WriteFile.
-func writeFile(path, content string, mode uint32) error {
-	return writeFileImpl(path, content, mode)
-}
-
-func removeFile(path string) error {
-	return removeFileImpl(path)
-}
