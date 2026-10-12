@@ -97,8 +97,13 @@ func TestServerPairsAndForwards(t *testing.T) {
 		t.Errorf("B→A payload = %q", string(buf[:n]))
 	}
 
-	// Assert stats on the server.
+	// Assert stats on the server. The counters are bumped after the frame
+	// is sent on, so the receiver can see the packet first — wait briefly.
 	st := srv.Stats()
+	for deadline := time.Now().Add(time.Second); st.FramesForwarded < 2 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+		st = srv.Stats()
+	}
 	if st.AuthOK < 2 {
 		t.Errorf("AuthOK = %d; want ≥ 2", st.AuthOK)
 	}

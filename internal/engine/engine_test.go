@@ -9,9 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mohammad2000/Gmesh/internal/circuit"
 	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/crypto"
+	"github.com/mohammad2000/Gmesh/internal/egress"
+	"github.com/mohammad2000/Gmesh/internal/firewall"
+	"github.com/mohammad2000/Gmesh/internal/ingress"
 	"github.com/mohammad2000/Gmesh/internal/peer"
+	"github.com/mohammad2000/Gmesh/internal/routing"
+	"github.com/mohammad2000/Gmesh/internal/scope"
 	"github.com/mohammad2000/Gmesh/internal/state"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
 )
@@ -107,11 +113,22 @@ func setupTB(tb testLike) (*Engine, *fakeWG) {
 		tb.Fatalf("state.NewStore: %v", err)
 	}
 	fw := newFakeWG()
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// In-memory/stub backends only: auto-detection would pick the host's
+	// real nft, ip route and netns tooling — failing when not root, and
+	// rewriting the host's rules when it is.
 	eng, err := New(cfg, Options{
-		Log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Log:       quiet,
 		WG:        fw,
 		Store:     s,
 		Responder: noopResponder{},
+		Firewall:  firewall.NewMemory(),
+		Routing:   routing.NewInMemory(),
+		Scope:     scope.NewStub(quiet),
+		Egress:    egress.NewStub(quiet),
+		Exit:      egress.NewStubExit(quiet),
+		Ingress:   ingress.NewStub(quiet),
+		Circuit:   circuit.NewStub(quiet),
 	})
 	if err != nil {
 		tb.Fatalf("engine.New: %v", err)
