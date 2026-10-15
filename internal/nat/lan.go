@@ -87,6 +87,13 @@ func isTunnelInterface(name string) bool {
 	case strings.HasPrefix(n, "docker"),
 		strings.HasPrefix(n, "br-"), // docker/compose user-defined bridges
 		strings.HasPrefix(n, "veth"),
+		// gmeshd's own scope veths (vh-s<id>/vs-s<id>) and GritivaCore
+		// VNet switch ports (vsp-/vsh-): host-local /30s and VNet
+		// subnets that peers on other hosts cannot reach.
+		strings.HasPrefix(n, "vh-"),
+		strings.HasPrefix(n, "vs-"),
+		strings.HasPrefix(n, "vsp-"),
+		strings.HasPrefix(n, "vsh-"),
 		strings.HasPrefix(n, "cni"),
 		strings.HasPrefix(n, "cali"), // Calico
 		strings.HasPrefix(n, "flannel"),

@@ -194,3 +194,17 @@ func TestResponderEcho(t *testing.T) {
 		t.Errorf("expected no reply to non-magic packet; got %d bytes", n)
 	}
 }
+
+// Interfaces seen on GritivaCore hosts (2026-10-15): only the real LAN
+// uplinks may become LAN candidates.
+func TestHostLocalInterfacesAreNotLANCandidates(t *testing.T) {
+	for name, want := range map[string]bool{
+		"vh-s244": true, "vs-s244": true, "vsp-25": true, "vsh-27": true,
+		"br-gritiva": true, "docker0": true, "wg-gmesh": true, "tailscale0": true,
+		"ens18": false, "vmbr0": false, "eth0": false, "enp3s0": false,
+	} {
+		if got := isTunnelInterface(name); got != want {
+			t.Errorf("isTunnelInterface(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
