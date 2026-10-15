@@ -392,7 +392,19 @@ func (e *Engine) rehydrate() error {
 			ScopeID:    p.ScopeID,
 		})
 	}
-	e.Log.Info("rehydrated in-memory state", "peers", len(st.Peers), "mesh_ip", e.meshIP)
+	if e.Scope != nil && len(st.Scopes) > 0 {
+		adopted := make([]*scope.Peer, 0, len(st.Scopes))
+		for _, sc := range st.Scopes {
+			adopted = append(adopted, &scope.Peer{
+				ID: sc.ID, Netns: sc.Netns, MeshIP: sc.MeshIP, VethHost: sc.VethHost, VethScope: sc.VethScope,
+				VethCIDR: sc.VethCIDR, VMVethIP: sc.VMVethIP, ScopeVethIP: sc.ScopeVethIP,
+				GatewayMeshIP: sc.GatewayMeshIP, PublicKey: sc.PublicKey, ListenPort: sc.ListenPort,
+				CreatedAt: sc.CreatedAt, OwnsNetns: sc.OwnsNetns, OwnsVeth: sc.OwnsVeth,
+			})
+		}
+		e.Scope.Adopt(adopted)
+	}
+	e.Log.Info("rehydrated in-memory state", "peers", len(st.Peers), "scopes", len(st.Scopes), "mesh_ip", e.meshIP)
 
 	// Re-create the WG interface and re-apply private key + peers.
 	// Without this, any add_peer / status RPC after a restart fails
@@ -1162,6 +1174,9 @@ func (e *Engine) ScopeConnect(ctx context.Context, spec scope.Spec) (*scope.Peer
 			e.Log.Warn("scope route install failed", "error", err, "mesh_ip", spec.MeshIP)
 		}
 	}
+	if err := e.persist(); err != nil {
+		e.Log.Warn("persist after ScopeConnect failed", "error", err)
+	}
 	e.emit(events.TypeScopeConnected, spec.ScopeID, map[string]any{
 		"mesh_ip":     spec.MeshIP,
 		"netns":       p.Netns,
@@ -1181,6 +1196,9 @@ func (e *Engine) ScopeDisconnect(ctx context.Context, scopeID int64) error {
 		_ = e.Routing.Remove(ctx, p.MeshIP, e.Interface())
 	}
 	e.Peers.Remove(scopeID)
+	if err := e.persist(); err != nil {
+		e.Log.Warn("persist after ScopeDisconnect failed", "error", err)
+	}
 	e.emit(events.TypeScopeDisconnected, scopeID, nil)
 	return nil
 }
@@ -1807,6 +1825,16 @@ func (e *Engine) persist() error {
 			ScopeID:    p.ScopeID,
 			Endpoints:  eps,
 		})
+	}
+	if e.Scope != nil {
+		for _, sp := range e.Scope.List() {
+			st.Scopes = append(st.Scopes, state.ScopeEntry{
+				ID: sp.ID, Netns: sp.Netns, MeshIP: sp.MeshIP, VethHost: sp.VethHost, VethScope: sp.VethScope,
+				VethCIDR: sp.VethCIDR, VMVethIP: sp.VMVethIP, ScopeVethIP: sp.ScopeVethIP,
+				GatewayMeshIP: sp.GatewayMeshIP, PublicKey: sp.PublicKey, ListenPort: sp.ListenPort,
+				CreatedAt: sp.CreatedAt, OwnsNetns: sp.OwnsNetns, OwnsVeth: sp.OwnsVeth,
+			})
+		}
 	}
 	return e.Store.Save(&st)
 }

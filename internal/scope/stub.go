@@ -86,6 +86,17 @@ func (m *StubManager) Disconnect(_ context.Context, scopeID int64) error {
 	return nil
 }
 
+// Adopt registers restored scopes.
+func (m *StubManager) Adopt(peers []*Peer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range peers {
+		if _, ok := m.peers[p.ID]; !ok {
+			m.peers[p.ID] = p
+		}
+	}
+}
+
 // List returns a snapshot of connected scopes.
 func (m *StubManager) List() []*Peer {
 	m.mu.Lock()

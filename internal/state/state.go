@@ -19,6 +19,28 @@ type State struct {
 	UpdatedAt time.Time   `json:"updated_at"`
 	Node      NodeState   `json:"node"`
 	Peers     []PeerEntry `json:"peers"`
+	// Scopes connected by this daemon (netns + veth + wg-scope), so a
+	// restart can still disconnect them. Absent in older files.
+	Scopes []ScopeEntry `json:"scopes,omitempty"`
+}
+
+// ScopeEntry is a connected scope. The scope's WireGuard private key stays
+// in the kernel and is not written here.
+type ScopeEntry struct {
+	ID            int64     `json:"id"`
+	Netns         string    `json:"netns"`
+	MeshIP        string    `json:"mesh_ip"`
+	VethHost      string    `json:"veth_host"`
+	VethScope     string    `json:"veth_scope"`
+	VethCIDR      string    `json:"veth_cidr"`
+	VMVethIP      string    `json:"vm_veth_ip"`
+	ScopeVethIP   string    `json:"scope_veth_ip"`
+	GatewayMeshIP string    `json:"gateway_mesh_ip,omitempty"`
+	PublicKey     string    `json:"public_key"`
+	ListenPort    uint16    `json:"listen_port"`
+	CreatedAt     time.Time `json:"created_at"`
+	OwnsNetns     bool      `json:"owns_netns"`
+	OwnsVeth      bool      `json:"owns_veth"`
 }
 
 // NodeState is this gmeshd's own identity.

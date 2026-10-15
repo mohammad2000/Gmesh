@@ -138,6 +138,12 @@ func (m *LinuxManager) Disconnect(ctx context.Context, scopeID int64) error {
 	delete(m.peers, scopeID)
 	m.mu.Unlock()
 	if !ok {
+		// Unknown here (e.g. connected by a daemon that kept no record):
+		// still remove what only gmeshd creates — the host veth (named
+		// vh-s<id>, the scope end goes with it) and wg-scope inside the
+		// conventional netns — so a reconnect does not die on "File
+		// exists". The namespace itself is never touched.
+		m.cleanupUnknown(ctx, scopeID)
 		return ErrNotConnected
 	}
 	if err := m.tearDown(ctx, p); err != nil {
@@ -145,6 +151,35 @@ func (m *LinuxManager) Disconnect(ctx context.Context, scopeID int64) error {
 	}
 	m.Log.Info("scope disconnected", "id", scopeID)
 	return nil
+}
+
+// Adopt registers scopes restored from state.
+func (m *LinuxManager) Adopt(peers []*Peer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, p := range peers {
+		if _, ok := m.peers[p.ID]; !ok {
+			m.peers[p.ID] = p
+		}
+	}
+}
+
+func (m *LinuxManager) cleanupUnknown(ctx context.Context, scopeID int64) {
+	id := itoa(int(scopeID))
+	host := "vh-s" + id
+	if linkExists(ctx, host) {
+		if err := run(ctx, "ip", "link", "del", host); err != nil {
+			m.Log.Warn("unknown scope: veth delete failed", "id", scopeID, "error", err)
+		} else {
+			m.Log.Info("unknown scope: removed its veth", "id", scopeID, "veth", host)
+		}
+	}
+	ns := "scope-" + id
+	if out, _ := exec.CommandContext(ctx, "ip", "netns", "list").Output(); strings.Contains(string(out), ns) {
+		if err := runNetns(ctx, ns, "ip", "link", "del", "wg-scope"); err == nil {
+			m.Log.Info("unknown scope: removed wg-scope", "id", scopeID, "netns", ns)
+		}
+	}
 }
 
 // List returns a snapshot.
@@ -175,13 +210,13 @@ func (m *LinuxManager) createNetns(ctx context.Context, p *Peer) error {
 	// rollback would take the service down with it.
 	out, _ := exec.CommandContext(ctx, "ip", "netns", "list").Output()
 	if strings.Contains(string(out), p.Netns) {
-		p.ownsNetns = false
+		p.OwnsNetns = false
 		return nil
 	}
 	if err := run(ctx, "ip", "netns", "add", p.Netns); err != nil {
 		return err
 	}
-	p.ownsNetns = true
+	p.OwnsNetns = true
 	return nil
 }
 
@@ -196,7 +231,7 @@ func (m *LinuxManager) createVeth(ctx context.Context, p *Peer, mtu int) error {
 		if err := run(ctx, "ip", "link", "add", p.VethHost, "type", "veth", "peer", "name", p.VethScope); err != nil {
 			return fmt.Errorf("veth add: %w", err)
 		}
-		p.ownsVeth = true
+		p.OwnsVeth = true
 	}
 	// The scope end may already have been moved by the earlier attempt.
 	if linkExists(ctx, p.VethScope) {
@@ -310,7 +345,7 @@ func (m *LinuxManager) tearDown(ctx context.Context, p *Peer) error {
 	// Delete veth (also removes scope end inside netns) — but only if this
 	// daemon created it. Adopting a veth an earlier attempt left behind
 	// does not make it ours to destroy on a later failure.
-	if p.ownsVeth {
+	if p.OwnsVeth {
 		if err := run(ctx, "ip", "link", "del", p.VethHost); err != nil && !strings.Contains(err.Error(), "Cannot find") {
 			lastErr = err
 		}
@@ -320,7 +355,7 @@ func (m *LinuxManager) tearDown(ctx context.Context, p *Peer) error {
 	// interface has to be removed explicitly — otherwise it survives as an
 	// orphan holding the mesh IP, and the next Connect dies on "Address
 	// already assigned" against state nothing is tracking any more.
-	if !p.ownsNetns {
+	if !p.OwnsNetns {
 		if err := runNetns(ctx, p.Netns, "ip", "link", "del", "wg-scope"); err != nil &&
 			!strings.Contains(err.Error(), "Cannot find") {
 			lastErr = err
@@ -331,7 +366,7 @@ func (m *LinuxManager) tearDown(ctx context.Context, p *Peer) error {
 	// host the agent builds scope-{id} and the running service lives
 	// inside; deleting it because a later step failed would take the
 	// service's networking down as collateral for a rollback.
-	if p.ownsNetns {
+	if p.OwnsNetns {
 		if err := run(ctx, "ip", "netns", "del", p.Netns); err != nil && !strings.Contains(err.Error(), "No such file") {
 			lastErr = err
 		}

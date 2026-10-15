@@ -72,17 +72,17 @@ func TestEnsureRuleVerbPlacement(t *testing.T) {
 // would take the service's networking down as collateral.
 func TestTearDownLeavesAForeignNamespaceAlone(t *testing.T) {
 	borrowed := &Peer{ID: 239, Netns: "scope-239", VethHost: "vh-s239"}
-	if borrowed.ownsNetns {
+	if borrowed.OwnsNetns {
 		t.Fatal("a Peer must not claim a namespace it never created")
 	}
-	if borrowed.ownsVeth {
+	if borrowed.OwnsVeth {
 		t.Fatal("a Peer must not claim a veth it never created")
 	}
 
 	ours := &Peer{ID: 900, Netns: "scope-900", VethHost: "vh-s900"}
-	ours.ownsNetns = true
-	ours.ownsVeth = true
-	if !ours.ownsNetns || !ours.ownsVeth {
+	ours.OwnsNetns = true
+	ours.OwnsVeth = true
+	if !ours.OwnsNetns || !ours.OwnsVeth {
 		t.Fatal("ownership flags must round-trip")
 	}
 }

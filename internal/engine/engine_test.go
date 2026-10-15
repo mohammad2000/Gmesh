@@ -372,3 +372,51 @@ func TestReAddKeepsALiveEndpoint(t *testing.T) {
 	}
 	eng.Racer.Stop(42)
 }
+
+// A restarted gmeshd still knows the scopes it connected (and what it owns
+// of them), so Disconnect works and a reconnect is not a "File exists"
+// loop. Until 2026-10-15 the scope list lived in memory only.
+func TestScopesSurviveARestart(t *testing.T) {
+	eng, _ := setup(t)
+	ctx := context.Background()
+	if _, err := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := eng.ScopeConnect(ctx, scope.Spec{ScopeID: 244, MeshIP: "10.200.0.14", Netns: "scope-244"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.OwnsVeth = true // what the linux manager records when it created the veth
+	if err := eng.persist(); err != nil {
+		t.Fatal(err)
+	}
+
+	// "restart": a new engine on the same state file
+	quiet := slog.New(slog.NewTextHandler(io.Discard, nil))
+	st, err := state.NewStore(eng.Config.State.Dir, eng.Config.State.File)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sm := scope.NewStub(quiet)
+	eng2, err := New(eng.Config, Options{Log: quiet, WG: newFakeWG(), Store: st, Responder: noopResponder{},
+		Firewall: firewall.NewMemory(), Routing: routing.NewInMemory(), Scope: sm,
+		Egress: egress.NewStub(quiet), Exit: egress.NewStubExit(quiet), Ingress: ingress.NewStub(quiet), Circuit: circuit.NewStub(quiet)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := eng2.ScopeList()
+	if len(got) != 1 || got[0].ID != 244 || got[0].Netns != "scope-244" || got[0].MeshIP != "10.200.0.14" || !got[0].OwnsVeth || got[0].OwnsNetns {
+		t.Fatalf("after restart: %+v", got)
+	}
+	if err := eng2.ScopeDisconnect(ctx, 244); err != nil {
+		t.Fatal(err)
+	}
+	if len(eng2.ScopeList()) != 0 {
+		t.Fatal("still listed after disconnect")
+	}
+	st3, _ := state.NewStore(eng.Config.State.Dir, eng.Config.State.File)
+	s3, _ := st3.Load()
+	if len(s3.Scopes) != 0 {
+		t.Fatalf("disconnect not persisted: %+v", s3.Scopes)
+	}
+}

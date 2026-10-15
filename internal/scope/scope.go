@@ -71,8 +71,11 @@ type Peer struct {
 	// WireGuard interface and a DNAT rule alongside. Tearing that namespace
 	// down because a later step failed would destroy the live service's
 	// networking — a far worse outcome than the failure being rolled back.
-	ownsNetns bool
-	ownsVeth  bool
+	// Persisted in gmeshd's state file so a restarted daemon still knows
+	// what it may tear down (until 2026-10-15 they lived in memory only and
+	// every Disconnect after a restart was a silent no-op).
+	OwnsNetns bool
+	OwnsVeth  bool
 }
 
 // Manager owns scope lifecycle.
@@ -86,6 +89,11 @@ type Manager interface {
 
 	// List returns currently connected scopes.
 	List() []*Peer
+
+	// Adopt registers scopes restored from the state file (no kernel
+	// changes), so Disconnect and "already connected" work after a
+	// daemon restart.
+	Adopt(peers []*Peer)
 
 	// Name identifies the backend ("linux" | "stub").
 	Name() string
