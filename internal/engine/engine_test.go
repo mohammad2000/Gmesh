@@ -289,3 +289,86 @@ func TestStatePersistsAcrossRestart(t *testing.T) {
 		t.Error("restart: peer 7 missing")
 	}
 }
+
+func racing(eng *Engine, id int64) bool {
+	eng.Racer.mu.Lock()
+	defer eng.Racer.mu.Unlock()
+	_, ok := eng.Racer.active[id]
+	return ok
+}
+
+// The control plane re-sends AddPeer for every sibling on each (re)join.
+// A peer that handshook recently keeps the endpoint WireGuard uses and is
+// not re-raced; a quiet one is raced from its best candidate again.
+func TestReAddKeepsALiveEndpoint(t *testing.T) {
+	eng, fw := setup(t)
+	ctx := context.Background()
+	if _, err := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n"); err != nil {
+		t.Fatalf("Join: %v", err)
+	}
+	if eng.Racer == nil {
+		t.Skip("engine has no racer")
+	}
+	key := "PUBKEY0000000000000000000000000000000000000="
+	mk := func() *peer.Peer {
+		return &peer.Peer{ID: 42, Type: peer.TypeVM, MeshIP: "10.200.0.8", PublicKey: key, AllowedIPs: []string{"10.200.0.8/32"},
+			Endpoints: []peer.Endpoint{
+				{Address: "192.168.1.8:51820", Kind: peer.EndpointKindLAN, Priority: 10},
+				{Address: "1.2.3.4:51820", Kind: peer.EndpointKindWAN, Priority: 50},
+			}}
+	}
+	if err := eng.AddPeer(ctx, mk(), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := fw.peers[key].Endpoint; got != "192.168.1.8:51820" {
+		t.Fatalf("new peer starts on its best candidate, got %q", got)
+	}
+	eng.Racer.Stop(42)
+
+	// WireGuard settled on the WAN address and handshook a minute ago.
+	won := time.Now().Add(-10 * time.Minute)
+	if p, ok := eng.Peers.Get(42); ok {
+		p.Endpoints[1].LastOK = won
+		eng.Peers.Upsert(p)
+	}
+	fw.mu.Lock()
+	fw.dumps[key] = wireguard.PeerDump{PublicKey: key, Endpoint: "1.2.3.4:51820", LastHandshake: time.Now().Add(-time.Minute)}
+	fw.mu.Unlock()
+
+	if err := eng.AddPeer(ctx, mk(), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := fw.peers[key].Endpoint; got != "1.2.3.4:51820" {
+		t.Fatalf("a live peer was moved to %q", got)
+	}
+	if racing(eng, 42) {
+		t.Fatal("a live peer was re-raced")
+	}
+	p, _ := eng.Peers.Get(42)
+	if p.Endpoint != "1.2.3.4:51820" || !p.Endpoints[1].LastOK.Equal(won) {
+		t.Fatalf("registry: endpoint %q, candidates %+v", p.Endpoint, p.Endpoints)
+	}
+
+	// Quiet for 5 minutes: race again from the best candidate.
+	fw.mu.Lock()
+	fw.dumps[key] = wireguard.PeerDump{PublicKey: key, Endpoint: "1.2.3.4:51820", LastHandshake: time.Now().Add(-5 * time.Minute)}
+	fw.mu.Unlock()
+	if err := eng.AddPeer(ctx, mk(), 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := fw.peers[key].Endpoint; got != "192.168.1.8:51820" || !racing(eng, 42) {
+		t.Fatalf("a quiet peer should be re-raced: endpoint %q racing %v", got, racing(eng, 42))
+	}
+	eng.Racer.Stop(42)
+
+	// A new key (remote gmeshd regenerated it) is never sticky.
+	nk := mk()
+	nk.PublicKey = "NEWKEY0000000000000000000000000000000000000="
+	if err := eng.AddPeer(ctx, nk, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := fw.peers[nk.PublicKey].Endpoint; got != "192.168.1.8:51820" {
+		t.Fatalf("new key: %q", got)
+	}
+	eng.Racer.Stop(42)
+}

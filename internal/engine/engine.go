@@ -1535,6 +1535,38 @@ func (e *Engine) Leave(ctx context.Context, reason string) error {
 // handshake appears within raceCandidateTimeout. This is what lets
 // two peers on the same LAN reach each other via 192.168.x instead
 // of burning public-IP packets through a flaky ISP.
+// stickyHandshakeWindow: a handshake this recent means the current
+// endpoint works (WireGuard re-handshakes every 2 min while traffic flows,
+// and keepalive keeps it flowing).
+const stickyHandshakeWindow = 3 * time.Minute
+
+// liveEndpoint returns the endpoint WireGuard is using for publicKey if it
+// handshook within stickyHandshakeWindow, else "".
+func (e *Engine) liveEndpoint(ctx context.Context, publicKey string) string {
+	dumps, err := e.WG.ListPeers(ctx, e.Interface())
+	if err != nil {
+		return ""
+	}
+	for _, d := range dumps {
+		if d.PublicKey == publicKey && d.Endpoint != "" && !d.LastHandshake.IsZero() && time.Since(d.LastHandshake) < stickyHandshakeWindow {
+			return d.Endpoint
+		}
+	}
+	return ""
+}
+
+// carryLastOK keeps what the racer learned about candidates the control
+// plane sends again (its list arrives without LastOK).
+func carryLastOK(next, prev []peer.Endpoint) {
+	for i := range next {
+		for _, o := range prev {
+			if o.Address == next[i].Address && o.LastOK.After(next[i].LastOK) {
+				next[i].LastOK = o.LastOK
+			}
+		}
+	}
+}
+
 func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride time.Duration) error {
 	if !e.IsJoined() {
 		return ErrNotJoined
@@ -1552,6 +1584,21 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 		sorted := sortedCandidates(p.Endpoints)
 		initialEndpoint = sorted[0].Address
 		p.Endpoint = initialEndpoint
+	}
+
+	// Sticky re-add: the control plane re-sends AddPeer for every sibling
+	// whenever any node (re)joins. For a peer that is talking right now
+	// (same key, handshake within stickyHandshakeWindow) keep the endpoint
+	// WireGuard actually uses and do not restart the race; otherwise every
+	// fan-out would move a working peer to its top-priority candidate —
+	// often a LAN address unreachable from here — for up to 15 s per
+	// candidate.
+	sticky := false
+	if existing, ok := e.Peers.Get(p.ID); ok && existing.PublicKey == p.PublicKey {
+		carryLastOK(p.Endpoints, existing.Endpoints)
+		if live := e.liveEndpoint(ctx, p.PublicKey); live != "" {
+			initialEndpoint, p.Endpoint, sticky = live, live, true
+		}
 	}
 
 	// If this peer ID already exists with a DIFFERENT pubkey (because
@@ -1610,7 +1657,7 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	// Start the racer in the background; uses the engine's background
 	// context so it survives across RPC calls but is cancelled on
 	// engine shutdown or RemovePeer.
-	if e.Racer != nil && len(p.Endpoints) > 1 {
+	if e.Racer != nil && len(p.Endpoints) > 1 && !sticky {
 		e.Racer.Start(context.Background(), e, p)
 	}
 	return nil
