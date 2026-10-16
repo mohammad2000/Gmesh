@@ -325,6 +325,9 @@ func (s *Server) AddPeer(ctx context.Context, in *gmeshv1.AddPeerRequest) (*gmes
 		if errors.Is(err, engine.ErrNotJoined) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
+		if errors.Is(err, engine.ErrInvalidPeer) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 		return nil, status.Errorf(codes.Internal, "add_peer: %v", err)
 	}
 	return &gmeshv1.AddPeerResponse{Peer: peerToProto(p)}, nil
@@ -347,6 +350,9 @@ func (s *Server) UpdatePeer(ctx context.Context, in *gmeshv1.UpdatePeerRequest) 
 	if err != nil {
 		if errors.Is(err, engine.ErrPeerNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		if errors.Is(err, engine.ErrInvalidPeer) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 		return nil, status.Errorf(codes.Internal, "update_peer: %v", err)
 	}

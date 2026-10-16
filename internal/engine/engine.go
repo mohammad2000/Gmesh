@@ -1219,6 +1219,9 @@ func (e *Engine) ApplyFirewall(ctx context.Context, rules []firewall.Rule, defau
 	if e.Firewall == nil {
 		return 0, 0, []error{errors.New("engine: firewall backend not configured")}
 	}
+	if !e.scopeFirewall() {
+		return 0, len(rules), []error{errors.New("engine: not joined to a mesh; firewall rules are confined to the mesh interface")}
+	}
 	if forceReset {
 		_ = e.Firewall.Reset(ctx)
 	}
@@ -1245,6 +1248,19 @@ func (e *Engine) ApplyFirewall(ctx context.Context, rules []firewall.Rule, defau
 		"backend": e.Firewall.Name(),
 	})
 	return applied, failed, errs
+}
+
+// scopeFirewall points the backend at the mesh interface. False when there
+// is none yet — rules must never be applied host-wide.
+func (e *Engine) scopeFirewall() bool {
+	iface := e.Interface()
+	if iface == "" {
+		return false
+	}
+	if b, ok := e.Firewall.(firewall.InterfaceScoped); ok {
+		b.SetInterface(iface)
+	}
+	return true
 }
 
 // ResetFirewall flushes the gmesh table.
@@ -1297,6 +1313,9 @@ func (e *Engine) firewallScheduler(ctx context.Context) {
 				cur[r.ID] = true
 			}
 			if sameSet(cur, lastLive) {
+				continue
+			}
+			if !e.scopeFirewall() {
 				continue
 			}
 			if _, _, errs := e.Firewall.Apply(ctx, rules, policy); len(errs) > 0 {
@@ -1589,6 +1608,9 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	if !e.IsJoined() {
 		return ErrNotJoined
 	}
+	if err := e.validatePeerAddrs(p.MeshIP, p.AllowedIPs); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidPeer, err)
+	}
 	ka := e.keepalive
 	if keepaliveOverride > 0 {
 		ka = keepaliveOverride
@@ -1614,6 +1636,10 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 	sticky := false
 	if existing, ok := e.Peers.Get(p.ID); ok && existing.PublicKey == p.PublicKey {
 		carryLastOK(p.Endpoints, existing.Endpoints)
+		// Same key re-sent by a fan-out: the tunnel didn't change, so
+		// neither does its state. Resetting to Connecting on every
+		// re-add left working peers reported as "connecting" for good.
+		p.Status = existing.Status
 		if live := e.liveEndpoint(ctx, p.PublicKey); live != "" {
 			initialEndpoint, p.Endpoint, sticky = live, live, true
 		}
@@ -1710,6 +1736,11 @@ func (e *Engine) UpdatePeer(ctx context.Context, peerID int64, endpoint string, 
 	if !ok {
 		return ErrPeerNotFound
 	}
+	if len(allowedIPs) > 0 {
+		if err := e.validatePeerAddrs("", allowedIPs); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidPeer, err)
+		}
+	}
 	if endpoint != "" {
 		p.Endpoint = endpoint
 	}
@@ -1765,8 +1796,13 @@ func (e *Engine) RefreshPeerStats(ctx context.Context) ([]*peer.Peer, error) {
 		p.LastHandshake = d.LastHandshake
 		p.RxBytes = d.RxBytes
 		p.TxBytes = d.TxBytes
-		if !d.LastHandshake.IsZero() && time.Since(d.LastHandshake) < 3*time.Minute {
+		switch {
+		case !d.LastHandshake.IsZero() && time.Since(d.LastHandshake) < 3*time.Minute:
 			p.Status = peer.StatusConnected
+		case p.Status == peer.StatusConnected:
+			// Status used to only ever go up: a peer that stopped
+			// handshaking stayed "connected" forever.
+			p.Status = peer.StatusDisconnected
 		}
 	}
 	return e.Peers.Snapshot(), nil
@@ -1845,6 +1881,7 @@ var (
 	ErrAlreadyJoined = errors.New("engine: already joined")
 	ErrNotJoined     = errors.New("engine: not joined")
 	ErrPeerNotFound  = errors.New("engine: peer not found")
+	ErrInvalidPeer   = errors.New("engine: invalid peer address")
 )
 
 // policyActor adapts the engine to policy.Actor. Kept thin — each

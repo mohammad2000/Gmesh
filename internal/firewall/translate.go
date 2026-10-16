@@ -2,6 +2,8 @@ package firewall
 
 import (
 	"fmt"
+	"net/netip"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -20,20 +22,22 @@ type NftScript struct {
 func (s *NftScript) String() string { return strings.Join(s.Lines, "\n") + "\n" }
 
 // BuildNftScript renders a full atomic-replace script for the given live
-// ruleset plus the default policy.
+// ruleset plus the default policy, confined to the mesh interface `iface`.
 //
-// Layout:
+// The chains used to hook input/output/forward with the default policy as
+// the CHAIN policy, so a "deny" default or a broad rule hit every packet on
+// the host — SSH, the API, the LAN — not just mesh traffic (that is why the
+// agent refused to forward rules at all, BUG-1). Now:
 //
-//	flush ruleset                   # no — dangerous, affects non-gmesh
-//	# Instead: drop and recreate gmesh table only
-//	table inet gmesh { ... }        # if exists
-//	delete table inet gmesh
-//	table inet gmesh {
-//	    chain mesh_input { type filter hook input priority filter; policy <p>; ... }
-//	    chain mesh_output { type filter hook output priority filter; policy <p>; ... }
-//	    chain mesh_forward { type filter hook forward priority filter; policy <p>; ... }
-//	}
-func BuildNftScript(table, family string, rules []Rule, defaultPolicy string) *NftScript {
+//	chain mesh_input   { hook input;   policy accept;  iifname != iface accept; ct established,related accept; <rules>; [drop] }
+//	chain mesh_output  { hook output;  policy accept;  oifname != iface accept; ct established,related accept; <rules>; [drop] }
+//	chain mesh_forward { hook forward; policy accept;  iifname != iface oifname != iface accept; ct …; <rules scoped by iif/oif>; [drop] }
+//
+// so only packets entering/leaving through the mesh interface are ever
+// filtered, and the default policy applies to them alone. Rules that fail
+// validation are skipped (see RuleProblem) — their fields are interpolated
+// into an nft script, so nothing unchecked may reach it.
+func BuildNftScript(table, family, iface string, rules []Rule, defaultPolicy string) *NftScript {
 	if table == "" {
 		table = "gmesh"
 	}
@@ -41,8 +45,8 @@ func BuildNftScript(table, family string, rules []Rule, defaultPolicy string) *N
 		family = "inet"
 	}
 	s := &NftScript{Family: family, Table: table}
-
-	policy := nftPolicy(defaultPolicy)
+	deny := nftPolicy(defaultPolicy) == "drop"
+	ifq := fmt.Sprintf("%q", iface)
 
 	// Idempotent teardown: `delete table` errors if missing, so prefix with
 	// `add table` + `delete table` — nft treats the pair as a no-op when
@@ -50,19 +54,69 @@ func BuildNftScript(table, family string, rules []Rule, defaultPolicy string) *N
 	s.push(fmt.Sprintf("add table %s %s", family, table))
 	s.push(fmt.Sprintf("delete table %s %s", family, table))
 
-	// Recreate.
 	s.push(fmt.Sprintf("add table %s %s", family, table))
-	s.push(fmt.Sprintf("add chain %s %s mesh_input  { type filter hook input  priority filter; policy %s; }", family, table, policy))
-	s.push(fmt.Sprintf("add chain %s %s mesh_output { type filter hook output priority filter; policy %s; }", family, table, policy))
-	s.push(fmt.Sprintf("add chain %s %s mesh_forward { type filter hook forward priority filter; policy %s; }", family, table, policy))
+	s.push(fmt.Sprintf("add chain %s %s mesh_input  { type filter hook input  priority filter; policy accept; }", family, table))
+	s.push(fmt.Sprintf("add chain %s %s mesh_output { type filter hook output priority filter; policy accept; }", family, table))
+	s.push(fmt.Sprintf("add chain %s %s mesh_forward { type filter hook forward priority filter; policy accept; }", family, table))
+	s.push(fmt.Sprintf("add rule %s %s mesh_input iifname != %s accept", family, table, ifq))
+	s.push(fmt.Sprintf("add rule %s %s mesh_output oifname != %s accept", family, table, ifq))
+	s.push(fmt.Sprintf("add rule %s %s mesh_forward iifname != %s oifname != %s accept", family, table, ifq, ifq))
+	for _, c := range []string{"mesh_input", "mesh_output", "mesh_forward"} {
+		s.push(fmt.Sprintf("add rule %s %s %s ct state established,related accept", family, table, c))
+	}
 
 	// Rules (priority-sorted by caller; we emit in given order).
 	for _, r := range rules {
-		for _, line := range ruleToNftLines(family, table, r) {
+		if RuleProblem(r) != "" {
+			continue
+		}
+		for _, line := range ruleToNftLines(family, table, iface, r) {
 			s.push(line)
 		}
 	}
+	if deny {
+		for _, c := range []string{"mesh_input", "mesh_output", "mesh_forward"} {
+			s.push(fmt.Sprintf("add rule %s %s %s counter drop comment \"gmesh default deny\"", family, table, c))
+		}
+	}
 	return s
+}
+
+var (
+	rePorts = regexp.MustCompile(`^[0-9]{1,5}(-[0-9]{1,5})?(,[0-9]{1,5}(-[0-9]{1,5})?)*$`)
+	reFlags = regexp.MustCompile(`^[a-zA-Z|,]{1,40}$`)
+	reState = regexp.MustCompile(`^(?i)(new|established|related|invalid|untracked)(,(new|established|related|invalid|untracked))*$`)
+	reRate  = regexp.MustCompile(`^[0-9]{1,9}/[a-zA-Z]{1,6}$`)
+)
+
+// RuleProblem returns why a rule can't be rendered safely, or "".
+func RuleProblem(r Rule) string {
+	for _, a := range []string{r.Source, r.Destination} {
+		a = strings.TrimSpace(a)
+		if a == "" || a == "any" {
+			continue
+		}
+		if strings.Contains(a, "/") {
+			if _, err := netip.ParsePrefix(a); err != nil {
+				return fmt.Sprintf("address %q is not a CIDR", a)
+			}
+		} else if _, err := netip.ParseAddr(a); err != nil {
+			return fmt.Sprintf("address %q is not an IP", a)
+		}
+	}
+	if r.PortRange != "" && !rePorts.MatchString(strings.ReplaceAll(r.PortRange, " ", "")) {
+		return fmt.Sprintf("port range %q", r.PortRange)
+	}
+	if r.TCPFlags != "" && !reFlags.MatchString(r.TCPFlags) {
+		return fmt.Sprintf("tcp flags %q", r.TCPFlags)
+	}
+	if r.ConnState != "" && !reState.MatchString(strings.ReplaceAll(r.ConnState, " ", "")) {
+		return fmt.Sprintf("conn state %q", r.ConnState)
+	}
+	if r.RateLimit != "" && !reRate.MatchString(strings.TrimSpace(r.RateLimit)) {
+		return fmt.Sprintf("rate limit %q", r.RateLimit)
+	}
+	return ""
 }
 
 func (s *NftScript) push(l string) { s.Lines = append(s.Lines, l) }
@@ -79,19 +133,27 @@ func nftPolicy(p string) string {
 	}
 }
 
-// ruleToNftLines renders one Rule to one or more `add rule` statements,
-// possibly across multiple chains (for Direction=Both).
-func ruleToNftLines(family, table string, r Rule) []string {
-	chains := chainsForDirection(r.Direction)
-	out := make([]string, 0, len(chains))
-
+// ruleToNftLines renders one Rule to one or more `add rule` statements.
+// Inbound rules filter what arrives over the mesh (to this host, or routed
+// on to a scope/VNet: forward with iifname); outbound rules what leaves
+// into it.
+func ruleToNftLines(family, table, iface string, r Rule) []string {
 	body := ruleBody(r)
 	if body == "" {
-		return out
+		return nil
 	}
-
-	for _, chain := range chains {
-		out = append(out, fmt.Sprintf("add rule %s %s %s %s", family, table, chain, body))
+	ifq := fmt.Sprintf("%q", iface)
+	var out []string
+	add := func(chain, prefix string) {
+		out = append(out, fmt.Sprintf("add rule %s %s %s %s%s", family, table, chain, prefix, body))
+	}
+	if r.Direction != DirectionOutbound {
+		add("mesh_input", "")
+		add("mesh_forward", "iifname "+ifq+" ")
+	}
+	if r.Direction != DirectionInbound {
+		add("mesh_output", "")
+		add("mesh_forward", "oifname "+ifq+" ")
 	}
 	return out
 }

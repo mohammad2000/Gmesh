@@ -159,6 +159,12 @@ func FilterLive(rules []Rule, now time.Time) []Rule {
 }
 
 // Backend is an abstraction over the kernel firewall engine.
+// InterfaceScoped backends confine their rules to one interface (the mesh).
+// The engine sets it before every Apply.
+type InterfaceScoped interface {
+	SetInterface(name string)
+}
+
 type Backend interface {
 	// Ensure creates the gmesh table/chain if missing. Idempotent.
 	Ensure(ctx context.Context) error

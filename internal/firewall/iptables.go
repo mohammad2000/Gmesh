@@ -24,6 +24,7 @@ import (
 type IptablesBackend struct {
 	Chain string // base name ("GMESH") — suffixed with _INPUT etc.
 	Log   *slog.Logger
+	Iface string // mesh interface; jumps and rules only match traffic on it
 
 	mu          sync.Mutex
 	lastApplied []Rule
@@ -93,21 +94,45 @@ func iptablesRetryRunWithLock(ctx context.Context, args ...string) (string, erro
 // Name returns "iptables".
 func (b *IptablesBackend) Name() string { return "iptables" }
 
-// Ensure creates the GMESH_* chains if missing.
+// SetInterface confines the chains to the mesh interface.
+func (b *IptablesBackend) SetInterface(name string) { b.Iface = name }
+
+// meshJumps are the built-in → GMESH_* jumps, matched on the mesh
+// interface only. The old unconditional `-I INPUT -j GMESH_INPUT` sent
+// every packet on the host through mesh rules.
+func (b *IptablesBackend) meshJumps() [][]string {
+	return [][]string{
+		{"INPUT", "-i", b.Iface, "-j", b.Chain + "_INPUT"},
+		{"OUTPUT", "-o", b.Iface, "-j", b.Chain + "_OUTPUT"},
+		{"FORWARD", "-i", b.Iface, "-j", b.Chain + "_FORWARD"},
+		{"FORWARD", "-o", b.Iface, "-j", b.Chain + "_FORWARD"},
+	}
+}
+
+// Ensure creates the GMESH_* chains if missing and installs the jumps.
 func (b *IptablesBackend) Ensure(ctx context.Context) error {
+	if b.Iface == "" {
+		return fmt.Errorf("iptables: mesh interface unknown; refusing to hook the whole host")
+	}
 	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
 		chain := b.Chain + "_" + direction
 		// -N creates only if absent; the "Chain already exists" error we ignore.
 		if _, err := iptablesRetryRunWithLock(ctx, "-N", chain); err != nil && !strings.Contains(err.Error(), "exists") {
 			return fmt.Errorf("iptables -N %s: %w", chain, err)
 		}
-		// Install the jump from the built-in chain.
-		jumpArgs := []string{"-C", direction, "-j", chain}
-		if _, err := iptablesRunWithLock(ctx, jumpArgs...); err != nil {
-			// Not there — install.
-			addArgs := []string{"-I", direction, "-j", chain}
-			if _, err := iptablesRetryRunWithLock(ctx, addArgs...); err != nil {
-				return fmt.Errorf("iptables -I %s -j %s: %w", direction, chain, err)
+		// Drop a legacy host-wide jump left by older versions.
+		for {
+			if _, err := iptablesRunWithLock(ctx, "-D", direction, "-j", chain); err != nil {
+				break
+			}
+		}
+	}
+	for _, j := range b.meshJumps() {
+		check := append([]string{"-C"}, j...)
+		if _, err := iptablesRunWithLock(ctx, check...); err != nil {
+			add := append([]string{"-I"}, j...)
+			if _, err := iptablesRetryRunWithLock(ctx, add...); err != nil {
+				return fmt.Errorf("iptables -I %v: %w", j, err)
 			}
 		}
 	}
@@ -115,8 +140,11 @@ func (b *IptablesBackend) Ensure(ctx context.Context) error {
 }
 
 // Apply flushes our chains and reinstalls every live rule.
-func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (int, int, []error) {
+func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, defaultPolicy string) (int, int, []error) {
 	live := FilterLive(rules, time.Now())
+	if b.Iface == "" {
+		return 0, len(live), []error{fmt.Errorf("iptables: mesh interface unknown; nothing applied")}
+	}
 
 	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
 		if _, err := iptablesRetryRunWithLock(ctx, "-F", b.Chain+"_"+direction); err != nil {
@@ -126,12 +154,22 @@ func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (in
 
 	applied, failed := 0, 0
 	var errs []error
+	for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
+		_, _ = iptablesRetryRunWithLock(ctx, "-A", b.Chain+"_"+direction,
+			"-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT")
+	}
 	for _, r := range live {
-		for _, chain := range iptablesChainsForDirection(b.Chain, r.Direction) {
-			args := ruleToIptablesArgs(chain, r)
+		if p := RuleProblem(r); p != "" {
+			failed++
+			errs = append(errs, fmt.Errorf("rule %d skipped: invalid %s", r.ID, p))
+			continue
+		}
+		for _, target := range iptablesTargets(b.Chain, b.Iface, r.Direction) {
+			args := ruleToIptablesArgs(target.chain, r)
 			if len(args) == 0 {
 				continue
 			}
+			args = append(args[:2:2], append(target.match, args[2:]...)...)
 			if _, err := iptablesRetryRunWithLock(ctx, args...); err != nil {
 				failed++
 				errs = append(errs, fmt.Errorf("rule %d: %w", r.ID, err))
@@ -141,10 +179,35 @@ func (b *IptablesBackend) Apply(ctx context.Context, rules []Rule, _ string) (in
 		}
 	}
 
+	if nftPolicy(defaultPolicy) == "drop" {
+		// Only mesh traffic ever reaches these chains (see meshJumps).
+		for _, direction := range []string{"INPUT", "OUTPUT", "FORWARD"} {
+			_, _ = iptablesRetryRunWithLock(ctx, "-A", b.Chain+"_"+direction, "-j", "DROP")
+		}
+	}
+
 	b.mu.Lock()
 	b.lastApplied = append(b.lastApplied[:0], live...)
 	b.mu.Unlock()
 	return applied, failed, errs
+}
+
+type iptTarget struct {
+	chain string
+	match []string // extra interface match (FORWARD carries both directions)
+}
+
+// iptablesTargets: inbound rules filter INPUT and traffic routed in from
+// the mesh; outbound rules OUTPUT and traffic routed out to it.
+func iptablesTargets(base, iface string, d Direction) []iptTarget {
+	var out []iptTarget
+	if d != DirectionOutbound {
+		out = append(out, iptTarget{base + "_INPUT", nil}, iptTarget{base + "_FORWARD", []string{"-i", iface}})
+	}
+	if d != DirectionInbound {
+		out = append(out, iptTarget{base + "_OUTPUT", nil}, iptTarget{base + "_FORWARD", []string{"-o", iface}})
+	}
+	return out
 }
 
 // Reset flushes the GMESH_* chains.

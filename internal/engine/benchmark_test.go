@@ -53,6 +53,7 @@ func BenchmarkApplyFirewall1000(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		eng, _ := benchSetup(b)
+		_, _ = eng.Join(context.Background(), "10.200.200.1", "wg-bench", 51820, "10.200.0.0/16", "n")
 		if _, _, errs := eng.ApplyFirewall(context.Background(), rules, "accept", false); len(errs) > 0 {
 			b.Fatalf("apply errors: %v", errs)
 		}
@@ -92,6 +93,10 @@ func TestApplyFirewall1000Latency(t *testing.T) {
 		}
 	}
 	eng, _ := benchSetup(t)
+	// Rules are confined to the mesh interface, so a node must have joined.
+	if _, err := eng.Join(context.Background(), "10.200.200.1", "wg-bench", 51820, "10.200.0.0/16", "n"); err != nil {
+		t.Fatal(err)
+	}
 	start := time.Now()
 	applied, failed, errs := eng.ApplyFirewall(context.Background(), rules, "accept", false)
 	dt := time.Since(start)
@@ -110,7 +115,9 @@ func TestApplyFirewall1000Latency(t *testing.T) {
 func TestAddPeer1000Latency(t *testing.T) {
 	eng, _ := benchSetup(t)
 	ctx := context.Background()
-	if _, err := eng.Join(ctx, "10.200.0.1", "wg-bench", 51820, "10.200.0.0/16", "n"); err != nil {
+	// Node address outside 10.200.0.1–10.200.3.232, which the loop hands
+	// to peers (a peer may not take the node's own address).
+	if _, err := eng.Join(ctx, "10.200.200.1", "wg-bench", 51820, "10.200.0.0/16", "n"); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now()

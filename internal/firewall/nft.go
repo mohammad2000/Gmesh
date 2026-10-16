@@ -22,6 +22,7 @@ type NftBackend struct {
 	Table  string
 	Family string
 	Log    *slog.Logger
+	Iface  string // mesh interface; rules only ever see traffic on it
 
 	mu          sync.Mutex
 	lastApplied []Rule // snapshot returned by List as a fallback
@@ -42,6 +43,9 @@ func NewNft(table, family string, log *slog.Logger) *NftBackend {
 	return &NftBackend{Table: table, Family: family, Log: log}
 }
 
+// SetInterface confines the gmesh chains to the mesh interface.
+func (b *NftBackend) SetInterface(name string) { b.Iface = name }
+
 // Name returns "nftables".
 func (b *NftBackend) Name() string { return "nftables" }
 
@@ -56,7 +60,16 @@ func (b *NftBackend) Ensure(ctx context.Context) error {
 func (b *NftBackend) Apply(ctx context.Context, rules []Rule, defaultPolicy string) (int, int, []error) {
 	// Defensive copy + live filter.
 	live := FilterLive(rules, time.Now())
-	script := BuildNftScript(b.Table, b.Family, live, defaultPolicy)
+	if b.Iface == "" {
+		return 0, len(live), []error{fmt.Errorf("nft: mesh interface unknown; refusing to filter the whole host")}
+	}
+	script := BuildNftScript(b.Table, b.Family, b.Iface, live, defaultPolicy)
+	var skipped []error
+	for _, r := range live {
+		if p := RuleProblem(r); p != "" {
+			skipped = append(skipped, fmt.Errorf("rule %d skipped: invalid %s", r.ID, p))
+		}
+	}
 
 	if _, err := b.runNft(ctx, script.String()); err != nil {
 		return 0, len(live), []error{fmt.Errorf("nft apply: %w", err)}
@@ -64,7 +77,7 @@ func (b *NftBackend) Apply(ctx context.Context, rules []Rule, defaultPolicy stri
 	b.mu.Lock()
 	b.lastApplied = append(b.lastApplied[:0], live...)
 	b.mu.Unlock()
-	return len(live), 0, nil
+	return len(live) - len(skipped), len(skipped), skipped
 }
 
 // Reset deletes the gmesh table.
