@@ -272,6 +272,16 @@ func (s *Server) Join(ctx context.Context, in *gmeshv1.JoinRequest) (*gmeshv1.Jo
 		})
 	}
 
+	// Global IPv6: no NAT, so a WAN candidate — ranked after public IPv4
+	// (50) so peers without IPv6 trouble aren't slowed down, before STUN.
+	for _, addr := range nat.GlobalIPv6Endpoints(in.ListenPort) {
+		candidates = append(candidates, &gmeshv1.PeerEndpoint{
+			Address:  addr,
+			Type:     gmeshv1.EndpointType_ENDPOINT_WAN,
+			Priority: 55,
+		})
+	}
+
 	return &gmeshv1.JoinResponse{
 		PublicKey: res.PublicKey,
 		Endpoints: candidates,

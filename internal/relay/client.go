@@ -6,35 +6,40 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Session is one relay connection for one peer. It owns
-//   - the upstream UDP socket to gmesh-relay, and
-//   - a loopback UDP socket (127.0.0.1:port) WireGuard uses as the peer's
-//     endpoint when traffic goes through the relay.
+// Session is the relay side of one peer. It owns a loopback UDP socket
+// (127.0.0.1:port) that WireGuard uses as the peer's endpoint when traffic
+// goes through a relay, and one link per relay server.
 //
-// WG → forwarder → DATA frame → relay → the peer's session → the peer's WG.
-// A session can stand by unused: WireGuard roams to whichever endpoint the
-// peer's packets last came from, so the moment the other side sends through
-// the relay, our WG answers through it too.
+// WG → forwarder → DATA frame → a relay → the peer's session → the peer's WG.
+//
+// Two sides only meet on a relay both of them reach, so a session keeps a
+// link to every relay it can: it receives from all of them and sends on the
+// one the peer last sent through (else the first healthy one). A session
+// can stand by unused: WireGuard roams to wherever the peer's packets last
+// came from, so the moment the other side sends through a relay, our WG
+// answers through it too.
 type Session struct {
-	Peer  Key
-	Relay net.Addr // a *net.UDPAddr, or the wss:// URL
-	Log   *slog.Logger
+	Peer Key
+	Log  *slog.Logger
 
 	auth         atomic.Pointer[[]byte]
-	upstream     upstream
 	localForward *net.UDPConn
 	wgEndpoint   atomic.Pointer[net.UDPAddr]
 
+	mu    sync.Mutex
+	links map[int]*link // by relay index (group) in the node's relay list
+
 	startedAt time.Time
-	lastHeard atomic.Int64 // unix nano of the last frame from the relay
-	authFail  atomic.Pointer[string]
 	closed    atomic.Bool
+	ctx       context.Context
 	cancel    context.CancelFunc
+	refresh   time.Duration
 	muteUntil atomic.Int64 // unix nano; relayed DATA is dropped until then
 	onInfo    atomic.Pointer[func([]byte)]
 
@@ -45,7 +50,30 @@ type Session struct {
 	}
 }
 
-// Config bundles the knobs for DialSession.
+// link is one upstream to one relay server (UDP or WebSocket).
+type link struct {
+	group     int
+	addr      string
+	up        upstream
+	cancel    context.CancelFunc
+	lastHeard atomic.Int64 // unix nano of the last frame from the relay
+	lastData  atomic.Int64 // unix nano of the last DATA from the peer
+	authFail  atomic.Pointer[string]
+	closed    atomic.Bool
+}
+
+func (l *link) healthy() bool {
+	return !l.closed.Load() && time.Since(time.Unix(0, l.lastHeard.Load())) < time.Minute && l.authFail.Load() == nil
+}
+
+func (l *link) close() {
+	if l.closed.CompareAndSwap(false, true) {
+		l.cancel()
+		_ = l.up.Close()
+	}
+}
+
+// Config bundles the knobs for DialSession / AddLink.
 type Config struct {
 	Auth        Auth
 	RelayAddr   string       // host:port ("udp://" optional), or a wss:// URL
@@ -55,47 +83,146 @@ type Config struct {
 	Log         *slog.Logger
 }
 
-// DialSession connects to gmesh-relay, authenticates, opens the loopback
-// forwarder, and keeps the registration fresh until Close.
-func DialSession(ctx context.Context, cfg Config) (*Session, error) {
-	if cfg.Log == nil {
-		cfg.Log = slog.Default()
+// NewSession opens the loopback forwarder for one peer; links are added
+// with AddLink.
+func NewSession(a Auth, wg *net.UDPAddr, refresh time.Duration, log *slog.Logger) (*Session, error) {
+	if log == nil {
+		log = slog.Default()
 	}
-	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = 3 * time.Second
+	if refresh == 0 {
+		refresh = 20 * time.Second
 	}
-	if cfg.Refresh == 0 {
-		cfg.Refresh = 20 * time.Second
-	}
-	if cfg.WGEndpoint == nil {
+	if wg == nil {
 		return nil, errors.New("relay: WGEndpoint is required")
-	}
-	upstream, relayAddr, err := dialUpstream(ctx, cfg.RelayAddr, cfg.DialTimeout)
-	if err != nil {
-		return nil, err
-	}
-	auth := EncodeFrame(FrameAUTH, cfg.Auth.Encode())
-	if err := handshake(upstream, auth, cfg.DialTimeout); err != nil {
-		_ = upstream.Close()
-		return nil, err
 	}
 	local, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
-		_ = upstream.Close()
 		return nil, fmt.Errorf("listen local: %w", err)
 	}
-	ctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	s := &Session{
-		Peer: cfg.Auth.Peer, Relay: relayAddr, Log: cfg.Log,
-		upstream: upstream, localForward: local, startedAt: time.Now(), cancel: cancel,
-	}
-	s.auth.Store(&auth)
-	s.wgEndpoint.Store(cfg.WGEndpoint)
-	s.lastHeard.Store(time.Now().UnixNano())
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &Session{Peer: a.Peer, Log: log, localForward: local, links: map[int]*link{},
+		startedAt: time.Now(), ctx: ctx, cancel: cancel, refresh: refresh}
+	f := EncodeFrame(FrameAUTH, a.Encode())
+	s.auth.Store(&f)
+	s.wgEndpoint.Store(wg)
 	go s.wgToRelayLoop()
-	go s.relayToWGLoop()
-	go s.refreshLoop(ctx, cfg.Refresh)
 	return s, nil
+}
+
+// DialSession is NewSession plus one link (group 0).
+func DialSession(ctx context.Context, cfg Config) (*Session, error) {
+	s, err := NewSession(cfg.Auth, cfg.WGEndpoint, cfg.Refresh, cfg.Log)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.AddLink(ctx, 0, cfg.RelayAddr, cfg.DialTimeout); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// AddLink connects to one relay (replacing the link of that group).
+func (s *Session) AddLink(ctx context.Context, group int, addr string, timeout time.Duration) error {
+	if timeout == 0 {
+		timeout = 3 * time.Second
+	}
+	up, _, err := dialUpstream(ctx, addr, timeout)
+	if err != nil {
+		return err
+	}
+	auth := *s.auth.Load()
+	if err := handshake(up, auth, timeout); err != nil {
+		_ = up.Close()
+		return err
+	}
+	lctx, cancel := context.WithCancel(s.ctx)
+	l := &link{group: group, addr: addr, up: up, cancel: cancel}
+	l.lastHeard.Store(time.Now().UnixNano())
+	s.mu.Lock()
+	if s.closed.Load() {
+		s.mu.Unlock()
+		l.close()
+		return net.ErrClosed
+	}
+	old := s.links[group]
+	s.links[group] = l
+	s.mu.Unlock()
+	if old != nil {
+		old.close()
+	}
+	go s.relayToWGLoop(l)
+	go s.refreshLoop(lctx, l)
+	return nil
+}
+
+// DropLink closes the link of a group (to redial it).
+func (s *Session) DropLink(group int) {
+	s.mu.Lock()
+	l := s.links[group]
+	delete(s.links, group)
+	s.mu.Unlock()
+	if l != nil {
+		l.close()
+	}
+}
+
+// LinkInfo describes one link.
+type LinkInfo struct {
+	Group     int
+	Addr      string
+	Healthy   bool
+	LastData  time.Time
+	AuthError string
+}
+
+// Links lists the links, by group.
+func (s *Session) Links() []LinkInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]LinkInfo, 0, len(s.links))
+	for g, l := range s.links {
+		li := LinkInfo{Group: g, Addr: l.addr, Healthy: l.healthy()}
+		if t := l.lastData.Load(); t > 0 {
+			li.LastData = time.Unix(0, t)
+		}
+		if p := l.authFail.Load(); p != nil {
+			li.AuthError = *p
+		}
+		out = append(out, li)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Group < out[j].Group })
+	return out
+}
+
+// pick is where to send: the link the peer's data last came through
+// (within 30 s); before that is known, every healthy link — the peer may
+// reach only one of the relays, and WireGuard drops the duplicates.
+func (s *Session) pick() []*link {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var best *link
+	var healthy, open []*link
+	cutoff := time.Now().Add(-30 * time.Second).UnixNano()
+	for _, l := range s.links {
+		if l.closed.Load() {
+			continue
+		}
+		open = append(open, l)
+		if l.healthy() {
+			healthy = append(healthy, l)
+		}
+		if d := l.lastData.Load(); d > cutoff && (best == nil || d > best.lastData.Load()) {
+			best = l
+		}
+	}
+	switch {
+	case best != nil:
+		return []*link{best}
+	case len(healthy) > 0:
+		return healthy
+	}
+	return open
 }
 
 // handshake sends AUTH (three tries) and waits for the answer.
@@ -132,15 +259,27 @@ func (s *Session) LocalEndpoint() *net.UDPAddr {
 	return s.localForward.LocalAddr().(*net.UDPAddr)
 }
 
-// Healthy reports whether the relay answered within the last minute.
+// Healthy reports whether any relay answered within the last minute.
 func (s *Session) Healthy() bool {
-	return !s.closed.Load() && time.Since(time.Unix(0, s.lastHeard.Load())) < time.Minute && s.authFail.Load() == nil
+	if s.closed.Load() {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, l := range s.links {
+		if l.healthy() {
+			return true
+		}
+	}
+	return false
 }
 
-// AuthError is the relay's last refusal, if any.
+// AuthError is the last refusal of any relay, if any.
 func (s *Session) AuthError() string {
-	if p := s.authFail.Load(); p != nil {
-		return *p
+	for _, l := range s.Links() {
+		if l.AuthError != "" {
+			return l.AuthError
+		}
 	}
 	return ""
 }
@@ -162,12 +301,18 @@ func (s *Session) Close() error {
 		return nil
 	}
 	s.cancel()
-	_ = s.upstream.Close()
+	s.mu.Lock()
+	links := s.links
+	s.links = map[int]*link{}
+	s.mu.Unlock()
+	for _, l := range links {
+		l.close()
+	}
 	_ = s.localForward.Close()
 	return nil
 }
 
-// wgToRelayLoop ships what WireGuard sends to the forwarder up to the relay.
+// wgToRelayLoop ships what WireGuard sends to the forwarder up to a relay.
 func (s *Session) wgToRelayLoop() {
 	buf := make([]byte, MaxFrameSize)
 	for !s.closed.Load() {
@@ -182,8 +327,15 @@ func (s *Session) wgToRelayLoop() {
 			continue
 		}
 		s.wgEndpoint.Store(src) // WG's own port — where answers go
-		if _, err := s.upstream.Write(EncodeFrame(FrameDATA, buf[:n])); err != nil {
-			continue // relay unreachable for now; refreshLoop keeps trying
+		f := EncodeFrame(FrameDATA, buf[:n])
+		sent := false
+		for _, l := range s.pick() {
+			if _, err := l.up.Write(f); err == nil {
+				sent = true
+			}
+		}
+		if !sent {
+			continue // no relay reachable for now; the owner redials
 		}
 		s.stats.Lock()
 		s.stats.txFrames++
@@ -192,19 +344,19 @@ func (s *Session) wgToRelayLoop() {
 	}
 }
 
-// relayToWGLoop hands DATA from the relay to WireGuard.
-func (s *Session) relayToWGLoop() {
+// relayToWGLoop hands what one relay delivers to WireGuard.
+func (s *Session) relayToWGLoop(l *link) {
 	buf := make([]byte, MaxFrameSize)
-	for !s.closed.Load() {
-		n, err := s.upstream.Read(buf)
+	for !l.closed.Load() {
+		n, err := l.up.Read(buf)
 		if err != nil {
-			if s.closed.Load() || errors.Is(err, errWSClosed) {
+			if l.closed.Load() || errors.Is(err, errWSClosed) {
 				return
 			}
-			if IsWS(s.Relay.String()) {
-				// A WebSocket that failed stays failed: let the session go
+			if IsWS(l.addr) {
+				// A WebSocket that failed stays failed: let the link go
 				// unhealthy so the owner redials.
-				s.lastHeard.Store(0)
+				l.lastHeard.Store(0)
 				return
 			}
 			// ICMP unreachable surfaces here as ECONNREFUSED on a connected
@@ -216,10 +368,12 @@ func (s *Session) relayToWGLoop() {
 		if err != nil {
 			continue
 		}
-		s.lastHeard.Store(time.Now().UnixNano())
+		now := time.Now().UnixNano()
+		l.lastHeard.Store(now)
 		switch typ {
 		case FrameDATA:
-			if time.Now().UnixNano() < s.muteUntil.Load() {
+			l.lastData.Store(now)
+			if now < s.muteUntil.Load() {
 				continue
 			}
 			if _, err := s.localForward.WriteToUDP(payload, s.wgEndpoint.Load()); err != nil {
@@ -234,26 +388,27 @@ func (s *Session) relayToWGLoop() {
 				(*h)(append([]byte(nil), payload...))
 			}
 		case FrameAUTHOK:
-			s.authFail.Store(nil)
+			l.authFail.Store(nil)
 		case FrameAUTHFail:
 			r := string(payload)
-			s.authFail.Store(&r)
-			s.Log.Warn("relay refused us", "peer", s.Peer.String(), "reason", r)
+			l.authFail.Store(&r)
+			s.Log.Warn("relay refused us", "peer", s.Peer.String(), "relay", l.addr, "reason", r)
 		}
 	}
 }
 
-// refreshLoop re-sends AUTH: keeps the NAT mapping and the relay's slot
-// alive, and re-registers after a relay restart or our address changing.
-func (s *Session) refreshLoop(ctx context.Context, every time.Duration) {
-	t := time.NewTicker(every)
+// refreshLoop re-sends AUTH on one link: keeps the NAT mapping and the
+// relay's slot alive, and re-registers after a relay restart or our address
+// changing.
+func (s *Session) refreshLoop(ctx context.Context, l *link) {
+	t := time.NewTicker(s.refresh)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_, _ = s.upstream.Write(*s.auth.Load())
+			_, _ = l.up.Write(*s.auth.Load())
 		}
 	}
 }
@@ -261,22 +416,43 @@ func (s *Session) refreshLoop(ctx context.Context, every time.Duration) {
 // OnPeerInfo sets what handles PEERINFO frames from the peer.
 func (s *Session) OnPeerInfo(h func([]byte)) { s.onInfo.Store(&h) }
 
-// SendPeerInfo sends a PEERINFO frame to the peer through the relay.
+// SendPeerInfo sends a PEERINFO frame to the peer through every healthy
+// relay (it can't know which ones the peer reaches).
 func (s *Session) SendPeerInfo(b []byte) error {
-	_, err := s.upstream.Write(EncodeFrame(FramePeerInfo, b))
+	f := EncodeFrame(FramePeerInfo, b)
+	s.mu.Lock()
+	links := make([]*link, 0, len(s.links))
+	for _, l := range s.links {
+		links = append(links, l)
+	}
+	s.mu.Unlock()
+	var err error = errors.New("relay: no link")
+	for _, l := range links {
+		if !l.healthy() {
+			continue
+		}
+		if _, e := l.up.Write(f); e == nil {
+			err = nil
+		}
+	}
 	return err
 }
 
-// Mute drops what the relay delivers for d. While trying a direct path,
-// packets the peer had already sent through the relay would otherwise make
+// Mute drops what the relays deliver for d. While trying a direct path,
+// packets the peer had already sent through a relay would otherwise make
 // WireGuard roam straight back to the relay.
 func (s *Session) Mute(d time.Duration) {
 	s.muteUntil.Store(time.Now().Add(d).UnixNano())
 }
 
-// SetAuth replaces the AUTH frame (a renewed credential) and sends it.
+// SetAuth replaces the AUTH frame (a renewed credential) and sends it on
+// every link.
 func (s *Session) SetAuth(a Auth) {
 	f := EncodeFrame(FrameAUTH, a.Encode())
 	s.auth.Store(&f)
-	_, _ = s.upstream.Write(f)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, l := range s.links {
+		_, _ = l.up.Write(f)
+	}
 }

@@ -17,10 +17,12 @@ package engine
 
 import (
 	"context"
+	"net"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
 )
@@ -104,7 +106,7 @@ func (r *EndpointRacer) run(ctx context.Context, e *Engine, peerID int64) {
 		return
 	}
 
-	candidates := sortedCandidates(p.Endpoints)
+	candidates := usableCandidates(sortedCandidates(p.Endpoints), nat.HasGlobalIPv6())
 
 	for _, cand := range candidates {
 		if ctx.Err() != nil {
@@ -220,4 +222,22 @@ func updateCandidateLastOK(p *peer.Peer, cand peer.Endpoint) {
 			return
 		}
 	}
+}
+
+// usableCandidates drops IPv6 candidates when this host has no global IPv6
+// (each would cost a full raceCandidateTimeout for nothing).
+func usableCandidates(in []peer.Endpoint, haveV6 bool) []peer.Endpoint {
+	if haveV6 {
+		return in
+	}
+	out := in[:0:0]
+	for _, c := range in {
+		if host, _, err := net.SplitHostPort(c.Address); err == nil {
+			if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+				continue
+			}
+		}
+		out = append(out, c)
+	}
+	return out
 }

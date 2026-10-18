@@ -11,8 +11,8 @@
 //   - Skip utun* and wg* interfaces (those are WireGuard's own tun devices).
 //   - Require an RFC1918 / link-local-ish IPv4 address
 //     (10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10 for CGNAT).
-//   - IPv6 is currently ignored — the WireGuard endpoint format in
-//     our proto treats host as a bare IPv4 for simplicity.
+//   - IPv6: GlobalIPv6Endpoints lists the global unicast addresses
+//     separately (no NAT on them, so they are WAN candidates).
 package nat
 
 import (
@@ -137,4 +137,45 @@ func isPrivateV4(ip net.IP) bool {
 		return true
 	}
 	return false
+}
+
+// GlobalIPv6Endpoints returns "[ip]:port" for every global unicast IPv6
+// address (2000::/3; not link-local, not ULA) on an interface that's up and
+// not a tunnel. Peers that are stuck behind IPv4 NAT/CGNAT on both sides
+// can often still reach each other over these.
+func GlobalIPv6Endpoints(listenPort uint32) []string {
+	var out []string
+	for _, ip := range globalIPv6() {
+		out = append(out, net.JoinHostPort(ip.String(), strconv.FormatUint(uint64(listenPort), 10)))
+	}
+	return out
+}
+
+// HasGlobalIPv6 reports whether this host has a global IPv6 address at all
+// (without one, IPv6 candidates of peers can't be reached from here).
+func HasGlobalIPv6() bool { return len(globalIPv6()) > 0 }
+
+func globalIPv6() []net.IP {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []net.IP
+	for _, ifi := range ifaces {
+		if ifi.Flags&net.FlagUp == 0 || ifi.Flags&net.FlagLoopback != 0 || isTunnelInterface(ifi.Name) {
+			continue
+		}
+		addrs, err := ifi.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ip := ipFromAddr(a)
+			if ip == nil || ip.To4() != nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip[0]&0xe0 != 0x20 {
+				continue
+			}
+			out = append(out, ip)
+		}
+	}
+	return out
 }

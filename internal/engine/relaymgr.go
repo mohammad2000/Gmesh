@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/mohammad2000/Gmesh/internal/events"
+	"github.com/mohammad2000/Gmesh/internal/nat"
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
@@ -86,14 +87,13 @@ func (c RelayConf) credential() (relay.Credential, error) {
 }
 
 type relayPeer struct {
-	id        int64
-	key       relay.Key
-	sess      *relay.Session
-	relayAddr string
-	seen      time.Time // first time the manager saw this peer
-	nextDial  time.Time
-	dialedAt  time.Time
-	lastErr   string
+	id       int64
+	key      relay.Key
+	sess     *relay.Session
+	seen     time.Time         // first time the manager saw this peer
+	nextDial map[int]time.Time // per relay group
+	dialedAt map[int]time.Time
+	lastErr  string
 
 	onRelaySince time.Time
 	lastSwitch   time.Time
@@ -113,10 +113,10 @@ type relayPeer struct {
 
 type relayManager struct {
 	kick chan struct{}
-	// prefer is the index in conf.Relays that worked when the first one
-	// didn't (e.g. the WebSocket on a network that blocks UDP).
-	prefer      int
-	preferUntil time.Time
+	// prefer: per relay group, the alternative that worked when the first
+	// one didn't (e.g. the WebSocket on a network that blocks UDP).
+	prefer      map[int]int
+	preferUntil map[int]time.Time
 	// our own WireGuard port as seen from outside (STUN from that port)
 	mapped    netip.AddrPort
 	mappedAt  time.Time
@@ -183,12 +183,14 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 		return nil
 	}
 	for _, r := range c.Relays {
-		if relay.IsWS(r) {
-			if u, err := url.Parse(r); err != nil || u.Host == "" {
-				return fmt.Errorf("relay address %q: not a URL", r)
+		for _, a := range strings.Split(r, "|") {
+			if relay.IsWS(a) {
+				if u, err := url.Parse(a); err != nil || u.Host == "" {
+					return fmt.Errorf("relay address %q: not a URL", a)
+				}
+			} else if _, _, err := net.SplitHostPort(strings.TrimPrefix(a, "udp://")); err != nil {
+				return fmt.Errorf("relay address %q: %w", a, err)
 			}
-		} else if _, _, err := net.SplitHostPort(strings.TrimPrefix(r, "udp://")); err != nil {
-			return fmt.Errorf("relay address %q: %w", r, err)
 		}
 	}
 	cr, err := c.credential()
@@ -213,9 +215,9 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 		if rp.sess == nil {
 			continue
 		}
-		if prev == nil || !slices.Contains(c.Relays, rp.relayAddr) {
+		if prev == nil || !slices.Equal(prev.Relays, c.Relays) {
 			rp.sess.Close()
-			rp.sess, rp.nextDial = nil, time.Time{}
+			rp.sess, rp.nextDial, rp.dialedAt = nil, map[int]time.Time{}, map[int]time.Time{}
 			continue
 		}
 		renew = append(renew, rp)
@@ -306,39 +308,12 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			if rp != nil && rp.sess != nil {
 				rp.sess.Close()
 			}
-			rp = &relayPeer{id: p.ID, key: key, seen: now, tryEvery: relayRetryFirst}
+			rp = &relayPeer{id: p.ID, key: key, seen: now, tryEvery: relayRetryFirst, nextDial: map[int]time.Time{}, dialedAt: map[int]time.Time{}}
 			e.relay.peers[p.ID] = rp
 		}
 		e.relay.mu.Unlock()
 
-		// A session the relay stopped answering (relay restart it missed,
-		// a dropped WebSocket) is replaced.
-		var oldFwd string
-		e.relay.mu.Lock()
-		preferUntil := e.relay.preferUntil
-		e.relay.mu.Unlock()
-		if rp.sess != nil && relay.IsWS(rp.relayAddr) && rp.onRelaySince.IsZero() && rp.tryingSince.IsZero() &&
-			now.After(preferUntil) && now.Sub(rp.dialedAt) > relayPreferFor {
-			// On the TCP fallback, idle, and the preference ran out: see
-			// whether UDP gets out again.
-			rp.sess.Close()
-			rp.sess = nil
-		}
-		if rp.sess != nil && !rp.sess.Healthy() && now.Sub(rp.dialedAt) > time.Minute {
-			oldFwd = rp.sess.LocalEndpoint().String()
-			e.Log.Info("relay: standby went silent, redialing", "peer", p.ID, "relay", rp.relayAddr, "error", rp.sess.AuthError())
-			rp.sess.Close()
-			rp.sess = nil
-		}
-		if rp.sess == nil && now.After(rp.nextDial) && dials < 16 {
-			dials++
-			e.relayDial(ctx, rp, conf.Relays, cred)
-			if rp.sess != nil && oldFwd != "" {
-				if d, ok := byKey[p.PublicKey]; ok && d.Endpoint == oldFwd {
-					_ = e.setEndpoint(ctx, p, rp.sess.LocalEndpoint().String()) // stay on the relay, new socket
-				}
-			}
-		}
+		dials += e.relayLinks(ctx, p, rp, conf, cred, now, dials)
 		if rp.sess == nil || (e.Racer != nil && e.Racer.Active(p.ID)) {
 			continue
 		}
@@ -402,7 +377,7 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			rp.onRelaySince = now // the peer started it; we followed
 			rp.nextTry = now.Add(rp.tryEvery)
 			e.Log.Info("relay: peer reached us through the relay", "peer", p.ID)
-			e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": rp.relayAddr, "why": "the peer moved to the relay", "mesh_ip": p.MeshIP})
+			e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": relayDesc(rp), "why": "the peer moved to the relay", "mesh_ip": p.MeshIP})
 		}
 		p.Method = methodRelay
 		e.relay.mu.Lock()
@@ -459,37 +434,109 @@ func orNone(s string) string {
 	return s
 }
 
-// relayDial opens the standby session, trying the relays in order — UDP
-// first, the WebSocket (TCP/443) where UDP can't get out. Once a later
-// entry was the one that worked, it goes first for relayPreferFor so the
-// other peers don't each wait out the dead transport.
-func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, relays []string, cred relay.Credential) {
-	order := make([]int, 0, len(relays))
+// relayGroups splits the relay list: one entry per relay server, its
+// alternatives ("udp|wss://…", the same server over UDP and TCP/443)
+// separated by "|".
+func relayGroups(relays []string) [][]string {
+	out := make([][]string, 0, len(relays))
+	for _, r := range relays {
+		var alts []string
+		for _, a := range strings.Split(r, "|") {
+			if a = strings.TrimSpace(a); a != "" {
+				alts = append(alts, a)
+			}
+		}
+		if len(alts) > 0 {
+			out = append(out, alts)
+		}
+	}
+	return out
+}
+
+// relayLinks keeps p's standby session linked to every relay server:
+// missing links are dialed, links a relay stopped answering are redialed,
+// and an idle link on the TCP fallback re-tests UDP once its preference
+// expired. Two peers only meet on a relay both reach, so every server
+// counts. Returns the dials spent.
+func (e *Engine) relayLinks(ctx context.Context, p *peer.Peer, rp *relayPeer, conf *RelayConf, cred relay.Credential, now time.Time, spent int) int {
+	if rp.sess == nil {
+		s, err := relay.NewSession(relay.Auth{Cred: cred, Peer: rp.key},
+			&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.ListenPort())}, 0, e.Log)
+		if err != nil {
+			rp.lastErr = err.Error()
+			return 0
+		}
+		id := rp.id
+		s.OnPeerInfo(func(b []byte) { e.relayPeerInfo(id, b) })
+		rp.sess = s
+	}
+	have := map[int]relay.LinkInfo{}
+	for _, l := range rp.sess.Links() {
+		have[l.Group] = l
+	}
+	idle := rp.onRelaySince.IsZero() && rp.tryingSince.IsZero()
+	n := 0
+	var errs []string
+	for g, alts := range relayGroups(conf.Relays) {
+		l, ok := have[g]
+		if ok {
+			e.relay.mu.Lock()
+			until := e.relay.preferUntil[g]
+			e.relay.mu.Unlock()
+			switch {
+			case !l.Healthy && now.Sub(rp.dialedAt[g]) > time.Minute:
+				e.Log.Info("relay: link went silent, redialing", "peer", p.ID, "relay", l.Addr, "error", l.AuthError)
+				rp.sess.DropLink(g)
+			case relay.IsWS(l.Addr) && len(alts) > 1 && idle && now.After(until) && now.Sub(rp.dialedAt[g]) > relayPreferFor:
+				rp.sess.DropLink(g) // see whether UDP gets out again
+			default:
+				continue
+			}
+		}
+		if now.Before(rp.nextDial[g]) || spent+n >= 16 {
+			continue
+		}
+		n++
+		if err := e.dialGroup(ctx, rp, g, alts); err != nil {
+			errs = append(errs, err.Error())
+			rp.nextDial[g] = now.Add(relayDialBackoff)
+		} else {
+			rp.dialedAt[g] = time.Now()
+			e.sendInfo(rp, false) // the peer learns our public address on this relay too
+		}
+	}
+	if len(rp.sess.Links()) > 0 {
+		rp.lastErr = ""
+	} else if len(errs) > 0 {
+		rp.lastErr = strings.Join(errs, "; ")
+	}
+	return n
+}
+
+// dialGroup links rp's session to relay server g, trying its alternatives
+// in order (UDP first, the WebSocket where UDP can't get out). The one that
+// worked when the first didn't goes first for relayPreferFor.
+func (e *Engine) dialGroup(ctx context.Context, rp *relayPeer, g int, alts []string) error {
+	order := make([]int, 0, len(alts))
 	e.relay.mu.Lock()
-	if p := e.relay.prefer; p > 0 && p < len(relays) && time.Now().Before(e.relay.preferUntil) {
+	if p := e.relay.prefer[g]; p > 0 && p < len(alts) && time.Now().Before(e.relay.preferUntil[g]) {
 		order = append(order, p)
 	}
 	e.relay.mu.Unlock()
-	for i := range relays {
+	for i := range alts {
 		if len(order) == 0 || order[0] != i {
 			order = append(order, i)
 		}
 	}
 	var errs []string
 	for _, i := range order {
-		addr := relays[i]
+		addr := alts[i]
 		timeout := 3 * time.Second
 		if relay.IsWS(addr) {
 			timeout = 8 * time.Second
 		}
 		dctx, cancel := context.WithTimeout(ctx, timeout+time.Second)
-		s, err := relay.DialSession(dctx, relay.Config{
-			Auth:        relay.Auth{Cred: cred, Peer: rp.key},
-			RelayAddr:   addr,
-			WGEndpoint:  &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.ListenPort())},
-			DialTimeout: timeout,
-			Log:         e.Log,
-		})
+		err := rp.sess.AddLink(dctx, g, addr, timeout)
 		cancel()
 		if err != nil {
 			errs = append(errs, addr+": "+err.Error())
@@ -497,22 +544,31 @@ func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, relays []string, 
 		}
 		e.relay.mu.Lock()
 		if i > 0 {
-			if e.relay.prefer != i {
+			if e.relay.prefer[g] != i {
 				e.Log.Info("relay: using a fallback transport", "relay", addr)
 			}
-			e.relay.prefer, e.relay.preferUntil = i, time.Now().Add(relayPreferFor)
+			e.relay.prefer[g], e.relay.preferUntil[g] = i, time.Now().Add(relayPreferFor)
 		} else {
-			e.relay.prefer = 0
+			delete(e.relay.prefer, g)
 		}
 		e.relay.mu.Unlock()
-		rp.sess, rp.relayAddr, rp.lastErr, rp.dialedAt = s, addr, "", time.Now()
-		id := rp.id
-		s.OnPeerInfo(func(b []byte) { e.relayPeerInfo(id, b) })
-		e.sendInfo(rp, false)
-		return
+		return nil
 	}
-	rp.lastErr, rp.nextDial = strings.Join(errs, "; "), time.Now().Add(relayDialBackoff)
-	e.Log.Debug("relay: standby dial failed", "error", rp.lastErr)
+	return errors.New(strings.Join(errs, "; "))
+}
+
+// relayDesc names the relay(s) p's session is linked to.
+func relayDesc(rp *relayPeer) string {
+	if rp.sess == nil {
+		return ""
+	}
+	var a []string
+	for _, l := range rp.sess.Links() {
+		if l.Healthy {
+			a = append(a, l.Addr)
+		}
+	}
+	return strings.Join(a, ",")
 }
 
 func (e *Engine) relayBackDirect(p *peer.Peer, rp *relayPeer, ep string, now time.Time) {
@@ -536,8 +592,8 @@ func (e *Engine) relaySwitch(ctx context.Context, p *peer.Peer, fwd string, rp *
 	rp.onRelaySince, rp.lastSwitch, rp.tryEvery = now, now, relayRetryFirst
 	rp.nextTry = now.Add(rp.tryEvery)
 	p.Method = methodRelay
-	e.Log.Info("relay: peer moved to the relay", "peer", p.ID, "relay", rp.relayAddr, "why", why)
-	e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": rp.relayAddr, "why": why, "mesh_ip": p.MeshIP})
+	e.Log.Info("relay: peer moved to the relay", "peer", p.ID, "relay", relayDesc(rp), "why", why)
+	e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": relayDesc(rp), "why": why, "mesh_ip": p.MeshIP})
 }
 
 func (e *Engine) setEndpoint(ctx context.Context, p *peer.Peer, ep string) error {
@@ -562,6 +618,7 @@ func (e *Engine) directCandidate(p *peer.Peer, rp *relayPeer) string {
 			c = append(c, x)
 		}
 	}
+	c = usableCandidates(c, nat.HasGlobalIPv6())
 	if len(c) == 0 {
 		return ""
 	}
@@ -610,7 +667,7 @@ func (e *Engine) GetRelayStatus(ctx context.Context) RelayStatus {
 	}
 	out.MappedErr = e.relay.mappedErr
 	for id, rp := range e.relay.peers {
-		s := RelayPeerStatus{PeerID: id, Relay: rp.relayAddr, Error: rp.lastErr, OnRelay: !rp.onRelaySince.IsZero(), OnRelaySince: rp.onRelaySince}
+		s := RelayPeerStatus{PeerID: id, Relay: relayDesc(rp), Error: rp.lastErr, OnRelay: !rp.onRelaySince.IsZero(), OnRelaySince: rp.onRelaySince}
 		if rp.peerMapped.IsValid() {
 			s.PeerMapped = rp.peerMapped.String()
 		}
@@ -681,7 +738,7 @@ func (e *Engine) refreshMapped(ctx context.Context, conf *RelayConf) {
 	changed := false
 	if ok && due {
 		var server netip.AddrPort
-		for _, a := range conf.Relays {
+		for _, a := range strings.Split(strings.Join(conf.Relays, "|"), "|") {
 			if relay.IsWS(a) {
 				continue
 			}

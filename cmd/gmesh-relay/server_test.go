@@ -259,3 +259,76 @@ func TestServerMixedUDPAndWebSocket(t *testing.T) {
 		t.Errorf("byAddr has %d entries after the websocket closed, want 1", n)
 	}
 }
+
+// A reaches both relays, B only the second: they meet there, and once B's
+// traffic shows which relay it uses, A sends only on that one.
+func TestTwoRelaysMeetOnTheCommonOne(t *testing.T) {
+	secret := []byte("two")
+	start := func() (*Server, string) {
+		srv := NewServer("127.0.0.1:0", secret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		c, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+		srv.Addr = c.LocalAddr().String()
+		c.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		go func() { _ = srv.ListenAndServe(ctx) }()
+		return srv, srv.Addr
+	}
+	r1, a1 := start()
+	r2, a2 := start()
+	time.Sleep(150 * time.Millisecond)
+	exp := time.Now().Add(time.Hour)
+	kA, kB := relay.Key{1}, relay.Key{2}
+	wgA, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	wgB, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	defer wgA.Close()
+	defer wgB.Close()
+	ctx := context.Background()
+	sA, err := relay.NewSession(relay.Auth{Cred: relay.IssueCredential(secret, kA, exp), Peer: kB}, wgA.LocalAddr().(*net.UDPAddr), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sA.Close()
+	if err := sA.AddLink(ctx, 0, a1, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := sA.AddLink(ctx, 1, a2, 0); err != nil {
+		t.Fatal(err)
+	}
+	sB, err := relay.NewSession(relay.Auth{Cred: relay.IssueCredential(secret, kB, exp), Peer: kA}, wgB.LocalAddr().(*net.UDPAddr), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sB.Close()
+	if err := sB.AddLink(ctx, 1, a2, 0); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	buf := make([]byte, 64)
+	_, _ = wgA.WriteToUDP([]byte("first"), sA.LocalEndpoint()) // A doesn't know yet: goes out on both
+	_ = wgB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wgB.ReadFromUDP(buf); err != nil || string(buf[:n]) != "first" {
+		t.Fatalf("B didn't get A's first packet: %v", err)
+	}
+	_, _ = wgB.WriteToUDP([]byte("reply"), sB.LocalEndpoint())
+	_ = wgA.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wgA.ReadFromUDP(buf); err != nil || string(buf[:n]) != "reply" {
+		t.Fatalf("A didn't get B's reply: %v", err)
+	}
+	before := r1.Stats().Dropped
+	for i := 0; i < 5; i++ {
+		_, _ = wgA.WriteToUDP([]byte("again"), sA.LocalEndpoint())
+		_ = wgB.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if _, _, err := wgB.ReadFromUDP(buf); err != nil {
+			t.Fatalf("packet %d lost: %v", i, err)
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	if r1.Stats().Dropped != before {
+		t.Errorf("A kept sending through relay 1 after learning B uses relay 2")
+	}
+	if r2.Stats().PairedSessions != 1 {
+		t.Errorf("not paired on relay 2")
+	}
+}

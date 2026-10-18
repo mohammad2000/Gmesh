@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -203,17 +203,47 @@ func TestRelayFallsBackToWebSocket(t *testing.T) {
 	pub, _ := relay.ParseKey(res.PublicKey)
 	cred := relay.IssueCredential([]byte("x"), pub, time.Now().Add(time.Hour))
 	ws := okWSRelay(t)
-	if err := eng.SetRelayConfig(ctx, RelayConf{Relays: []string{deadAddr, ws}, PublicKey: res.PublicKey, Expiry: cred.Expiry,
+	if err := eng.SetRelayConfig(ctx, RelayConf{Relays: []string{deadAddr + "|" + ws}, PublicKey: res.PublicKey, Expiry: cred.Expiry,
 		MAC: base64.StdEncoding.EncodeToString(cred.MAC[:])}); err != nil {
 		t.Fatal(err)
 	}
 	eng.relayCheck(ctx)
 	rp := eng.relay.peers[2]
-	if rp == nil || rp.sess == nil || rp.relayAddr != ws {
+	if rp == nil || rp.sess == nil || relayDesc(rp) != ws {
 		t.Fatalf("no websocket standby: %+v", rp)
 	}
-	if eng.relay.prefer != 1 {
-		t.Errorf("prefer = %d, want the websocket (1)", eng.relay.prefer)
+	if eng.relay.prefer[0] != 1 {
+		t.Errorf("prefer = %d, want the websocket (1)", eng.relay.prefer[0])
+	}
+}
+
+// Two relay servers: the standby links to both; one going silent is
+// redialed without touching the other or the forwarder WireGuard uses.
+func TestRelayTwoServers(t *testing.T) {
+	eng, _ := setup(t)
+	ctx := context.Background()
+	res, _ := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n")
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 2, MeshIP: "10.200.0.2", PublicKey: relay.Key{7}.String(), Endpoint: "203.0.113.5:51820"}, 0)
+	pub, _ := relay.ParseKey(res.PublicKey)
+	cred := relay.IssueCredential([]byte("x"), pub, time.Now().Add(time.Hour))
+	r1, r2 := okRelay(t), okRelay(t)
+	if err := eng.SetRelayConfig(ctx, RelayConf{Relays: []string{r1, r2}, PublicKey: res.PublicKey, Expiry: cred.Expiry,
+		MAC: base64.StdEncoding.EncodeToString(cred.MAC[:])}); err != nil {
+		t.Fatal(err)
+	}
+	eng.relayCheck(ctx)
+	rp := eng.relay.peers[2]
+	if rp == nil || rp.sess == nil || len(rp.sess.Links()) != 2 {
+		t.Fatalf("want links to both relays: %+v", rp)
+	}
+	fwd := rp.sess.LocalEndpoint().String()
+	rp.sess.DropLink(1)
+	eng.relayCheck(ctx)
+	if len(rp.sess.Links()) != 2 || rp.sess.LocalEndpoint().String() != fwd {
+		t.Fatal("dropped link not redialed in place")
+	}
+	if st := eng.GetRelayStatus(ctx); !strings.Contains(st.Peers[0].Relay, r1) || !strings.Contains(st.Peers[0].Relay, r2) {
+		t.Errorf("status relay %q", st.Peers[0].Relay)
 	}
 }
 
@@ -294,5 +324,15 @@ func TestRelaySameNATUsesLAN(t *testing.T) {
 	fw.mu.Unlock()
 	if got != "192.168.2.40:51828" {
 		t.Fatalf("punched at %s, want the LAN address", got)
+	}
+}
+
+func TestIPv6CandidatesNeedLocalIPv6(t *testing.T) {
+	c := []peer.Endpoint{{Address: "203.0.113.5:51820"}, {Address: "[2001:db8::5]:51820"}}
+	if got := usableCandidates(c, false); len(got) != 1 || got[0].Address != "203.0.113.5:51820" {
+		t.Fatalf("without IPv6: %+v", got)
+	}
+	if got := usableCandidates(c, true); len(got) != 2 {
+		t.Fatalf("with IPv6: %+v", got)
 	}
 }

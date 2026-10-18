@@ -486,24 +486,32 @@ func relayStatusCmd() *cobra.Command {
 			case resp.MappedError != "":
 				fmt.Printf("mapped:  unknown — %s\n", resp.MappedError)
 			}
-			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %-6s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "VIA", "PEER MAPPED / ERROR")
+			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %-8s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "VIA", "PEER MAPPED / ERROR")
 			for _, p := range resp.Peers {
 				path, since := "direct", "-"
 				if p.OnRelay {
 					path = "relay"
 					since = time.Since(time.Unix(p.OnRelaySinceUnix, 0)).Round(time.Second).String()
 				}
-				via := "udp"
-				if strings.HasPrefix(p.Relay, "ws") {
-					via = "tcp"
-				} else if p.Relay == "" {
+				var vias []string
+				for _, r := range strings.Split(p.Relay, ",") {
+					switch {
+					case r == "":
+					case strings.HasPrefix(r, "ws"):
+						vias = append(vias, "tcp")
+					default:
+						vias = append(vias, "udp")
+					}
+				}
+				via := strings.Join(vias, "+")
+				if via == "" {
 					via = "-"
 				}
 				note := p.PeerMapped
 				if p.Error != "" {
 					note = strings.TrimSpace(note + " " + p.Error)
 				}
-				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %-6s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, via, note)
+				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %-8s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, via, note)
 			}
 			return nil
 		},
