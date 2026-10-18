@@ -73,9 +73,9 @@ type Engine struct {
 	Anomaly   *anomaly.Monitor
 	L7        *l7.Monitor
 
-	relayMu       sync.Mutex
-	relaySessions map[int64]*relay.Session // peer_id → live relay session
-	wsTunnels     map[int64]*relay.WSTunnel
+	relayMu   sync.Mutex
+	wsTunnels map[int64]*relay.WSTunnel
+	relay     relayManager
 
 	// Racer picks the best endpoint from the peer's candidate list
 	// (LAN → WAN → STUN → relay) by trying each in sequence and
@@ -289,7 +289,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		L7:                   l7Mon,
 		Store:                store,
 		Events:               bus,
-		relaySessions:        make(map[int64]*relay.Session),
+		relay:                relayManager{peers: map[int64]*relayPeer{}},
 		wsTunnels:            make(map[int64]*relay.WSTunnel),
 		exitFailoverOriginal: make(map[int64]int64),
 		keepalive:            time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,
@@ -592,6 +592,9 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	go e.Monitor.Run(ctx)
 
+	e.loadRelayConf()
+	go e.relayLoop(ctx)
+
 	if e.Policies != nil {
 		go e.runPolicyBus(ctx)
 	}
@@ -725,80 +728,6 @@ func (e *Engine) Stop(_ context.Context) error {
 // DiscoverNAT runs STUN-based NAT discovery (or returns cached result).
 func (e *Engine) DiscoverNAT(ctx context.Context, forceRefresh bool) (*nat.Info, error) {
 	return e.NAT.Discover(ctx, forceRefresh)
-}
-
-// SetupRelay dials the gmesh-relay server, authenticates, and hands back
-// the local loopback endpoint WireGuard should dial to push traffic through
-// the relay.
-//
-// The returned endpoint is already configured as the peer's Endpoint on the
-// kernel WG interface, so no further action is needed by the caller beyond
-// keeping the session alive (gmeshd owns it).
-func (e *Engine) SetupRelay(ctx context.Context, peerID int64, relayAddr string, sessionID [16]byte, authToken relay.AuthToken) (*relay.Session, error) {
-	e.relayMu.Lock()
-	if prev, ok := e.relaySessions[peerID]; ok {
-		e.relayMu.Unlock()
-		_ = prev.Close()
-		e.relayMu.Lock()
-	}
-	e.relayMu.Unlock()
-
-	wgAddr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.Config.WireGuard.ListenPort)}
-	sess, err := relay.DialSession(ctx, relay.Config{
-		PeerID:     peerID,
-		SessionID:  sessionID,
-		AuthToken:  authToken,
-		RelayAddr:  relayAddr,
-		WGEndpoint: wgAddr,
-		Log:        e.Log,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("dial relay: %w", err)
-	}
-
-	e.relayMu.Lock()
-	e.relaySessions[peerID] = sess
-	e.relayMu.Unlock()
-
-	e.emit(events.TypeRelaySetup, peerID, map[string]any{
-		"relay":          relayAddr,
-		"local_endpoint": sess.LocalEndpoint().String(),
-		"kind":           "udp",
-	})
-
-	// If the peer is in the registry, repoint its WG endpoint to the local
-	// forwarder. Callers who pre-register the peer before calling SetupRelay
-	// get transparent relay upgrade.
-	if p, ok := e.Peers.Get(peerID); ok && e.IsJoined() {
-		p.Endpoint = sess.LocalEndpoint().String()
-		if err := e.WG.AddPeer(ctx, e.Interface(), wireguard.PeerConfig{
-			PublicKey:                   p.PublicKey,
-			Endpoint:                    p.Endpoint,
-			AllowedIPs:                  p.AllowedIPs,
-			PersistentKeepaliveInterval: e.keepalive,
-		}); err != nil {
-			e.Log.Warn("retarget WG peer to relay failed", "peer_id", peerID, "error", err)
-		}
-	}
-	return sess, nil
-}
-
-// RelaySession returns the active relay Session for peerID, if any.
-func (e *Engine) RelaySession(peerID int64) *relay.Session {
-	e.relayMu.Lock()
-	defer e.relayMu.Unlock()
-	return e.relaySessions[peerID]
-}
-
-// TeardownRelay closes an active relay session. Idempotent.
-func (e *Engine) TeardownRelay(peerID int64) {
-	e.relayMu.Lock()
-	sess := e.relaySessions[peerID]
-	delete(e.relaySessions, peerID)
-	e.relayMu.Unlock()
-	if sess != nil {
-		_ = sess.Close()
-	}
 }
 
 // ── Quota (Phase 13) ─────────────────────────────────────────────────

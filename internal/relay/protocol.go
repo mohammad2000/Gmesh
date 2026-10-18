@@ -1,46 +1,47 @@
 // Package relay defines the wire protocol between gmeshd clients and the
-// gmesh-relay server, plus the client + tunnel forwarders that plug the
-// encoded stream into a local UDP socket WireGuard can talk to.
+// gmesh-relay server, plus the client that plugs the relayed stream into a
+// local UDP socket WireGuard can talk to.
 //
-// # Protocol
+// # Protocol (v2)
 //
-// Each UDP datagram carries exactly one frame. Byte layout:
+// Each UDP datagram carries exactly one frame: a 1-byte type and a payload.
 //
-//	+------+-----------------+
-//	| type |     payload     |
-//	| u8   |      ...        |
-//	+------+-----------------+
-//
-// Frame types:
-//
-//	0x01 AUTH         client → server. payload = auth token (session || nonce || hmac)
-//	0x02 AUTH_OK      server → client. empty payload
-//	0x03 AUTH_FAIL    server → client. payload = ASCII error
-//	0x04 DATA         either direction. payload = opaque (WireGuard packet)
-//	0x05 PEER_OFFLINE server → client. empty. sent when the paired peer drops
-//	0x06 PING         client → server. empty. keepalive
+//	0x01 AUTH         client → server. payload = Auth (below)
+//	0x02 AUTH_OK      server → client. empty
+//	0x03 AUTH_FAIL    server → client. payload = ASCII reason
+//	0x04 DATA         either direction. payload = opaque WireGuard packet
+//	0x05 PEER_OFFLINE server → client. reserved
+//	0x06 PING         client → server. empty
 //	0x07 PONG         server → client. empty
 //
-// The AUTH token structure is:
+// # Who may use the relay
 //
-//	 0      16        24                   56
-//	+--------+--------+----------------------+
-//	|session |  peer  |   hmac_sha256        |
-//	|  id    |   id   |   of (session||peer) |
-//	| 16B    |  8B    |        32B           |
-//	+--------+--------+----------------------+
+// The control plane gives every node a Credential: an HMAC, keyed with the
+// relay's secret, over the node's own WireGuard public key and an expiry.
+// Nodes never hold the secret. A node authenticates for one peer at a time:
 //
-// HMAC is keyed with a shared secret the backend and the relay server
-// agree on. Replay protection: the relay drops duplicate (session, peer,
-// hmac) triples seen within the last 5 minutes (future work).
+//	 0     1        33        65       73          105
+//	+-----+--------+---------+--------+-----------+
+//	| 0x02| self   | peer    | expiry | cred mac  |
+//	|  v  | pubkey | pubkey  | u64 BE | 32 bytes  |
+//	+-----+--------+---------+--------+-----------+
+//
+// The relay checks the credential against `self`, then pairs the client into
+// the session named by the two public keys (PairSessionID), in the slot
+// belonging to `self`. A node can therefore only ever stand in for its own
+// key, and only in sessions that include it. The relay sees WireGuard
+// ciphertext only.
 package relay
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // FrameType is the 1-byte type tag.
@@ -78,56 +79,113 @@ func (t FrameType) String() string {
 	}
 }
 
-// AuthToken is the structured form of a relay auth token.
-type AuthToken struct {
-	SessionID [16]byte
-	PeerID    uint64
-	HMAC      [32]byte
+// Key is a WireGuard public key (Curve25519, 32 bytes).
+type Key [32]byte
+
+// ParseKey decodes a base64 WireGuard key.
+func ParseKey(s string) (Key, error) {
+	var k Key
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil || len(b) != 32 {
+		return k, fmt.Errorf("relay: bad public key")
+	}
+	copy(k[:], b)
+	return k, nil
 }
 
-// TokenSize is the wire size of an AuthToken.
-const TokenSize = 16 + 8 + 32 // 56 bytes
+func (k Key) String() string { return base64.StdEncoding.EncodeToString(k[:]) }
 
-// SignToken computes the HMAC-SHA256 over (sessionID || peerID) with the
-// given shared secret, and returns a full AuthToken.
-func SignToken(secret []byte, sessionID [16]byte, peerID uint64) AuthToken {
-	t := AuthToken{SessionID: sessionID, PeerID: peerID}
-	mac := hmac.New(sha256.New, secret)
-	mac.Write(sessionID[:])
-	var peerBytes [8]byte
-	binary.BigEndian.PutUint64(peerBytes[:], peerID)
-	mac.Write(peerBytes[:])
-	copy(t.HMAC[:], mac.Sum(nil))
-	return t
+const credLabel = "gmesh-relay-cred-v2"
+
+// Credential lets the holder of one WireGuard key use the relay until Expiry.
+type Credential struct {
+	PublicKey Key
+	Expiry    int64 // unix seconds
+	MAC       [32]byte
 }
 
-// Verify returns nil iff the HMAC is valid for the given secret.
-func (t *AuthToken) Verify(secret []byte) error {
-	expected := SignToken(secret, t.SessionID, t.PeerID)
-	if !hmac.Equal(t.HMAC[:], expected.HMAC[:]) {
+func credMAC(secret []byte, pub Key, expiry int64) [32]byte {
+	m := hmac.New(sha256.New, secret)
+	m.Write([]byte(credLabel))
+	m.Write(pub[:])
+	var e [8]byte
+	binary.BigEndian.PutUint64(e[:], uint64(expiry))
+	m.Write(e[:])
+	var out [32]byte
+	copy(out[:], m.Sum(nil))
+	return out
+}
+
+// IssueCredential is what the control plane (and tests) run; nodes don't
+// have the secret.
+func IssueCredential(secret []byte, pub Key, expiry time.Time) Credential {
+	return Credential{PublicKey: pub, Expiry: expiry.Unix(), MAC: credMAC(secret, pub, expiry.Unix())}
+}
+
+// Verify checks the MAC and the expiry.
+func (c Credential) Verify(secret []byte, now time.Time) error {
+	want := credMAC(secret, c.PublicKey, c.Expiry)
+	if !hmac.Equal(want[:], c.MAC[:]) {
 		return ErrAuthFail
+	}
+	if now.Unix() > c.Expiry {
+		return ErrExpired
 	}
 	return nil
 }
 
-// Encode serialises the token to wire format.
-func (t *AuthToken) Encode() []byte {
-	out := make([]byte, TokenSize)
-	copy(out[0:16], t.SessionID[:])
-	binary.BigEndian.PutUint64(out[16:24], t.PeerID)
-	copy(out[24:56], t.HMAC[:])
+// PairSessionID names the relay session of two keys; it is the same from
+// both sides.
+func PairSessionID(a, b Key) [16]byte {
+	lo, hi := a, b
+	if bytes.Compare(a[:], b[:]) > 0 {
+		lo, hi = b, a
+	}
+	h := sha256.New()
+	h.Write([]byte("gmesh-relay-pair-v2"))
+	h.Write(lo[:])
+	h.Write(hi[:])
+	var out [16]byte
+	copy(out[:], h.Sum(nil))
 	return out
 }
 
-// DecodeAuthToken parses a wire-format token.
-func DecodeAuthToken(b []byte) (*AuthToken, error) {
-	if len(b) != TokenSize {
-		return nil, fmt.Errorf("auth token: want %d bytes, got %d", TokenSize, len(b))
+// Auth is the AUTH frame payload.
+type Auth struct {
+	Cred Credential // Cred.PublicKey is "self"
+	Peer Key
+}
+
+// AuthSize is the wire size of an Auth payload.
+const AuthSize = 1 + 32 + 32 + 8 + 32
+
+const authVersion = 0x02
+
+// Encode serialises the payload.
+func (a Auth) Encode() []byte {
+	out := make([]byte, AuthSize)
+	out[0] = authVersion
+	copy(out[1:33], a.Cred.PublicKey[:])
+	copy(out[33:65], a.Peer[:])
+	binary.BigEndian.PutUint64(out[65:73], uint64(a.Cred.Expiry))
+	copy(out[73:105], a.Cred.MAC[:])
+	return out
+}
+
+// DecodeAuth parses an AUTH payload.
+func DecodeAuth(b []byte) (Auth, error) {
+	var a Auth
+	if len(b) != AuthSize || b[0] != authVersion {
+		return a, fmt.Errorf("auth: want v2, %d bytes", AuthSize)
 	}
-	t := &AuthToken{PeerID: binary.BigEndian.Uint64(b[16:24])}
-	copy(t.SessionID[:], b[0:16])
-	copy(t.HMAC[:], b[24:56])
-	return t, nil
+	copy(a.Cred.PublicKey[:], b[1:33])
+	copy(a.Peer[:], b[33:65])
+	a.Cred.Expiry = int64(binary.BigEndian.Uint64(b[65:73]))
+	copy(a.Cred.MAC[:], b[73:105])
+	if a.Cred.PublicKey == a.Peer {
+		return a, errors.New("auth: self and peer are the same key")
+	}
+	return a, nil
 }
 
 // EncodeFrame builds one relay frame (type + payload).
@@ -146,9 +204,13 @@ func DecodeFrame(b []byte) (FrameType, []byte, error) {
 	return FrameType(b[0]), b[1:], nil
 }
 
-// ErrAuthFail is returned for any HMAC mismatch.
-var ErrAuthFail = errors.New("relay: auth failed")
+var (
+	// ErrAuthFail is returned for a MAC mismatch.
+	ErrAuthFail = errors.New("relay: auth failed")
+	// ErrExpired is returned for a credential past its expiry.
+	ErrExpired = errors.New("relay: credential expired")
+)
 
 // MaxFrameSize is the largest accepted datagram. WireGuard packets are
-// typically ≤ 1500 bytes; we allow 2048 to cover framing overhead.
+// ≤ 1500 bytes on a normal path; 2048 covers framing.
 const MaxFrameSize = 2048

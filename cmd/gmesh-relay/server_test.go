@@ -34,9 +34,10 @@ func TestServerPairsAndForwards(t *testing.T) {
 	go func() { _ = srv.ListenAndServe(ctx) }()
 	time.Sleep(100 * time.Millisecond) // let it bind
 
-	sid := [16]byte{0xDE, 0xAD, 0xBE, 0xEF}
-	tokA := relay.SignToken(secret, sid, 100)
-	tokB := relay.SignToken(secret, sid, 200)
+	exp := time.Now().Add(time.Hour)
+	kA, kB := relay.Key{1}, relay.Key{2}
+	authA := relay.Auth{Cred: relay.IssueCredential(secret, kA, exp), Peer: kB}
+	authB := relay.Auth{Cred: relay.IssueCredential(secret, kB, exp), Peer: kA}
 
 	// Two WG stand-ins listening on different ephemeral ports.
 	wgA, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
@@ -45,9 +46,7 @@ func TestServerPairsAndForwards(t *testing.T) {
 	defer wgB.Close()
 
 	sA, err := relay.DialSession(ctx, relay.Config{
-		PeerID:     100,
-		SessionID:  sid,
-		AuthToken:  tokA,
+		Auth:       authA,
 		RelayAddr:  srv.Addr,
 		WGEndpoint: wgA.LocalAddr().(*net.UDPAddr),
 	})
@@ -56,9 +55,7 @@ func TestServerPairsAndForwards(t *testing.T) {
 	}
 	defer sA.Close()
 	sB, err := relay.DialSession(ctx, relay.Config{
-		PeerID:     200,
-		SessionID:  sid,
-		AuthToken:  tokB,
+		Auth:       authB,
 		RelayAddr:  srv.Addr,
 		WGEndpoint: wgB.LocalAddr().(*net.UDPAddr),
 	})
@@ -131,10 +128,9 @@ func TestServerRejectsBadAuth(t *testing.T) {
 	// Wrong secret → HMAC mismatch.
 	wg, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	defer wg.Close()
-	badTok := relay.SignToken([]byte("bad"), [16]byte{}, 1)
+	bad := relay.Auth{Cred: relay.IssueCredential([]byte("bad"), relay.Key{1}, time.Now().Add(time.Hour)), Peer: relay.Key{2}}
 	_, err := relay.DialSession(ctx, relay.Config{
-		PeerID:     1,
-		AuthToken:  badTok,
+		Auth:       bad,
 		RelayAddr:  srv.Addr,
 		WGEndpoint: wg.LocalAddr().(*net.UDPAddr),
 	})
@@ -146,5 +142,58 @@ func TestServerRejectsBadAuth(t *testing.T) {
 	st := srv.Stats()
 	if st.AuthFail < 1 {
 		t.Errorf("AuthFail = %d; want ≥ 1", st.AuthFail)
+	}
+}
+
+// A key can't take another key's slot, and a third key can't join a pair.
+func TestServerSlotsBelongToKeys(t *testing.T) {
+	secret := []byte("k")
+	srv := NewServer("127.0.0.1:0", secret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	c, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	srv.Addr = c.LocalAddr().String()
+	c.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	time.Sleep(100 * time.Millisecond)
+
+	exp := time.Now().Add(time.Hour)
+	kA, kB, kE := relay.Key{1}, relay.Key{2}, relay.Key{9}
+	wgA, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	wgB, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	wgE, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	defer wgA.Close()
+	defer wgB.Close()
+	defer wgE.Close()
+	dial := func(self, peer relay.Key, wg *net.UDPConn) *relay.Session {
+		s, err := relay.DialSession(ctx, relay.Config{Auth: relay.Auth{Cred: relay.IssueCredential(secret, self, exp), Peer: peer},
+			RelayAddr: srv.Addr, WGEndpoint: wg.LocalAddr().(*net.UDPAddr)})
+		if err != nil {
+			t.Fatalf("dial: %v", err)
+		}
+		return s
+	}
+	sA := dial(kA, kB, wgA)
+	defer sA.Close()
+	sB := dial(kB, kA, wgB)
+	defer sB.Close()
+	// E holds a valid credential of its own and asks for A↔B's peer B: it
+	// lands in the E↔B session, not in A↔B.
+	sE := dial(kE, kB, wgE)
+	defer sE.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	_, _ = wgA.WriteToUDP([]byte("for B"), sA.LocalEndpoint())
+	buf := make([]byte, 64)
+	_ = wgB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wgB.ReadFromUDP(buf); err != nil || string(buf[:n]) != "for B" {
+		t.Fatalf("B didn't get A's packet: %v", err)
+	}
+	_ = wgE.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	if _, _, err := wgE.ReadFromUDP(buf); err == nil {
+		t.Fatal("E received traffic of the A↔B pair")
+	}
+	if st := srv.Stats(); st.ActiveSessions != 2 || st.PairedSessions != 1 {
+		t.Fatalf("sessions %+v", st)
 	}
 }

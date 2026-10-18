@@ -1,10 +1,19 @@
 package relay
 
 import (
-	"bytes"
+	"encoding/base64"
 	"errors"
 	"testing"
+	"time"
 )
+
+func key(b byte) Key {
+	var k Key
+	for i := range k {
+		k[i] = b
+	}
+	return k
+}
 
 func TestFrameTypeString(t *testing.T) {
 	if FrameAUTH.String() != "AUTH" {
@@ -15,85 +24,75 @@ func TestFrameTypeString(t *testing.T) {
 	}
 }
 
-func TestTokenRoundtrip(t *testing.T) {
-	secret := []byte("shared-secret-example")
-	sid := [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
-	tok := SignToken(secret, sid, 42)
-
-	wire := tok.Encode()
-	if len(wire) != TokenSize {
-		t.Fatalf("encoded size = %d; want %d", len(wire), TokenSize)
+func TestCredential(t *testing.T) {
+	secret := []byte("s3cret")
+	now := time.Unix(1_800_000_000, 0)
+	c := IssueCredential(secret, key(1), now.Add(time.Hour))
+	if err := c.Verify(secret, now); err != nil {
+		t.Fatalf("valid credential: %v", err)
 	}
-
-	got, err := DecodeAuthToken(wire)
-	if err != nil {
-		t.Fatalf("DecodeAuthToken: %v", err)
+	if err := c.Verify([]byte("other"), now); !errors.Is(err, ErrAuthFail) {
+		t.Errorf("wrong secret → %v", err)
 	}
-	if got.SessionID != tok.SessionID {
-		t.Errorf("session mismatch")
+	if err := c.Verify(secret, now.Add(2*time.Hour)); !errors.Is(err, ErrExpired) {
+		t.Errorf("expired → %v", err)
 	}
-	if got.PeerID != 42 {
-		t.Errorf("peer = %d; want 42", got.PeerID)
+	stolen := c
+	stolen.PublicKey = key(2) // someone else's key with my MAC
+	if err := stolen.Verify(secret, now); !errors.Is(err, ErrAuthFail) {
+		t.Errorf("key swap → %v", err)
 	}
-	if got.HMAC != tok.HMAC {
-		t.Errorf("hmac mismatch")
-	}
-	if err := got.Verify(secret); err != nil {
-		t.Errorf("Verify: %v", err)
+	longer := c
+	longer.Expiry += 3600
+	if err := longer.Verify(secret, now); !errors.Is(err, ErrAuthFail) {
+		t.Errorf("extended expiry → %v", err)
 	}
 }
 
-func TestTokenVerifyWrongSecret(t *testing.T) {
-	tok := SignToken([]byte("right"), [16]byte{}, 1)
-	if err := tok.Verify([]byte("wrong")); !errors.Is(err, ErrAuthFail) {
-		t.Errorf("err = %v; want ErrAuthFail", err)
+func TestPairSessionIDSymmetric(t *testing.T) {
+	if PairSessionID(key(1), key(2)) != PairSessionID(key(2), key(1)) {
+		t.Fatal("session id depends on the side")
+	}
+	if PairSessionID(key(1), key(2)) == PairSessionID(key(1), key(3)) {
+		t.Fatal("different pairs share a session")
 	}
 }
 
-func TestTokenVerifyTampered(t *testing.T) {
-	tok := SignToken([]byte("s"), [16]byte{1}, 1)
-	tok.PeerID = 99 // tamper without re-signing
-	if err := tok.Verify([]byte("s")); !errors.Is(err, ErrAuthFail) {
-		t.Errorf("tampered → %v; want ErrAuthFail", err)
+func TestAuthRoundtrip(t *testing.T) {
+	a := Auth{Cred: IssueCredential([]byte("x"), key(1), time.Unix(1_900_000_000, 0)), Peer: key(2)}
+	w := a.Encode()
+	if len(w) != AuthSize {
+		t.Fatalf("size %d", len(w))
+	}
+	got, err := DecodeAuth(w)
+	if err != nil || got != a {
+		t.Fatalf("roundtrip: %v %+v", err, got)
+	}
+	if _, err := DecodeAuth(w[:50]); err == nil {
+		t.Error("short payload accepted")
+	}
+	self := Auth{Cred: IssueCredential([]byte("x"), key(1), time.Now()), Peer: key(1)}
+	if _, err := DecodeAuth(self.Encode()); err == nil {
+		t.Error("self-pair accepted")
 	}
 }
 
-func TestDecodeAuthTokenBadSize(t *testing.T) {
-	cases := [][]byte{nil, {1, 2, 3}, make([]byte, TokenSize+1)}
-	for _, c := range cases {
-		if _, err := DecodeAuthToken(c); err == nil {
-			t.Errorf("expected error for %d bytes", len(c))
-		}
+func TestParseKey(t *testing.T) {
+	k := key(7)
+	got, err := ParseKey(k.String())
+	if err != nil || got != k {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	if _, err := ParseKey("short"); err == nil {
+		t.Error("bad key accepted")
 	}
 }
 
-func TestEncodeDecodeFrame(t *testing.T) {
-	payload := []byte("hello world")
-	f := EncodeFrame(FrameDATA, payload)
-	if f[0] != byte(FrameDATA) {
-		t.Errorf("type byte wrong")
-	}
-	typ, p, err := DecodeFrame(f)
-	if err != nil {
-		t.Fatalf("DecodeFrame: %v", err)
-	}
-	if typ != FrameDATA {
-		t.Errorf("type = %v", typ)
-	}
-	if !bytes.Equal(p, payload) {
-		t.Errorf("payload roundtrip failed")
-	}
-}
-
-func TestDecodeFrameEmpty(t *testing.T) {
-	if _, _, err := DecodeFrame(nil); err == nil {
-		t.Error("expected error for empty")
-	}
-}
-
-func TestEncodeFrameZeroPayload(t *testing.T) {
-	f := EncodeFrame(FramePING, nil)
-	if len(f) != 1 || f[0] != byte(FramePING) {
-		t.Errorf("PING frame wrong: %v", f)
+// The control plane (GritivaCore app/services/mesh_relay.py) computes the
+// same MAC; this vector is checked on both sides.
+func TestCredentialVector(t *testing.T) {
+	c := IssueCredential([]byte("s"), key(1), time.Unix(1800000000, 0))
+	if got := base64.StdEncoding.EncodeToString(c.MAC[:]); got != "NAa7foav70R7gPpRSYpRjqappG4/IMYXL0k2aBBWtnU=" {
+		t.Fatalf("mac %s", got)
 	}
 }

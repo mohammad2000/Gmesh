@@ -4,7 +4,6 @@ package rpc
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +17,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"encoding/base64"
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/audit"
@@ -34,7 +34,6 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/policy"
 	"github.com/mohammad2000/Gmesh/internal/quota"
-	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/scope"
 	"github.com/mohammad2000/Gmesh/internal/traversal"
 	"github.com/mohammad2000/Gmesh/internal/version"
@@ -1278,36 +1277,40 @@ func ruleToProto(r firewall.Rule) *gmeshv1.FirewallRule {
 
 // ── Relay ──────────────────────────────────────────────────────────────
 
-// SetupRelay dials gmesh-relay, authenticates, and repoints WG at the
-// local forwarder. The relay_session_id in the request is treated as a
-// string; we expect it to be either 16 bytes or a text form we hash into 16.
-func (s *Server) SetupRelay(ctx context.Context, in *gmeshv1.SetupRelayRequest) (*gmeshv1.SetupRelayResponse, error) {
+// SetupRelay was the per-peer, control-plane-driven relay. Relay fallback
+// is automatic now (SetRelayConfig); this stays for old coordinators.
+func (s *Server) SetupRelay(_ context.Context, in *gmeshv1.SetupRelayRequest) (*gmeshv1.SetupRelayResponse, error) {
 	if in.PeerId == 0 {
 		return nil, status.Error(codes.InvalidArgument, "peer_id required")
 	}
-	if in.RelayEndpoint == "" {
-		return nil, status.Error(codes.InvalidArgument, "relay_endpoint required")
-	}
+	return &gmeshv1.SetupRelayResponse{Ok: false, Error: "relay is automatic: send SetRelayConfig once per node"}, nil
+}
 
-	// Build auth token. HMAC secret is loaded from Config.Relay.Secret
-	// (matches gmesh-relay's `-secret` flag). Caller supplies the session
-	// ID as a string; we hash it to 16 bytes so both peers in the same
-	// relay session derive the same tag without coordinating a UUID wire
-	// format.
-	sid := sessionIDFromString(in.RelaySessionId)
-	secret := []byte(s.Engine.Config.Relay.Secret)
-	if len(secret) == 0 {
-		return &gmeshv1.SetupRelayResponse{
-			Ok:    false,
-			Error: "relay.secret is not configured on this node",
-		}, nil
+// SetRelayConfig installs the relay addresses and this node's credential.
+func (s *Server) SetRelayConfig(ctx context.Context, in *gmeshv1.SetRelayConfigRequest) (*gmeshv1.SetRelayConfigResponse, error) {
+	c := engine.RelayConf{Relays: in.Relays, PublicKey: in.PublicKey, Expiry: in.Expiry, MAC: base64.StdEncoding.EncodeToString(in.Mac)}
+	if err := s.Engine.SetRelayConfig(ctx, c); err != nil {
+		return &gmeshv1.SetRelayConfigResponse{Ok: false, Error: err.Error()}, nil
 	}
-	tok := relay.SignToken(secret, sid, uint64(in.PeerId))
+	return &gmeshv1.SetRelayConfigResponse{Ok: true}, nil
+}
 
-	if _, err := s.Engine.SetupRelay(ctx, in.PeerId, in.RelayEndpoint, sid, tok); err != nil {
-		return &gmeshv1.SetupRelayResponse{Ok: false, Error: err.Error()}, nil
+// GetRelayStatus reports the relay settings and each peer's relay state.
+func (s *Server) GetRelayStatus(ctx context.Context, _ *gmeshv1.GetRelayStatusRequest) (*gmeshv1.GetRelayStatusResponse, error) {
+	st := s.Engine.GetRelayStatus(ctx)
+	out := &gmeshv1.GetRelayStatusResponse{Configured: st.Configured, Relays: st.Relays, Error: st.Error}
+	if !st.Expiry.IsZero() {
+		out.ExpiryUnix = st.Expiry.Unix()
 	}
-	return &gmeshv1.SetupRelayResponse{Ok: true}, nil
+	for _, p := range st.Peers {
+		r := &gmeshv1.GetRelayStatusResponse_PeerRelay{PeerId: p.PeerID, Standby: p.Standby, Healthy: p.Healthy, OnRelay: p.OnRelay,
+			Relay: p.Relay, Error: p.Error, TxBytes: p.TxBytes, RxBytes: p.RxBytes}
+		if !p.OnRelaySince.IsZero() {
+			r.OnRelaySinceUnix = p.OnRelaySince.Unix()
+		}
+		out.Peers = append(out.Peers, r)
+	}
+	return out, nil
 }
 
 // AllocateWSTunnel opens a WS tunnel to backend_ws_url.
@@ -1323,26 +1326,6 @@ func (s *Server) AllocateWSTunnel(ctx context.Context, in *gmeshv1.AllocateWSTun
 	}
 	return &gmeshv1.AllocateWSTunnelResponse{Ok: true}, nil
 }
-
-// sessionIDFromString hashes an opaque string into a 16-byte session ID.
-// In the typical backend-driven flow, the backend already supplies 16 raw
-// bytes (hex-encoded); if the string is exactly 32 hex chars we decode it,
-// otherwise we take the first 16 bytes of SHA-256.
-func sessionIDFromString(s string) [16]byte {
-	var out [16]byte
-	if len(s) == 32 {
-		// Try hex.
-		if b, err := hexDecode(s); err == nil && len(b) == 16 {
-			copy(out[:], b)
-			return out
-		}
-	}
-	sum := sha256sum([]byte(s))
-	copy(out[:], sum[:16])
-	return out
-}
-
-// ── NAT & traversal ────────────────────────────────────────────────────
 
 // DiscoverNAT runs STUN classification.
 func (s *Server) DiscoverNAT(ctx context.Context, in *gmeshv1.DiscoverNATRequest) (*gmeshv1.DiscoverNATResponse, error) {
@@ -1392,37 +1375,6 @@ func natToProto(i *nat.Info) *gmeshv1.NATInfo {
 		SupportsHolePunch: i.SupportsHolePunch,
 		IsRelayCapable:    i.IsRelayCapable,
 	}
-}
-
-// ── Small helpers (kept local to avoid new dependencies) ───────────────
-
-func hexDecode(s string) ([]byte, error) {
-	out := make([]byte, len(s)/2)
-	for i := 0; i < len(out); i++ {
-		hi, err1 := hexNibble(s[2*i])
-		lo, err2 := hexNibble(s[2*i+1])
-		if err1 != nil || err2 != nil {
-			return nil, fmt.Errorf("hexDecode: bad char")
-		}
-		out[i] = hi<<4 | lo
-	}
-	return out, nil
-}
-
-func hexNibble(c byte) (byte, error) {
-	switch {
-	case c >= '0' && c <= '9':
-		return c - '0', nil
-	case c >= 'a' && c <= 'f':
-		return c - 'a' + 10, nil
-	case c >= 'A' && c <= 'F':
-		return c - 'A' + 10, nil
-	}
-	return 0, fmt.Errorf("hex nibble: %q", c)
-}
-
-func sha256sum(b []byte) [32]byte {
-	return sha256.Sum256(b)
 }
 
 // peerToProto converts an internal peer.Peer to the wire format.

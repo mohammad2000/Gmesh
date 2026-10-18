@@ -30,6 +30,10 @@ service GMesh {
   // ── Relay / WS tunnel ─────────────────────────────────────────────────
   rpc SetupRelay       (SetupRelayRequest)       returns (SetupRelayResponse);
   rpc AllocateWSTunnel (AllocateWSTunnelRequest) returns (AllocateWSTunnelResponse);
+  // Automatic relay fallback: the control plane hands each node the relay
+  // addresses and a credential for its own WireGuard key.
+  rpc SetRelayConfig (SetRelayConfigRequest) returns (SetRelayConfigResponse);
+  rpc GetRelayStatus (GetRelayStatusRequest) returns (GetRelayStatusResponse);
 
   // ── Health ────────────────────────────────────────────────────────────
   rpc HealthCheck (HealthCheckRequest) returns (HealthCheckResponse);
@@ -338,6 +342,34 @@ message SetupRelayRequest {
   string relay_session_id = 3;
 }
 message SetupRelayResponse { bool ok = 1; string error = 2; }
+
+message SetRelayConfigRequest {
+  repeated string relays     = 1;  // host:port of gmesh-relay servers, best first; empty = relay off
+  string          public_key = 2;  // the node's WG public key the credential is for
+  int64           expiry     = 3;  // unix seconds
+  bytes           mac        = 4;  // HMAC-SHA256(relay secret, "gmesh-relay-cred-v2" || key || expiry BE64)
+}
+message SetRelayConfigResponse { bool ok = 1; string error = 2; }
+
+message GetRelayStatusRequest {}
+message GetRelayStatusResponse {
+  message PeerRelay {
+    int64  peer_id             = 1;
+    bool   standby             = 2;  // registered at the relay
+    bool   healthy             = 3;  // relay answered within a minute
+    bool   on_relay            = 4;  // traffic goes through the relay now
+    int64  on_relay_since_unix = 5;
+    string relay               = 6;
+    string error               = 7;
+    uint64 tx_bytes            = 8;
+    uint64 rx_bytes            = 9;
+  }
+  bool               configured  = 1;
+  repeated string    relays      = 2;
+  int64              expiry_unix = 3;
+  string             error       = 4;
+  repeated PeerRelay peers       = 5;
+}
 
 message AllocateWSTunnelRequest  {
   int64  peer_id        = 1;

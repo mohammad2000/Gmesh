@@ -17,14 +17,11 @@ package engine
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/mohammad2000/Gmesh/internal/peer"
-	"github.com/mohammad2000/Gmesh/internal/relay"
 	"github.com/mohammad2000/Gmesh/internal/wireguard"
 )
 
@@ -75,6 +72,14 @@ func (r *EndpointRacer) Stop(peerID int64) {
 		cancel()
 		delete(r.active, peerID)
 	}
+}
+
+// Active reports whether a race for peerID is running.
+func (r *EndpointRacer) Active(peerID int64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.active[peerID]
+	return ok
 }
 
 // StopAll cancels every active race.
@@ -142,34 +147,11 @@ func (r *EndpointRacer) run(ctx context.Context, e *Engine, peerID int64) {
 
 	e.Log.Warn("racer: all candidates exhausted", "peer", peerID)
 
-	// Last-resort: if a relay is configured, fall back through it. The
-	// relay server forwards encrypted WG packets between peers that
-	// can't open a direct UDP path (symmetric NATs, ISP hairpin bugs,
-	// carrier-grade NAT). We don't gate this on is_relay_capable
-	// because the whole point of a relay is that peers behind unfriendly
-	// NATs don't have a choice.
-	relayURL := e.Config.Relay.DefaultRelayURL
-	if relayURL == "" || e.Config.Relay.Secret == "" {
-		e.Log.Debug("racer: no relay configured; giving up on peer", "peer", peerID)
-		return
+	// Last resort: the relay (when configured). The relay watcher would
+	// get there on its own; this just saves it the wait.
+	if e.relayFallbackNow(ctx, peerID) {
+		e.Log.Info("racer: relay fallback active", "peer", peerID)
 	}
-	sid := sessionIDFromString(fmt.Sprintf("peer-%d", peerID))
-	tok := relay.SignToken([]byte(e.Config.Relay.Secret), sid, uint64(peerID))
-	if _, err := e.SetupRelay(ctx, peerID, relayURL, sid, tok); err != nil {
-		e.Log.Warn("racer: relay fallback failed", "peer", peerID, "error", err)
-		return
-	}
-	e.Log.Info("racer: relay fallback active", "peer", peerID, "relay", relayURL)
-}
-
-// sessionIDFromString is a local duplicate of rpc.sessionIDFromString —
-// we can't import the rpc package from engine without a cycle, and the
-// hash is trivial.
-func sessionIDFromString(s string) [16]byte {
-	h := sha256.Sum256([]byte(s))
-	var out [16]byte
-	copy(out[:], h[:16])
-	return out
 }
 
 // sortedCandidates returns a fresh slice ordered by priority (asc),

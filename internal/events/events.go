@@ -39,6 +39,7 @@ const (
 	TypeScopeConnected    = "scope_connected"
 	TypeScopeDisconnected = "scope_disconnected"
 	TypeRelaySetup        = "relay_setup"
+	TypeRelayTeardown     = "relay_teardown"
 	TypeMeshJoined        = "mesh_joined"
 	TypeMeshLeft          = "mesh_left"
 )

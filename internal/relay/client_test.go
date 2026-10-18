@@ -80,9 +80,9 @@ func TestSessionAuthAndForward(t *testing.T) {
 	defer tr.Close()
 
 	secret := []byte("s")
-	sid := [16]byte{0xAA}
-	tok1 := SignToken(secret, sid, 1)
-	tok2 := SignToken(secret, sid, 2)
+	exp := time.Now().Add(time.Hour)
+	a1 := Auth{Cred: IssueCredential(secret, key(1), exp), Peer: key(2)}
+	a2 := Auth{Cred: IssueCredential(secret, key(2), exp), Peer: key(1)}
 
 	// Client 1: pretends to be WireGuard on an ephemeral port.
 	wg1, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
@@ -101,9 +101,7 @@ func TestSessionAuthAndForward(t *testing.T) {
 	defer cancel()
 
 	s1, err := DialSession(ctx, Config{
-		PeerID:     1,
-		SessionID:  sid,
-		AuthToken:  tok1,
+		Auth:       a1,
 		RelayAddr:  tr.Addr(),
 		WGEndpoint: wg1.LocalAddr().(*net.UDPAddr),
 	})
@@ -113,9 +111,7 @@ func TestSessionAuthAndForward(t *testing.T) {
 	defer s1.Close()
 
 	s2, err := DialSession(ctx, Config{
-		PeerID:     2,
-		SessionID:  sid,
-		AuthToken:  tok2,
+		Auth:       a2,
 		RelayAddr:  tr.Addr(),
 		WGEndpoint: wg2.LocalAddr().(*net.UDPAddr),
 	})
@@ -189,8 +185,8 @@ func TestSessionAuthFailClosesConn(t *testing.T) {
 	defer wg.Close()
 
 	_, err = DialSession(context.Background(), Config{
-		PeerID:     1,
-		AuthToken:  SignToken([]byte("x"), [16]byte{}, 1),
+		Auth:       Auth{Cred: IssueCredential([]byte("x"), key(1), time.Now()), Peer: key(2)},
+		DialTimeout: 600 * time.Millisecond,
 		RelayAddr:  conn.LocalAddr().String(),
 		WGEndpoint: wg.LocalAddr().(*net.UDPAddr),
 	})

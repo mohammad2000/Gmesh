@@ -448,52 +448,50 @@ func holePunchCmd() *cobra.Command {
 
 func relayCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "relay", Short: "Relay (UDP) + WS tunnel management"}
-	cmd.AddCommand(relaySetupCmd(), wsTunnelCmd())
+	cmd.AddCommand(relayStatusCmd(), wsTunnelCmd())
 	return cmd
 }
 
-func relaySetupCmd() *cobra.Command {
-	var (
-		peerID    int64
-		relayAddr string
-		sessionID string
-	)
-	cmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Open a gmesh-relay session for a peer",
+func relayStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Relay settings and each peer's relay state",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, closeConn, err := dial()
 			if err != nil {
 				return err
 			}
 			defer closeConn()
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			resp, err := c.SetupRelay(ctx, &gmeshv1.SetupRelayRequest{
-				PeerId:         peerID,
-				RelayEndpoint:  relayAddr,
-				RelaySessionId: sessionID,
-			})
+			resp, err := c.GetRelayStatus(ctx, &gmeshv1.GetRelayStatusRequest{})
 			if err != nil {
-				return fmt.Errorf("setup relay rpc: %w", err)
+				return fmt.Errorf("relay status rpc: %w", err)
 			}
 			if outputJSON {
 				return writeJSON(resp)
 			}
-			fmt.Printf("ok:    %v\n", resp.Ok)
+			if !resp.Configured {
+				fmt.Println("relay: not configured")
+				return nil
+			}
+			fmt.Printf("relays:  %s\n", strings.Join(resp.Relays, ", "))
+			fmt.Printf("expires: %s\n", time.Unix(resp.ExpiryUnix, 0).UTC().Format(time.RFC3339))
 			if resp.Error != "" {
-				fmt.Printf("error: %s\n", resp.Error)
+				fmt.Printf("error:   %s\n", resp.Error)
+			}
+			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "ERROR")
+			for _, p := range resp.Peers {
+				path, since := "direct", "-"
+				if p.OnRelay {
+					path = "relay"
+					since = time.Since(time.Unix(p.OnRelaySinceUnix, 0)).Round(time.Second).String()
+				}
+				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, p.Error)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().Int64Var(&peerID, "peer-id", 0, "peer ID")
-	cmd.Flags().StringVar(&relayAddr, "relay", "", "relay host:port")
-	cmd.Flags().StringVar(&sessionID, "session", "", "session identifier")
-	_ = cmd.MarkFlagRequired("peer-id")
-	_ = cmd.MarkFlagRequired("relay")
-	_ = cmd.MarkFlagRequired("session")
-	return cmd
 }
 
 func wsTunnelCmd() *cobra.Command {
