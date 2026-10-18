@@ -185,10 +185,10 @@ func TestSessionAuthFailClosesConn(t *testing.T) {
 	defer wg.Close()
 
 	_, err = DialSession(context.Background(), Config{
-		Auth:       Auth{Cred: IssueCredential([]byte("x"), key(1), time.Now()), Peer: key(2)},
+		Auth:        Auth{Cred: IssueCredential([]byte("x"), key(1), time.Now()), Peer: key(2)},
 		DialTimeout: 600 * time.Millisecond,
-		RelayAddr:  conn.LocalAddr().String(),
-		WGEndpoint: wg.LocalAddr().(*net.UDPAddr),
+		RelayAddr:   conn.LocalAddr().String(),
+		WGEndpoint:  wg.LocalAddr().(*net.UDPAddr),
 	})
 	if err == nil {
 		t.Fatal("expected auth fail error")
