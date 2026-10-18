@@ -5,7 +5,8 @@
 // Configuration via env vars (simpler than a separate config file for a
 // single-purpose daemon):
 //
-//	GMESH_RELAY_ADDR    listen address (default :4500)
+//	GMESH_RELAY_ADDR    UDP listen address (default :4500)
+//	GMESH_RELAY_WS_ADDR WebSocket listen address (optional, plain HTTP behind TLS)
 //	GMESH_RELAY_SECRET  shared HMAC secret (required)
 //	GMESH_RELAY_LOG     log level: debug|info|warn|error (default info)
 package main
@@ -28,6 +29,7 @@ func main() { os.Exit(run()) }
 // before the process exits.
 func run() int {
 	addr := flag.String("addr", envOr("GMESH_RELAY_ADDR", ":4500"), "UDP listen address")
+	wsAddr := flag.String("ws-addr", os.Getenv("GMESH_RELAY_WS_ADDR"), "WebSocket (HTTP) listen address, e.g. 127.0.0.1:4501; empty = off")
 	secret := flag.String("secret", os.Getenv("GMESH_RELAY_SECRET"), "HMAC shared secret (required)")
 	logLevel := flag.String("log-level", envOr("GMESH_RELAY_LOG", "info"), "log level")
 	logFormat := flag.String("log-format", envOr("GMESH_RELAY_LOG_FORMAT", "text"), "log format: text|json")
@@ -52,6 +54,13 @@ func run() int {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	if *wsAddr != "" {
+		go func() {
+			if err := srv.ServeWS(ctx, *wsAddr); err != nil {
+				log.Error("websocket listener failed", "error", err)
+			}
+		}()
+	}
 	if err := srv.ListenAndServe(ctx); err != nil {
 		log.Error("relay exited", "error", err)
 		return 1

@@ -480,14 +480,20 @@ func relayStatusCmd() *cobra.Command {
 			if resp.Error != "" {
 				fmt.Printf("error:   %s\n", resp.Error)
 			}
-			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "ERROR")
+			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %-6s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "VIA", "ERROR")
 			for _, p := range resp.Peers {
 				path, since := "direct", "-"
 				if p.OnRelay {
 					path = "relay"
 					since = time.Since(time.Unix(p.OnRelaySinceUnix, 0)).Round(time.Second).String()
 				}
-				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, p.Error)
+				via := "udp"
+				if strings.HasPrefix(p.Relay, "ws") {
+					via = "tcp"
+				} else if p.Relay == "" {
+					via = "-"
+				}
+				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %-6s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, via, p.Error)
 			}
 			return nil
 		},

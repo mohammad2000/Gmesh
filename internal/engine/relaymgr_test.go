@@ -4,8 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"github.com/mohammad2000/Gmesh/internal/peer"
 	"github.com/mohammad2000/Gmesh/internal/relay"
@@ -157,5 +162,56 @@ func TestLoopbackNeverDirect(t *testing.T) {
 	rp := &relayPeer{lastDirect: "127.0.0.1:45168"}
 	if got := (&Engine{}).directCandidate(&peer.Peer{Endpoints: eps}, rp); got != "192.168.2.40:51828" {
 		t.Errorf("directCandidate = %q", got)
+	}
+}
+
+// okWSRelay answers AUTH over a WebSocket.
+func okWSRelay(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.CloseNow()
+		for {
+			_, b, err := c.Read(r.Context())
+			if err != nil {
+				return
+			}
+			if typ, _, _ := relay.DecodeFrame(b); typ == relay.FrameAUTH {
+				_ = c.Write(r.Context(), websocket.MessageBinary, relay.EncodeFrame(relay.FrameAUTHOK, nil))
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return "ws" + strings.TrimPrefix(srv.URL, "http") + "/v2/relay"
+}
+
+// UDP out is blocked: the standby comes up over the WebSocket, and later
+// dials go there first.
+func TestRelayFallsBackToWebSocket(t *testing.T) {
+	eng, _ := setup(t)
+	ctx := context.Background()
+	res, _ := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n")
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 2, MeshIP: "10.200.0.2", PublicKey: relay.Key{7}.String(), Endpoint: "203.0.113.5:51820"}, 0)
+	dead, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	deadAddr := dead.LocalAddr().String()
+	dead.Close() // nothing listens: like UDP that never gets an answer
+
+	pub, _ := relay.ParseKey(res.PublicKey)
+	cred := relay.IssueCredential([]byte("x"), pub, time.Now().Add(time.Hour))
+	ws := okWSRelay(t)
+	if err := eng.SetRelayConfig(ctx, RelayConf{Relays: []string{deadAddr, ws}, PublicKey: res.PublicKey, Expiry: cred.Expiry,
+		MAC: base64.StdEncoding.EncodeToString(cred.MAC[:])}); err != nil {
+		t.Fatal(err)
+	}
+	eng.relayCheck(ctx)
+	rp := eng.relay.peers[2]
+	if rp == nil || rp.sess == nil || rp.relayAddr != ws {
+		t.Fatalf("no websocket standby: %+v", rp)
+	}
+	if eng.relay.prefer != 1 {
+		t.Errorf("prefer = %d, want the websocket (1)", eng.relay.prefer)
 	}
 }

@@ -19,9 +19,19 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/relay"
 )
 
+// sink is where a client's frames go back to: a UDP source address, or a
+// WebSocket connection (relay over TCP/443 for networks that block UDP).
+// It is comparable, so it doubles as the lookup key.
+type sink struct {
+	addr netip.AddrPort // UDP
+	ws   *wsClient      // WebSocket
+}
+
+func (k sink) valid() bool { return k.addr.IsValid() || k.ws != nil }
+
 type slot struct {
 	key      relay.Key
-	addr     netip.AddrPort
+	addr     sink
 	lastSeen time.Time
 	sess     *Session
 }
@@ -50,7 +60,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	sessions map[[16]byte]*Session
-	byAddr   map[netip.AddrPort]*slot
+	byAddr   map[sink]*slot
 	perKey   map[relay.Key]int
 	conn     *net.UDPConn
 
@@ -66,7 +76,7 @@ func NewServer(addr string, secret []byte, log *slog.Logger) *Server {
 	}
 	return &Server{
 		Addr: addr, Secret: secret, SessionIdleTTL: 90 * time.Second, MaxPerKey: 2048, Log: log,
-		sessions: map[[16]byte]*Session{}, byAddr: map[netip.AddrPort]*slot{}, perKey: map[relay.Key]int{},
+		sessions: map[[16]byte]*Session{}, byAddr: map[sink]*slot{}, perKey: map[relay.Key]int{},
 	}
 }
 
@@ -103,11 +113,19 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 			s.Log.Warn("read error", "error", err)
 			continue
 		}
-		s.handle(netip.AddrPortFrom(from.Addr().Unmap(), from.Port()), buf[:n])
+		s.handle(sink{addr: netip.AddrPortFrom(from.Addr().Unmap(), from.Port())}, buf[:n])
 	}
 }
 
-func (s *Server) handle(from netip.AddrPort, buf []byte) {
+// send delivers one frame to a sink.
+func (s *Server) send(to sink, frame []byte) (int, error) {
+	if to.ws != nil {
+		return len(frame), to.ws.send(frame)
+	}
+	return s.conn.WriteToUDPAddrPort(frame, to.addr)
+}
+
+func (s *Server) handle(from sink, buf []byte) {
 	typ, payload, err := relay.DecodeFrame(buf)
 	if err != nil {
 		return
@@ -125,12 +143,12 @@ func (s *Server) handle(from netip.AddrPort, buf []byte) {
 		}
 		s.mu.Unlock()
 		if sl != nil {
-			_, _ = s.conn.WriteToUDPAddrPort(relay.EncodeFrame(relay.FramePONG, nil), from)
+			_, _ = s.send(from, relay.EncodeFrame(relay.FramePONG, nil))
 		}
 	}
 }
 
-func (s *Server) handleAuth(from netip.AddrPort, payload []byte) {
+func (s *Server) handleAuth(from sink, payload []byte) {
 	a, err := relay.DecodeAuth(payload)
 	if err == nil {
 		err = a.Cred.Verify(s.Secret, time.Now())
@@ -143,7 +161,7 @@ func (s *Server) handleAuth(from netip.AddrPort, payload []byte) {
 		if errors.Is(err, relay.ErrExpired) {
 			reason = "credential expired"
 		}
-		_, _ = s.conn.WriteToUDPAddrPort(relay.EncodeFrame(relay.FrameAUTHFail, []byte(reason)), from)
+		_, _ = s.send(from, relay.EncodeFrame(relay.FrameAUTHFail, []byte(reason)))
 		return
 	}
 	self := a.Cred.PublicKey
@@ -156,7 +174,7 @@ func (s *Server) handleAuth(from netip.AddrPort, payload []byte) {
 		if s.perKey[self] >= s.MaxPerKey {
 			s.stats.authFail++
 			s.mu.Unlock()
-			_, _ = s.conn.WriteToUDPAddrPort(relay.EncodeFrame(relay.FrameAUTHFail, []byte("too many sessions")), from)
+			_, _ = s.send(from, relay.EncodeFrame(relay.FrameAUTHFail, []byte("too many sessions")))
 			return
 		}
 		sess = &Session{id: id}
@@ -182,11 +200,11 @@ func (s *Server) handleAuth(from netip.AddrPort, payload []byte) {
 	if sl.addr != from {
 		// The same key from a new address: NAT rebinding or a restart. The
 		// address may have belonged to another slot before; it's ours now.
-		if sl.addr.IsValid() && s.byAddr[sl.addr] == sl {
+		if sl.addr.valid() && s.byAddr[sl.addr] == sl {
 			delete(s.byAddr, sl.addr)
 		}
 		if old := s.byAddr[from]; old != nil && old != sl {
-			old.addr = netip.AddrPort{}
+			old.addr = sink{}
 		}
 		sl.addr = from
 		s.byAddr[from] = sl
@@ -194,10 +212,10 @@ func (s *Server) handleAuth(from netip.AddrPort, payload []byte) {
 	sl.lastSeen = now
 	s.stats.authOK++
 	s.mu.Unlock()
-	_, _ = s.conn.WriteToUDPAddrPort(relay.EncodeFrame(relay.FrameAUTHOK, nil), from)
+	_, _ = s.send(from, relay.EncodeFrame(relay.FrameAUTHOK, nil))
 }
 
-func (s *Server) handleData(from netip.AddrPort, payload []byte) {
+func (s *Server) handleData(from sink, payload []byte) {
 	s.mu.Lock()
 	sl := s.byAddr[from]
 	if sl == nil {
@@ -207,7 +225,7 @@ func (s *Server) handleData(from netip.AddrPort, payload []byte) {
 	}
 	sl.lastSeen = time.Now()
 	o := sl.sess.other(sl)
-	if o == nil || !o.addr.IsValid() {
+	if o == nil || !o.addr.valid() {
 		s.stats.dropped++
 		s.mu.Unlock()
 		return
@@ -215,7 +233,7 @@ func (s *Server) handleData(from netip.AddrPort, payload []byte) {
 	to := o.addr
 	s.mu.Unlock()
 
-	n, err := s.conn.WriteToUDPAddrPort(relay.EncodeFrame(relay.FrameDATA, payload), to)
+	n, err := s.send(to, relay.EncodeFrame(relay.FrameDATA, payload))
 	if err != nil {
 		return
 	}
@@ -223,6 +241,16 @@ func (s *Server) handleData(from netip.AddrPort, payload []byte) {
 	s.stats.framesForwarded++
 	s.stats.bytesForwarded += uint64(n)
 	s.mu.Unlock()
+}
+
+// forget drops a WebSocket client's slot when its connection ends.
+func (s *Server) forget(k sink) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sl := s.byAddr[k]; sl != nil {
+		delete(s.byAddr, k)
+		sl.addr = sink{}
+	}
 }
 
 // janitor drops slots and sessions nobody refreshed within the TTL, and logs

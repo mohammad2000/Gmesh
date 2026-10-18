@@ -197,3 +197,65 @@ func TestServerSlotsBelongToKeys(t *testing.T) {
 		t.Fatalf("sessions %+v", st)
 	}
 }
+
+// One side behind a UDP-blocking network uses the WebSocket; the other
+// stays on UDP. Same session, packets both ways.
+func TestServerMixedUDPAndWebSocket(t *testing.T) {
+	secret := []byte("mix")
+	srv := NewServer("127.0.0.1:0", secret, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	c, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	srv.Addr = c.LocalAddr().String()
+	c.Close()
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	wsAddr := l.Addr().String()
+	l.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = srv.ListenAndServe(ctx) }()
+	go func() { _ = srv.ServeWS(ctx, wsAddr) }()
+	time.Sleep(150 * time.Millisecond)
+
+	exp := time.Now().Add(time.Hour)
+	kA, kB := relay.Key{1}, relay.Key{2}
+	wgA, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	wgB, _ := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	defer wgA.Close()
+	defer wgB.Close()
+	sA, err := relay.DialSession(ctx, relay.Config{Auth: relay.Auth{Cred: relay.IssueCredential(secret, kA, exp), Peer: kB},
+		RelayAddr: srv.Addr, WGEndpoint: wgA.LocalAddr().(*net.UDPAddr)})
+	if err != nil {
+		t.Fatalf("udp side: %v", err)
+	}
+	defer sA.Close()
+	sB, err := relay.DialSession(ctx, relay.Config{Auth: relay.Auth{Cred: relay.IssueCredential(secret, kB, exp), Peer: kA},
+		RelayAddr: "ws://" + wsAddr + WSPath, WGEndpoint: wgB.LocalAddr().(*net.UDPAddr)})
+	if err != nil {
+		t.Fatalf("websocket side: %v", err)
+	}
+	defer sB.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	buf := make([]byte, 64)
+	_, _ = wgA.WriteToUDP([]byte("udp→ws"), sA.LocalEndpoint())
+	_ = wgB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wgB.ReadFromUDP(buf); err != nil || string(buf[:n]) != "udp→ws" {
+		t.Fatalf("A→B: %v", err)
+	}
+	_, _ = wgB.WriteToUDP([]byte("ws→udp"), sB.LocalEndpoint())
+	_ = wgA.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wgA.ReadFromUDP(buf); err != nil || string(buf[:n]) != "ws→udp" {
+		t.Fatalf("B→A: %v", err)
+	}
+	if !sB.Healthy() {
+		t.Error("websocket session not healthy")
+	}
+	// A dropped WebSocket frees its slot.
+	sB.Close()
+	time.Sleep(100 * time.Millisecond)
+	srv.mu.Lock()
+	n := len(srv.byAddr)
+	srv.mu.Unlock()
+	if n != 1 {
+		t.Errorf("byAddr has %d entries after the websocket closed, want 1", n)
+	}
+}

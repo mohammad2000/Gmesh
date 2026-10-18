@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,11 +22,11 @@ import (
 // the relay, our WG answers through it too.
 type Session struct {
 	Peer  Key
-	Relay *net.UDPAddr
+	Relay net.Addr // a *net.UDPAddr, or the wss:// URL
 	Log   *slog.Logger
 
 	auth         atomic.Pointer[[]byte]
-	upstream     *net.UDPConn
+	upstream     upstream
 	localForward *net.UDPConn
 	wgEndpoint   atomic.Pointer[net.UDPAddr]
 
@@ -48,7 +47,7 @@ type Session struct {
 // Config bundles the knobs for DialSession.
 type Config struct {
 	Auth        Auth
-	RelayAddr   string       // host:port, optionally "udp://host:port"
+	RelayAddr   string       // host:port ("udp://" optional), or a wss:// URL
 	WGEndpoint  *net.UDPAddr // where WireGuard listens, e.g. 127.0.0.1:51820
 	DialTimeout time.Duration
 	Refresh     time.Duration // AUTH re-sent this often; default 20s
@@ -70,13 +69,9 @@ func DialSession(ctx context.Context, cfg Config) (*Session, error) {
 	if cfg.WGEndpoint == nil {
 		return nil, errors.New("relay: WGEndpoint is required")
 	}
-	relayAddr, err := net.ResolveUDPAddr("udp", strings.TrimPrefix(cfg.RelayAddr, "udp://"))
+	upstream, relayAddr, err := dialUpstream(ctx, cfg.RelayAddr, cfg.DialTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("resolve relay: %w", err)
-	}
-	upstream, err := net.DialUDP("udp", nil, relayAddr)
-	if err != nil {
-		return nil, fmt.Errorf("dial relay: %w", err)
+		return nil, err
 	}
 	auth := EncodeFrame(FrameAUTH, cfg.Auth.Encode())
 	if err := handshake(upstream, auth, cfg.DialTimeout); err != nil {
@@ -103,7 +98,7 @@ func DialSession(ctx context.Context, cfg Config) (*Session, error) {
 }
 
 // handshake sends AUTH (three tries) and waits for the answer.
-func handshake(c *net.UDPConn, auth []byte, timeout time.Duration) error {
+func handshake(c upstream, auth []byte, timeout time.Duration) error {
 	buf := make([]byte, MaxFrameSize)
 	per := timeout / 3
 	var last error = errors.New("relay: no answer")
@@ -202,7 +197,13 @@ func (s *Session) relayToWGLoop() {
 	for !s.closed.Load() {
 		n, err := s.upstream.Read(buf)
 		if err != nil {
-			if s.closed.Load() {
+			if s.closed.Load() || errors.Is(err, errWSClosed) {
+				return
+			}
+			if IsWS(s.Relay.String()) {
+				// A WebSocket that failed stays failed: let the session go
+				// unhealthy so the owner redials.
+				s.lastHeard.Store(0)
 				return
 			}
 			// ICMP unreachable surfaces here as ECONNREFUSED on a connected

@@ -26,9 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +49,7 @@ const (
 	relayRetryFirst  = 5 * time.Minute
 	relayRetryMax    = 30 * time.Minute
 	relayDialBackoff = time.Minute
+	relayPreferFor   = 30 * time.Minute
 	relayTryWindow   = 40 * time.Second // > keepalive: a failed try roams back before this
 	relayTryMute     = 3 * time.Second  // relayed packets dropped while a try starts
 	relayRxSilence   = 75 * time.Second // ~3 keepalives without a byte in: the path is dead
@@ -83,6 +87,7 @@ type relayPeer struct {
 	relayAddr string
 	seen      time.Time // first time the manager saw this peer
 	nextDial  time.Time
+	dialedAt  time.Time
 	lastErr   string
 
 	onRelaySince time.Time
@@ -97,11 +102,15 @@ type relayPeer struct {
 }
 
 type relayManager struct {
-	kick  chan struct{}
-	mu    sync.Mutex
-	conf  *RelayConf
-	cred  relay.Credential
-	peers map[int64]*relayPeer
+	kick chan struct{}
+	// prefer is the index in conf.Relays that worked when the first one
+	// didn't (e.g. the WebSocket on a network that blocks UDP).
+	prefer      int
+	preferUntil time.Time
+	mu          sync.Mutex
+	conf        *RelayConf
+	cred        relay.Credential
+	peers       map[int64]*relayPeer
 }
 
 // RelayPeerStatus is one peer's relay state, for status/ctl.
@@ -156,7 +165,11 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 		return nil
 	}
 	for _, r := range c.Relays {
-		if _, _, err := net.SplitHostPort(r); err != nil {
+		if relay.IsWS(r) {
+			if u, err := url.Parse(r); err != nil || u.Host == "" {
+				return fmt.Errorf("relay address %q: not a URL", r)
+			}
+		} else if _, _, err := net.SplitHostPort(strings.TrimPrefix(r, "udp://")); err != nil {
 			return fmt.Errorf("relay address %q: %w", r, err)
 		}
 	}
@@ -182,7 +195,7 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 		if rp.sess == nil {
 			continue
 		}
-		if prev == nil || len(prev.Relays) == 0 || rp.relayAddr != c.Relays[0] {
+		if prev == nil || !slices.Contains(c.Relays, rp.relayAddr) {
 			rp.sess.Close()
 			rp.sess, rp.nextDial = nil, time.Time{}
 			continue
@@ -279,9 +292,23 @@ func (e *Engine) relayCheck(ctx context.Context) {
 		}
 		e.relay.mu.Unlock()
 
+		// A session the relay stopped answering (relay restart it missed,
+		// a dropped WebSocket) is replaced.
+		var oldFwd string
+		if rp.sess != nil && !rp.sess.Healthy() && now.Sub(rp.dialedAt) > time.Minute {
+			oldFwd = rp.sess.LocalEndpoint().String()
+			e.Log.Info("relay: standby went silent, redialing", "peer", p.ID, "relay", rp.relayAddr, "error", rp.sess.AuthError())
+			rp.sess.Close()
+			rp.sess = nil
+		}
 		if rp.sess == nil && now.After(rp.nextDial) && dials < 16 {
 			dials++
-			e.relayDial(ctx, rp, conf.Relays[0], cred)
+			e.relayDial(ctx, rp, conf.Relays, cred)
+			if rp.sess != nil && oldFwd != "" {
+				if d, ok := byKey[p.PublicKey]; ok && d.Endpoint == oldFwd {
+					_ = e.setEndpoint(ctx, p, rp.sess.LocalEndpoint().String()) // stay on the relay, new socket
+				}
+			}
 		}
 		if rp.sess == nil || (e.Racer != nil && e.Racer.Active(p.ID)) {
 			continue
@@ -381,21 +408,57 @@ func orNone(s string) string {
 	return s
 }
 
-func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, addr string, cred relay.Credential) {
-	dctx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	s, err := relay.DialSession(dctx, relay.Config{
-		Auth:       relay.Auth{Cred: cred, Peer: rp.key},
-		RelayAddr:  addr,
-		WGEndpoint: &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.ListenPort())},
-		Log:        e.Log,
-	})
-	if err != nil {
-		rp.lastErr, rp.nextDial = err.Error(), time.Now().Add(relayDialBackoff)
-		e.Log.Debug("relay: standby dial failed", "relay", addr, "error", err)
+// relayDial opens the standby session, trying the relays in order — UDP
+// first, the WebSocket (TCP/443) where UDP can't get out. Once a later
+// entry was the one that worked, it goes first for relayPreferFor so the
+// other peers don't each wait out the dead transport.
+func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, relays []string, cred relay.Credential) {
+	order := make([]int, 0, len(relays))
+	e.relay.mu.Lock()
+	if p := e.relay.prefer; p > 0 && p < len(relays) && time.Now().Before(e.relay.preferUntil) {
+		order = append(order, p)
+	}
+	e.relay.mu.Unlock()
+	for i := range relays {
+		if len(order) == 0 || order[0] != i {
+			order = append(order, i)
+		}
+	}
+	var errs []string
+	for _, i := range order {
+		addr := relays[i]
+		timeout := 3 * time.Second
+		if relay.IsWS(addr) {
+			timeout = 8 * time.Second
+		}
+		dctx, cancel := context.WithTimeout(ctx, timeout+time.Second)
+		s, err := relay.DialSession(dctx, relay.Config{
+			Auth:        relay.Auth{Cred: cred, Peer: rp.key},
+			RelayAddr:   addr,
+			WGEndpoint:  &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: int(e.ListenPort())},
+			DialTimeout: timeout,
+			Log:         e.Log,
+		})
+		cancel()
+		if err != nil {
+			errs = append(errs, addr+": "+err.Error())
+			continue
+		}
+		e.relay.mu.Lock()
+		if i > 0 {
+			if e.relay.prefer != i {
+				e.Log.Info("relay: using a fallback transport", "relay", addr)
+			}
+			e.relay.prefer, e.relay.preferUntil = i, time.Now().Add(relayPreferFor)
+		} else {
+			e.relay.prefer = 0
+		}
+		e.relay.mu.Unlock()
+		rp.sess, rp.relayAddr, rp.lastErr, rp.dialedAt = s, addr, "", time.Now()
 		return
 	}
-	rp.sess, rp.relayAddr, rp.lastErr = s, addr, ""
+	rp.lastErr, rp.nextDial = strings.Join(errs, "; "), time.Now().Add(relayDialBackoff)
+	e.Log.Debug("relay: standby dial failed", "error", rp.lastErr)
 }
 
 func (e *Engine) relayBackDirect(p *peer.Peer, rp *relayPeer, ep string, now time.Time) {
