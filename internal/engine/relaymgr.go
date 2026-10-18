@@ -295,6 +295,16 @@ func (e *Engine) relayCheck(ctx context.Context) {
 		// A session the relay stopped answering (relay restart it missed,
 		// a dropped WebSocket) is replaced.
 		var oldFwd string
+		e.relay.mu.Lock()
+		preferUntil := e.relay.preferUntil
+		e.relay.mu.Unlock()
+		if rp.sess != nil && relay.IsWS(rp.relayAddr) && rp.onRelaySince.IsZero() && rp.tryingSince.IsZero() &&
+			now.After(preferUntil) && now.Sub(rp.dialedAt) > relayPreferFor {
+			// On the TCP fallback, idle, and the preference ran out: see
+			// whether UDP gets out again.
+			rp.sess.Close()
+			rp.sess = nil
+		}
 		if rp.sess != nil && !rp.sess.Healthy() && now.Sub(rp.dialedAt) > time.Minute {
 			oldFwd = rp.sess.LocalEndpoint().String()
 			e.Log.Info("relay: standby went silent, redialing", "peer", p.ID, "relay", rp.relayAddr, "error", rp.sess.AuthError())
