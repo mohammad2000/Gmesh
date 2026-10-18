@@ -501,3 +501,24 @@ func (e *Engine) GetRelayStatus(ctx context.Context) RelayStatus {
 	sort.Slice(out.Peers, func(i, j int) bool { return out.Peers[i].PeerID < out.Peers[j].PeerID })
 	return out
 }
+
+// savedEndpoint is what state keeps for p: never the relay forwarder's
+// loopback port, which dies with this process.
+func (e *Engine) savedEndpoint(p *peer.Peer) string {
+	host, _, err := net.SplitHostPort(p.Endpoint)
+	if err != nil || !net.ParseIP(host).IsLoopback() {
+		return p.Endpoint
+	}
+	e.relay.mu.Lock()
+	rp := e.relay.peers[p.ID]
+	e.relay.mu.Unlock()
+	if rp != nil && rp.lastDirect != "" {
+		return rp.lastDirect
+	}
+	for _, c := range sortedCandidates(p.Endpoints) {
+		if c.Kind != peer.EndpointKindRelay {
+			return c.Address
+		}
+	}
+	return ""
+}

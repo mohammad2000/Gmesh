@@ -82,6 +82,8 @@ func TestRelayFallbackAndReturn(t *testing.T) {
 	}
 	if p, _ := eng.Peers.Get(2); p.Method != methodRelay {
 		t.Errorf("method %d, want relay", p.Method)
+	} else if got := eng.savedEndpoint(p); got != "203.0.113.5:51820" {
+		t.Errorf("state would keep %q, want the direct endpoint", got)
 	}
 
 	// Traffic flows over the relay (WG reports the forwarder as endpoint).

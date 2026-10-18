@@ -1785,7 +1785,7 @@ func (e *Engine) persist() error {
 			Type:       t,
 			MeshIP:     p.MeshIP,
 			PublicKey:  p.PublicKey,
-			Endpoint:   p.Endpoint,
+			Endpoint:   e.savedEndpoint(p),
 			AllowedIPs: p.AllowedIPs,
 			ScopeID:    p.ScopeID,
 			Endpoints:  eps,
