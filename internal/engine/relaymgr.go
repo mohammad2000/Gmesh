@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -51,7 +52,10 @@ const (
 	relayDialBackoff = time.Minute
 	relayPreferFor   = 30 * time.Minute
 	relayTryWindow   = 40 * time.Second // > keepalive: a failed try roams back before this
-	relayTryMute     = 3 * time.Second  // relayed packets dropped while a try starts
+	relayTryMute     = 4 * time.Second  // relayed packets dropped while a try starts
+	relayMappedEvery = 5 * time.Minute
+	relayMappedFresh = 10 * time.Minute
+	relayInfoEvery   = 2 * time.Minute
 	relayRxSilence   = 75 * time.Second // ~3 keepalives without a byte in: the path is dead
 
 	methodDirect = 1 // gmesh.v1.ConnectionMethod
@@ -82,6 +86,7 @@ func (c RelayConf) credential() (relay.Credential, error) {
 }
 
 type relayPeer struct {
+	id        int64
 	key       relay.Key
 	sess      *relay.Session
 	relayAddr string
@@ -95,6 +100,11 @@ type relayPeer struct {
 	nextTry      time.Time
 	tryEvery     time.Duration
 	tryingSince  time.Time // a direct try in progress
+	// what the peer told us through the relay (PEERINFO)
+	peerMapped   netip.AddrPort // its WireGuard port as seen from outside
+	peerMappedAt time.Time
+	punchReq     time.Time // it asked us to punch with it
+	mappedNew    bool      // peerMapped changed since the watcher last looked
 	tryRx        int64
 	lastRx       int64
 	rxAt         time.Time // when rx last moved
@@ -107,10 +117,15 @@ type relayManager struct {
 	// didn't (e.g. the WebSocket on a network that blocks UDP).
 	prefer      int
 	preferUntil time.Time
-	mu          sync.Mutex
-	conf        *RelayConf
-	cred        relay.Credential
-	peers       map[int64]*relayPeer
+	// our own WireGuard port as seen from outside (STUN from that port)
+	mapped    netip.AddrPort
+	mappedAt  time.Time
+	mappedErr string
+	infoAt    time.Time // last PEERINFO round to every peer
+	mu        sync.Mutex
+	conf      *RelayConf
+	cred      relay.Credential
+	peers     map[int64]*relayPeer
 }
 
 // RelayPeerStatus is one peer's relay state, for status/ctl.
@@ -124,6 +139,7 @@ type RelayPeerStatus struct {
 	Error        string
 	TxBytes      uint64
 	RxBytes      uint64
+	PeerMapped   string
 }
 
 // RelayStatus is the node's relay state.
@@ -132,6 +148,8 @@ type RelayStatus struct {
 	Relays     []string
 	Expiry     time.Time
 	Error      string
+	Mapped     string
+	MappedErr  string
 	Peers      []RelayPeerStatus
 }
 
@@ -259,6 +277,7 @@ func (e *Engine) relayCheck(ctx context.Context) {
 		e.closeRelays()
 		return
 	}
+	e.refreshMapped(ctx, conf)
 	dumps, err := e.WG.ListPeers(ctx, e.Interface())
 	if err != nil {
 		return
@@ -287,7 +306,7 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			if rp != nil && rp.sess != nil {
 				rp.sess.Close()
 			}
-			rp = &relayPeer{key: key, seen: now, tryEvery: relayRetryFirst}
+			rp = &relayPeer{id: p.ID, key: key, seen: now, tryEvery: relayRetryFirst}
 			e.relay.peers[p.ID] = rp
 		}
 		e.relay.mu.Unlock()
@@ -386,14 +405,30 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": rp.relayAddr, "why": "the peer moved to the relay", "mesh_ip": p.MeshIP})
 		}
 		p.Method = methodRelay
-		if now.After(rp.nextTry) {
-			cand := e.directCandidate(p, rp)
-			if cand != "" {
-				rp.sess.Mute(relayTryMute)
+		e.relay.mu.Lock()
+		punchReq, peerMapped, peerMappedAt, mappedNew := rp.punchReq, rp.peerMapped, rp.peerMappedAt, rp.mappedNew
+		rp.punchReq, rp.mappedNew = time.Time{}, false
+		e.relay.mu.Unlock()
+		if mappedNew && rp.tryingSince.IsZero() {
+			// A new public address on a relayed link (the peer moved
+			// networks): worth a try soon, not at the backoff's pace.
+			if soon := now.Add(10 * time.Second); soon.Before(rp.nextTry) {
+				rp.nextTry = soon
 			}
-			if cand != "" && e.setEndpoint(ctx, p, cand) == nil {
-				e.Log.Info("relay: trying the direct path again", "peer", p.ID, "endpoint", cand)
-				rp.tryingSince, rp.tryRx, rp.lastSwitch = now, d.RxBytes, now
+		}
+		mappedFresh := peerMapped.IsValid() && now.Sub(peerMappedAt) < relayMappedFresh
+		switch {
+		case !punchReq.IsZero() && now.Sub(punchReq) < 15*time.Second && mappedFresh:
+			// The peer is punching toward us right now: fire back at its
+			// public WireGuard address so both NATs open at once.
+			e.punch(ctx, p, rp, peerMapped.String(), d.RxBytes, false, "answering the peer's punch")
+		case now.After(rp.nextTry):
+			cand := e.directCandidate(p, rp)
+			if mappedFresh {
+				cand = peerMapped.String()
+			}
+			if cand != "" {
+				e.punch(ctx, p, rp, cand, d.RxBytes, mappedFresh, "trying the direct path again")
 			}
 			rp.tryEvery = min(rp.tryEvery*2, relayRetryMax)
 			rp.nextTry = now.Add(rp.tryEvery)
@@ -465,6 +500,9 @@ func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, relays []string, 
 		}
 		e.relay.mu.Unlock()
 		rp.sess, rp.relayAddr, rp.lastErr, rp.dialedAt = s, addr, "", time.Now()
+		id := rp.id
+		s.OnPeerInfo(func(b []byte) { e.relayPeerInfo(id, b) })
+		e.sendInfo(rp, false)
 		return
 	}
 	rp.lastErr, rp.nextDial = strings.Join(errs, "; "), time.Now().Add(relayDialBackoff)
@@ -561,8 +599,15 @@ func (e *Engine) GetRelayStatus(ctx context.Context) RelayStatus {
 			out.Error = "credential is for another WireGuard key"
 		}
 	}
+	if e.relay.mapped.IsValid() {
+		out.Mapped = e.relay.mapped.String()
+	}
+	out.MappedErr = e.relay.mappedErr
 	for id, rp := range e.relay.peers {
 		s := RelayPeerStatus{PeerID: id, Relay: rp.relayAddr, Error: rp.lastErr, OnRelay: !rp.onRelaySince.IsZero(), OnRelaySince: rp.onRelaySince}
+		if rp.peerMapped.IsValid() {
+			s.PeerMapped = rp.peerMapped.String()
+		}
 		if rp.sess != nil {
 			st := rp.sess.Stats()
 			s.Standby, s.Healthy, s.TxBytes, s.RxBytes = true, rp.sess.Healthy(), st.BytesTx, st.BytesRx
@@ -608,4 +653,149 @@ func loopbackEP(ep string) bool {
 	}
 	host, _, err := net.SplitHostPort(ep)
 	return err == nil && net.ParseIP(host).IsLoopback()
+}
+
+// peerInfo is the PEERINFO payload: our WireGuard port as the world sees
+// it, and — when punch is set — "I am sending to you directly right now".
+type peerInfo struct {
+	V      int    `json:"v"`
+	Mapped string `json:"mapped,omitempty"`
+	Punch  bool   `json:"punch,omitempty"`
+}
+
+// refreshMapped learns our WireGuard port's public address (STUN from that
+// port to the UDP relay) every relayMappedEvery, and tells every peer
+// when it changed or every relayInfoEvery.
+func (e *Engine) refreshMapped(ctx context.Context, conf *RelayConf) {
+	r, ok := e.WG.(wireguard.Reflector)
+	e.relay.mu.Lock()
+	due := time.Since(e.relay.mappedAt) > relayMappedEvery
+	infoDue := time.Since(e.relay.infoAt) > relayInfoEvery
+	e.relay.mu.Unlock()
+	changed := false
+	if ok && due {
+		var server netip.AddrPort
+		for _, a := range conf.Relays {
+			if relay.IsWS(a) {
+				continue
+			}
+			if ua, err := net.ResolveUDPAddr("udp4", strings.TrimPrefix(a, "udp://")); err == nil {
+				server = ua.AddrPort()
+				break
+			}
+		}
+		if server.IsValid() {
+			sctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			m, err := r.Reflexive(sctx, e.Interface(), e.ListenPort(), netip.AddrPortFrom(server.Addr().Unmap(), server.Port()))
+			cancel()
+			e.relay.mu.Lock()
+			e.relay.mappedAt = time.Now()
+			if err != nil {
+				e.relay.mappedErr = err.Error()
+			} else {
+				changed = m != e.relay.mapped
+				e.relay.mapped, e.relay.mappedErr = m, ""
+			}
+			e.relay.mu.Unlock()
+			if changed {
+				e.Log.Info("relay: our WireGuard port as seen from outside", "mapped", m.String())
+			}
+		}
+	}
+	if changed || infoDue {
+		e.relay.mu.Lock()
+		e.relay.infoAt = time.Now()
+		peers := make([]*relayPeer, 0, len(e.relay.peers))
+		for _, rp := range e.relay.peers {
+			peers = append(peers, rp)
+		}
+		e.relay.mu.Unlock()
+		for _, rp := range peers {
+			e.sendInfo(rp, false)
+		}
+	}
+}
+
+func (e *Engine) sendInfo(rp *relayPeer, punch bool) {
+	e.relay.mu.Lock()
+	m := e.relay.mapped
+	e.relay.mu.Unlock()
+	if rp.sess == nil || (!m.IsValid() && !punch) {
+		return
+	}
+	pi := peerInfo{V: 1, Punch: punch}
+	if m.IsValid() {
+		pi.Mapped = m.String()
+	}
+	b, _ := json.Marshal(pi)
+	_ = rp.sess.SendPeerInfo(b)
+}
+
+// relayPeerInfo handles a PEERINFO from peer id (relay session goroutine).
+func (e *Engine) relayPeerInfo(id int64, b []byte) {
+	var pi peerInfo
+	if json.Unmarshal(b, &pi) != nil || pi.V != 1 {
+		return
+	}
+	m, err := netip.ParseAddrPort(pi.Mapped)
+	if err != nil || m.Addr().IsLoopback() || m.Addr().IsUnspecified() || m.Port() == 0 {
+		m = netip.AddrPort{}
+	}
+	e.relay.mu.Lock()
+	rp := e.relay.peers[id]
+	if rp == nil {
+		e.relay.mu.Unlock()
+		return
+	}
+	if m.IsValid() {
+		if m != rp.peerMapped {
+			rp.mappedNew = true
+		}
+		rp.peerMapped, rp.peerMappedAt = m, time.Now()
+	}
+	if pi.Punch {
+		rp.punchReq = time.Now()
+	}
+	e.relay.mu.Unlock()
+	if pi.Punch {
+		select {
+		case e.relay.kick <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// punch points WG at ep while the relay is muted, and makes WG send at
+// once. With ask set, the peer is told through the relay to do the same
+// toward us, so both NATs see outgoing packets at the same moment.
+func (e *Engine) punch(ctx context.Context, p *peer.Peer, rp *relayPeer, ep string, rx int64, ask bool, why string) {
+	if ask {
+		e.sendInfo(rp, true)
+	}
+	rp.sess.Mute(relayTryMute)
+	if err := e.setEndpoint(ctx, p, ep); err != nil {
+		return
+	}
+	e.Log.Info("relay: "+why, "peer", p.ID, "endpoint", ep, "coordinated", ask)
+	now := time.Now()
+	rp.tryingSince, rp.tryRx, rp.lastSwitch = now, rx, now
+	go nudge(p.MeshIP)
+}
+
+// nudge makes WireGuard transmit now: a few datagrams to the peer's mesh
+// address (discard port) go out through the tunnel to the new endpoint.
+func nudge(meshIP string) {
+	ip := net.ParseIP(meshIP)
+	if ip == nil {
+		return
+	}
+	c, err := net.DialUDP("udp", nil, &net.UDPAddr{IP: ip, Port: 9})
+	if err != nil {
+		return
+	}
+	defer c.Close()
+	for _, d := range []time.Duration{0, 300 * time.Millisecond, 700 * time.Millisecond, 1500 * time.Millisecond} {
+		time.Sleep(d)
+		_, _ = c.Write([]byte("gmesh-punch"))
+	}
 }

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/mohammad2000/Gmesh/internal/relay"
+	"github.com/mohammad2000/Gmesh/internal/stunlite"
 )
 
 // sink is where a client's frames go back to: a UDP source address, or a
@@ -65,7 +66,7 @@ type Server struct {
 	conn     *net.UDPConn
 
 	stats struct {
-		authOK, authFail, framesForwarded, bytesForwarded, sessionsCreated, dropped uint64
+		authOK, authFail, framesForwarded, bytesForwarded, sessionsCreated, dropped, stun uint64
 	}
 }
 
@@ -126,6 +127,15 @@ func (s *Server) send(to sink, frame []byte) (int, error) {
 }
 
 func (s *Server) handle(from sink, buf []byte) {
+	if from.addr.IsValid() {
+		if tx, ok := stunlite.ParseRequest(buf); ok {
+			s.mu.Lock()
+			s.stats.stun++
+			s.mu.Unlock()
+			_, _ = s.conn.WriteToUDPAddrPort(stunlite.Response(tx, from.addr), from.addr)
+			return
+		}
+	}
 	typ, payload, err := relay.DecodeFrame(buf)
 	if err != nil {
 		return
@@ -133,8 +143,8 @@ func (s *Server) handle(from sink, buf []byte) {
 	switch typ {
 	case relay.FrameAUTH:
 		s.handleAuth(from, payload)
-	case relay.FrameDATA:
-		s.handleData(from, payload)
+	case relay.FrameDATA, relay.FramePeerInfo:
+		s.handleData(from, typ, payload)
 	case relay.FramePING:
 		s.mu.Lock()
 		sl := s.byAddr[from]
@@ -215,7 +225,7 @@ func (s *Server) handleAuth(from sink, payload []byte) {
 	_, _ = s.send(from, relay.EncodeFrame(relay.FrameAUTHOK, nil))
 }
 
-func (s *Server) handleData(from sink, payload []byte) {
+func (s *Server) handleData(from sink, typ relay.FrameType, payload []byte) {
 	s.mu.Lock()
 	sl := s.byAddr[from]
 	if sl == nil {
@@ -233,7 +243,7 @@ func (s *Server) handleData(from sink, payload []byte) {
 	to := o.addr
 	s.mu.Unlock()
 
-	n, err := s.send(to, relay.EncodeFrame(relay.FrameDATA, payload))
+	n, err := s.send(to, relay.EncodeFrame(typ, payload))
 	if err != nil {
 		return
 	}
@@ -297,7 +307,7 @@ func (s *Server) janitor(ctx context.Context) {
 			if ticks++; ticks%4 == 0 {
 				st := s.Stats()
 				s.Log.Info("relay stats", "sessions", st.ActiveSessions, "paired", st.PairedSessions, "auth_ok", st.AuthOK,
-					"auth_fail", st.AuthFail, "frames", st.FramesForwarded, "bytes", st.BytesForwarded, "dropped", st.Dropped)
+					"auth_fail", st.AuthFail, "frames", st.FramesForwarded, "bytes", st.BytesForwarded, "dropped", st.Dropped, "stun", st.STUN)
 			}
 		}
 	}
@@ -305,8 +315,8 @@ func (s *Server) janitor(ctx context.Context) {
 
 // Stats is a read-only snapshot of relay counters.
 type Stats struct {
-	AuthOK, AuthFail, FramesForwarded, BytesForwarded, SessionsCreated, Dropped uint64
-	ActiveSessions, PairedSessions                                              int
+	AuthOK, AuthFail, FramesForwarded, BytesForwarded, SessionsCreated, Dropped, STUN uint64
+	ActiveSessions, PairedSessions                                                    int
 }
 
 // Stats returns current counters.
@@ -315,7 +325,7 @@ func (s *Server) Stats() Stats {
 	defer s.mu.Unlock()
 	out := Stats{
 		AuthOK: s.stats.authOK, AuthFail: s.stats.authFail, FramesForwarded: s.stats.framesForwarded,
-		BytesForwarded: s.stats.bytesForwarded, SessionsCreated: s.stats.sessionsCreated, Dropped: s.stats.dropped,
+		BytesForwarded: s.stats.bytesForwarded, SessionsCreated: s.stats.sessionsCreated, Dropped: s.stats.dropped, STUN: s.stats.stun,
 		ActiveSessions: len(s.sessions),
 	}
 	for _, sess := range s.sessions {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,6 +56,7 @@ type usDevice struct {
 	dev    *device.Device
 	uapi   net.Listener
 	tunDev tun.Device
+	bind   *stunBind
 }
 
 // newUserspaceManager returns a ready userspace backend. The error is
@@ -132,7 +134,8 @@ func (u *userspaceManager) CreateInterface(
 		Verbosef: func(format string, args ...any) { u.log.Debug(fmt.Sprintf(format, args...)) },
 		Errorf:   func(format string, args ...any) { u.log.Warn(fmt.Sprintf(format, args...)) },
 	}
-	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), dlog)
+	bind := newSTUNBind(conn.NewDefaultBind())
+	wgDev := device.NewDevice(tunDev, bind, dlog)
 
 	// UAPI socket so wgctrl can configure it. On Linux + macOS this
 	// is a unix socket under /var/run/wireguard/<name>.sock; on
@@ -195,9 +198,20 @@ func (u *userspaceManager) CreateInterface(
 	}
 
 	u.devices[name] = &usDevice{
-		name: realName, dev: wgDev, uapi: uapi, tunDev: tunDev,
+		name: realName, dev: wgDev, uapi: uapi, tunDev: tunDev, bind: bind,
 	}
 	return nil
+}
+
+// Reflexive sends the STUN request through the device's own socket.
+func (u *userspaceManager) Reflexive(ctx context.Context, iface string, _ uint16, server netip.AddrPort) (netip.AddrPort, error) {
+	u.mu.Lock()
+	d, ok := u.devices[iface]
+	u.mu.Unlock()
+	if !ok || d.bind == nil {
+		return netip.AddrPort{}, ErrNoReflexive
+	}
+	return d.bind.reflexive(ctx, server)
 }
 
 // DeleteInterface tears down a previously created device. Idempotent.

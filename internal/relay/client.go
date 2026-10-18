@@ -36,6 +36,7 @@ type Session struct {
 	closed    atomic.Bool
 	cancel    context.CancelFunc
 	muteUntil atomic.Int64 // unix nano; relayed DATA is dropped until then
+	onInfo    atomic.Pointer[func([]byte)]
 
 	stats struct {
 		sync.Mutex
@@ -228,6 +229,10 @@ func (s *Session) relayToWGLoop() {
 			s.stats.rxFrames++
 			s.stats.rxBytes += uint64(len(payload))
 			s.stats.Unlock()
+		case FramePeerInfo:
+			if h := s.onInfo.Load(); h != nil {
+				(*h)(append([]byte(nil), payload...))
+			}
 		case FrameAUTHOK:
 			s.authFail.Store(nil)
 		case FrameAUTHFail:
@@ -251,6 +256,15 @@ func (s *Session) refreshLoop(ctx context.Context, every time.Duration) {
 			_, _ = s.upstream.Write(*s.auth.Load())
 		}
 	}
+}
+
+// OnPeerInfo sets what handles PEERINFO frames from the peer.
+func (s *Session) OnPeerInfo(h func([]byte)) { s.onInfo.Store(&h) }
+
+// SendPeerInfo sends a PEERINFO frame to the peer through the relay.
+func (s *Session) SendPeerInfo(b []byte) error {
+	_, err := s.upstream.Write(EncodeFrame(FramePeerInfo, b))
+	return err
 }
 
 // Mute drops what the relay delivers for d. While trying a direct path,

@@ -1298,13 +1298,13 @@ func (s *Server) SetRelayConfig(ctx context.Context, in *gmeshv1.SetRelayConfigR
 // GetRelayStatus reports the relay settings and each peer's relay state.
 func (s *Server) GetRelayStatus(ctx context.Context, _ *gmeshv1.GetRelayStatusRequest) (*gmeshv1.GetRelayStatusResponse, error) {
 	st := s.Engine.GetRelayStatus(ctx)
-	out := &gmeshv1.GetRelayStatusResponse{Configured: st.Configured, Relays: st.Relays, Error: st.Error}
+	out := &gmeshv1.GetRelayStatusResponse{Configured: st.Configured, Relays: st.Relays, Error: st.Error, Mapped: st.Mapped, MappedError: st.MappedErr}
 	if !st.Expiry.IsZero() {
 		out.ExpiryUnix = st.Expiry.Unix()
 	}
 	for _, p := range st.Peers {
 		r := &gmeshv1.GetRelayStatusResponse_PeerRelay{PeerId: p.PeerID, Standby: p.Standby, Healthy: p.Healthy, OnRelay: p.OnRelay,
-			Relay: p.Relay, Error: p.Error, TxBytes: p.TxBytes, RxBytes: p.RxBytes}
+			Relay: p.Relay, Error: p.Error, TxBytes: p.TxBytes, RxBytes: p.RxBytes, PeerMapped: p.PeerMapped}
 		if !p.OnRelaySince.IsZero() {
 			r.OnRelaySinceUnix = p.OnRelaySince.Unix()
 		}

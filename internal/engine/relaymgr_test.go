@@ -215,3 +215,53 @@ func TestRelayFallsBackToWebSocket(t *testing.T) {
 		t.Errorf("prefer = %d, want the websocket (1)", eng.relay.prefer)
 	}
 }
+
+func TestRelayCoordinatedPunch(t *testing.T) {
+	eng, fw := setup(t)
+	ctx := context.Background()
+	res, _ := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n")
+	remote := relay.Key{7}.String()
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 2, MeshIP: "10.200.0.2", PublicKey: remote, Endpoint: "203.0.113.5:51820"}, 0)
+	pub, _ := relay.ParseKey(res.PublicKey)
+	cred := relay.IssueCredential([]byte("x"), pub, time.Now().Add(time.Hour))
+	_ = eng.SetRelayConfig(ctx, RelayConf{Relays: []string{okRelay(t)}, PublicKey: res.PublicKey, Expiry: cred.Expiry, MAC: base64.StdEncoding.EncodeToString(cred.MAC[:])})
+	eng.relayCheck(ctx)
+	rp := eng.relay.peers[2]
+	fwd := rp.sess.LocalEndpoint().String()
+	ep := func() string { fw.mu.Lock(); defer fw.mu.Unlock(); return fw.peers[remote].Endpoint }
+	onRelay := func(rx int64) {
+		fw.mu.Lock()
+		fw.dumps[remote] = wireguard.PeerDump{PublicKey: remote, Endpoint: fwd, LastHandshake: time.Now(), RxBytes: rx}
+		fw.mu.Unlock()
+	}
+	_ = eng.setEndpoint(ctx, func() *peer.Peer { p, _ := eng.Peers.Get(2); return p }(), fwd)
+	onRelay(10)
+	eng.relayCheck(ctx) // notices it's on the relay
+	if rp.onRelaySince.IsZero() {
+		t.Fatal("not on the relay")
+	}
+
+	// The peer announces its public WireGuard address and asks to punch.
+	eng.relayPeerInfo(2, []byte(`{"v":1,"mapped":"198.51.100.4:41000","punch":true}`))
+	eng.relayCheck(ctx)
+	if ep() != "198.51.100.4:41000" || rp.tryingSince.IsZero() {
+		t.Fatalf("did not punch back: endpoint %s", ep())
+	}
+
+	// That try failed (roamed back); our own next try aims at the
+	// announced address rather than the stale WAN endpoint.
+	onRelay(20)
+	eng.relayCheck(ctx)
+	rp.nextTry = time.Now().Add(-time.Second)
+	eng.relayCheck(ctx)
+	if ep() != "198.51.100.4:41000" {
+		t.Fatalf("scheduled try went to %s", ep())
+	}
+
+	// Junk is ignored.
+	eng.relayPeerInfo(2, []byte(`{"v":1,"mapped":"127.0.0.1:9"}`))
+	eng.relayPeerInfo(2, []byte(`not json`))
+	if rp.peerMapped.String() != "198.51.100.4:41000" {
+		t.Fatalf("peerMapped overwritten: %v", rp.peerMapped)
+	}
+}

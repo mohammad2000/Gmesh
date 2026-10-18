@@ -480,7 +480,13 @@ func relayStatusCmd() *cobra.Command {
 			if resp.Error != "" {
 				fmt.Printf("error:   %s\n", resp.Error)
 			}
-			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %-6s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "VIA", "ERROR")
+			switch {
+			case resp.Mapped != "":
+				fmt.Printf("mapped:  %s  (our WireGuard port from outside)\n", resp.Mapped)
+			case resp.MappedError != "":
+				fmt.Printf("mapped:  unknown — %s\n", resp.MappedError)
+			}
+			fmt.Printf("%-8s %-8s %-8s %-10s %-12s %-6s %s\n", "PEER", "STANDBY", "HEALTHY", "PATH", "RELAYED", "VIA", "PEER MAPPED / ERROR")
 			for _, p := range resp.Peers {
 				path, since := "direct", "-"
 				if p.OnRelay {
@@ -493,7 +499,11 @@ func relayStatusCmd() *cobra.Command {
 				} else if p.Relay == "" {
 					via = "-"
 				}
-				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %-6s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, via, p.Error)
+				note := p.PeerMapped
+				if p.Error != "" {
+					note = strings.TrimSpace(note + " " + p.Error)
+				}
+				fmt.Printf("%-8d %-8v %-8v %-10s %-12s %-6s %s\n", p.PeerId, p.Standby, p.Healthy, path, since, via, note)
 			}
 			return nil
 		},

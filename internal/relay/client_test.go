@@ -53,7 +53,7 @@ func startTinyRelay(t *testing.T) *tinyRelay {
 					}
 				}
 				_, _ = conn.WriteToUDP(EncodeFrame(FrameAUTHOK, nil), from)
-			case FrameDATA:
+			case FrameDATA, FramePeerInfo:
 				// Forward to the other peer.
 				for _, p := range tr.peers {
 					if p == nil {
@@ -62,7 +62,7 @@ func startTinyRelay(t *testing.T) *tinyRelay {
 					if p.IP.Equal(from.IP) && p.Port == from.Port {
 						continue
 					}
-					_, _ = conn.WriteToUDP(EncodeFrame(FrameDATA, payload), p)
+					_, _ = conn.WriteToUDP(EncodeFrame(typ, payload), p)
 				}
 			case FramePING:
 				_, _ = conn.WriteToUDP(EncodeFrame(FramePONG, nil), from)
@@ -161,6 +161,21 @@ func TestSessionAuthAndForward(t *testing.T) {
 	_ = wg1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if n, _, err := wg1.ReadFromUDP(buf); err != nil || string(buf[:n]) != "after" {
 		t.Fatalf("not delivered after the mute: %v", err)
+	}
+
+	// PEERINFO reaches the other side's handler, not its WireGuard.
+	got := make(chan string, 1)
+	s2.OnPeerInfo(func(b []byte) { got <- string(b) })
+	if err := s1.SendPeerInfo([]byte(`{"punch":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case v := <-got:
+		if v != `{"punch":true}` {
+			t.Fatalf("peerinfo %q", v)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("peerinfo not delivered")
 	}
 
 	// Stats sanity.

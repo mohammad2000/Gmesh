@@ -2309,6 +2309,8 @@ type GetRelayStatusResponse struct {
 	ExpiryUnix    int64                               `protobuf:"varint,3,opt,name=expiry_unix,json=expiryUnix,proto3" json:"expiry_unix,omitempty"`
 	Error         string                              `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	Peers         []*GetRelayStatusResponse_PeerRelay `protobuf:"bytes,5,rep,name=peers,proto3" json:"peers,omitempty"`
+	Mapped        string                              `protobuf:"bytes,6,opt,name=mapped,proto3" json:"mapped,omitempty"` // our WireGuard port as seen from outside (STUN), if known
+	MappedError   string                              `protobuf:"bytes,7,opt,name=mapped_error,json=mappedError,proto3" json:"mapped_error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2376,6 +2378,20 @@ func (x *GetRelayStatusResponse) GetPeers() []*GetRelayStatusResponse_PeerRelay 
 		return x.Peers
 	}
 	return nil
+}
+
+func (x *GetRelayStatusResponse) GetMapped() string {
+	if x != nil {
+		return x.Mapped
+	}
+	return ""
+}
+
+func (x *GetRelayStatusResponse) GetMappedError() string {
+	if x != nil {
+		return x.MappedError
+	}
+	return ""
 }
 
 type AllocateWSTunnelRequest struct {
@@ -7424,6 +7440,7 @@ type GetRelayStatusResponse_PeerRelay struct {
 	Error            string                 `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
 	TxBytes          uint64                 `protobuf:"varint,8,opt,name=tx_bytes,json=txBytes,proto3" json:"tx_bytes,omitempty"`
 	RxBytes          uint64                 `protobuf:"varint,9,opt,name=rx_bytes,json=rxBytes,proto3" json:"rx_bytes,omitempty"`
+	PeerMapped       string                 `protobuf:"bytes,10,opt,name=peer_mapped,json=peerMapped,proto3" json:"peer_mapped,omitempty"` // the peer's WireGuard port as it told us (PEERINFO)
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -7519,6 +7536,13 @@ func (x *GetRelayStatusResponse_PeerRelay) GetRxBytes() uint64 {
 		return x.RxBytes
 	}
 	return 0
+}
+
+func (x *GetRelayStatusResponse_PeerRelay) GetPeerMapped() string {
+	if x != nil {
+		return x.PeerMapped
+	}
+	return ""
 }
 
 type HealthCheckResponse_PeerHealth struct {
@@ -7748,7 +7772,7 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x16SetRelayConfigResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"\x17\n" +
-	"\x15GetRelayStatusRequest\"\xd0\x03\n" +
+	"\x15GetRelayStatusRequest\"\xac\x04\n" +
 	"\x16GetRelayStatusResponse\x12\x1e\n" +
 	"\n" +
 	"configured\x18\x01 \x01(\bR\n" +
@@ -7757,7 +7781,9 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\vexpiry_unix\x18\x03 \x01(\x03R\n" +
 	"expiryUnix\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\x12@\n" +
-	"\x05peers\x18\x05 \x03(\v2*.gmesh.v1.GetRelayStatusResponse.PeerRelayR\x05peers\x1a\x84\x02\n" +
+	"\x05peers\x18\x05 \x03(\v2*.gmesh.v1.GetRelayStatusResponse.PeerRelayR\x05peers\x12\x16\n" +
+	"\x06mapped\x18\x06 \x01(\tR\x06mapped\x12!\n" +
+	"\fmapped_error\x18\a \x01(\tR\vmappedError\x1a\xa5\x02\n" +
 	"\tPeerRelay\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12\x18\n" +
 	"\astandby\x18\x02 \x01(\bR\astandby\x12\x18\n" +
@@ -7767,7 +7793,10 @@ const file_gmesh_v1_gmesh_proto_rawDesc = "" +
 	"\x05relay\x18\x06 \x01(\tR\x05relay\x12\x14\n" +
 	"\x05error\x18\a \x01(\tR\x05error\x12\x19\n" +
 	"\btx_bytes\x18\b \x01(\x04R\atxBytes\x12\x19\n" +
-	"\brx_bytes\x18\t \x01(\x04R\arxBytes\"X\n" +
+	"\brx_bytes\x18\t \x01(\x04R\arxBytes\x12\x1f\n" +
+	"\vpeer_mapped\x18\n" +
+	" \x01(\tR\n" +
+	"peerMapped\"X\n" +
 	"\x17AllocateWSTunnelRequest\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\x03R\x06peerId\x12$\n" +
 	"\x0ebackend_ws_url\x18\x02 \x01(\tR\fbackendWsUrl\"@\n" +

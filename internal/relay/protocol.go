@@ -13,6 +13,10 @@
 //	0x05 PEER_OFFLINE server → client. reserved
 //	0x06 PING         client → server. empty
 //	0x07 PONG         server → client. empty
+//	0x08 PEERINFO     either direction, to the peer. payload = JSON for gmeshd
+//
+// The UDP port also answers STUN binding requests (RFC 5389), so a node can
+// learn how its WireGuard port looks from outside its NAT.
 //
 // # Who may use the relay
 //
@@ -55,6 +59,9 @@ const (
 	FramePeerOffline FrameType = 0x05
 	FramePING        FrameType = 0x06
 	FramePONG        FrameType = 0x07
+	// FramePeerInfo travels between the two sides of a session, like DATA,
+	// but is for gmeshd itself: its public WireGuard address and "punch now".
+	FramePeerInfo FrameType = 0x08
 )
 
 // String returns a debug name for the frame type.
@@ -74,6 +81,8 @@ func (t FrameType) String() string {
 		return "PING"
 	case FramePONG:
 		return "PONG"
+	case FramePeerInfo:
+		return "PEERINFO"
 	default:
 		return fmt.Sprintf("UNKNOWN(0x%02x)", byte(t))
 	}

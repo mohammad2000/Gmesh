@@ -363,12 +363,15 @@ message GetRelayStatusResponse {
     string error               = 7;
     uint64 tx_bytes            = 8;
     uint64 rx_bytes            = 9;
+    string peer_mapped         = 10; // the peer's WireGuard port as it told us (PEERINFO)
   }
   bool               configured  = 1;
   repeated string    relays      = 2;
   int64              expiry_unix = 3;
   string             error       = 4;
   repeated PeerRelay peers       = 5;
+  string             mapped      = 6;  // our WireGuard port as seen from outside (STUN), if known
+  string             mapped_error = 7;
 }
 
 message AllocateWSTunnelRequest  {
