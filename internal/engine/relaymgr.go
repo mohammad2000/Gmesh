@@ -320,7 +320,7 @@ func (e *Engine) relayCheck(ctx context.Context) {
 				// direct path and WG followed.
 				e.relayBackDirect(p, rp, d.Endpoint, now)
 			}
-			if rp.onRelaySince.IsZero() && d.Endpoint != "" && fresh {
+			if rp.onRelaySince.IsZero() && fresh && !loopbackEP(d.Endpoint) {
 				rp.lastDirect = d.Endpoint
 			}
 			stuck := (!fresh || silent) && now.Sub(rp.seen) > relayNewPeerWait
@@ -407,7 +407,7 @@ func (e *Engine) relayBackDirect(p *peer.Peer, rp *relayPeer, ep string, now tim
 
 // relaySwitch points WG at the relay forwarder for p.
 func (e *Engine) relaySwitch(ctx context.Context, p *peer.Peer, fwd string, rp *relayPeer, why string) {
-	if rp.lastDirect == "" && p.Endpoint != "" && p.Endpoint != fwd {
+	if rp.lastDirect == "" && !loopbackEP(p.Endpoint) {
 		rp.lastDirect = p.Endpoint // something to try again later
 	}
 	if err := e.setEndpoint(ctx, p, fwd); err != nil {
@@ -435,12 +435,12 @@ func (e *Engine) setEndpoint(ctx context.Context, p *peer.Peer, ep string) error
 // directCandidate picks the direct endpoint to try: the one that last
 // worked, else the best-ranked non-relay candidate.
 func (e *Engine) directCandidate(p *peer.Peer, rp *relayPeer) string {
-	if rp.lastDirect != "" {
+	if !loopbackEP(rp.lastDirect) {
 		return rp.lastDirect
 	}
 	c := make([]peer.Endpoint, 0, len(p.Endpoints))
 	for _, x := range p.Endpoints {
-		if x.Kind != peer.EndpointKindRelay && x.Address != "" {
+		if x.Kind != peer.EndpointKindRelay && !loopbackEP(x.Address) {
 			c = append(c, x)
 		}
 	}
@@ -505,20 +505,33 @@ func (e *Engine) GetRelayStatus(ctx context.Context) RelayStatus {
 // savedEndpoint is what state keeps for p: never the relay forwarder's
 // loopback port, which dies with this process.
 func (e *Engine) savedEndpoint(p *peer.Peer) string {
-	host, _, err := net.SplitHostPort(p.Endpoint)
-	if err != nil || !net.ParseIP(host).IsLoopback() {
+	if !loopbackEP(p.Endpoint) {
 		return p.Endpoint
 	}
 	e.relay.mu.Lock()
 	rp := e.relay.peers[p.ID]
 	e.relay.mu.Unlock()
-	if rp != nil && rp.lastDirect != "" {
+	if rp != nil && !loopbackEP(rp.lastDirect) {
 		return rp.lastDirect
 	}
-	for _, c := range sortedCandidates(p.Endpoints) {
-		if c.Kind != peer.EndpointKindRelay {
+	return firstDirect(p.Endpoints)
+}
+
+func firstDirect(eps []peer.Endpoint) string {
+	for _, c := range sortedCandidates(eps) {
+		if c.Kind != peer.EndpointKindRelay && !loopbackEP(c.Address) {
 			return c.Address
 		}
 	}
 	return ""
+}
+
+// loopbackEP: empty, or a 127.x/::1 address — the relay forwarder, never a
+// path to a peer.
+func loopbackEP(ep string) bool {
+	if ep == "" {
+		return true
+	}
+	host, _, err := net.SplitHostPort(ep)
+	return err == nil && net.ParseIP(host).IsLoopback()
 }

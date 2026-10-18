@@ -143,3 +143,19 @@ func TestRelayFallbackAndReturn(t *testing.T) {
 		t.Fatal("standby kept after the peer left")
 	}
 }
+
+func TestLoopbackNeverDirect(t *testing.T) {
+	for ep, want := range map[string]bool{"": true, "127.0.0.1:45168": true, "[::1]:9": true, "192.168.2.40:51828": false, "[2001:db8::1]:51820": false} {
+		if loopbackEP(ep) != want {
+			t.Errorf("loopbackEP(%q) = %v", ep, !want)
+		}
+	}
+	eps := []peer.Endpoint{{Address: "127.0.0.1:1", Priority: 1}, {Address: "198.51.100.7:51820", Kind: peer.EndpointKindRelay, Priority: 2}, {Address: "192.168.2.40:51828", Priority: 10}}
+	if got := firstDirect(eps); got != "192.168.2.40:51828" {
+		t.Errorf("firstDirect = %q", got)
+	}
+	rp := &relayPeer{lastDirect: "127.0.0.1:45168"}
+	if got := (&Engine{}).directCandidate(&peer.Peer{Endpoints: eps}, rp); got != "192.168.2.40:51828" {
+		t.Errorf("directCandidate = %q", got)
+	}
+}

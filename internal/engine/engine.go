@@ -380,12 +380,16 @@ func (e *Engine) rehydrate() error {
 				})
 			}
 		}
+		ep := p.Endpoint
+		if loopbackEP(ep) && ep != "" {
+			ep = firstDirect(eps) // a relay forwarder port saved by an older build
+		}
 		e.Peers.Upsert(&peer.Peer{
 			ID:         p.ID,
 			Type:       t,
 			MeshIP:     p.MeshIP,
 			PublicKey:  p.PublicKey,
-			Endpoint:   p.Endpoint,
+			Endpoint:   ep,
 			Endpoints:  eps,
 			AllowedIPs: p.AllowedIPs,
 			Status:     peer.StatusConnecting, // will be refreshed by health loop
@@ -478,10 +482,14 @@ func (e *Engine) rehydrateInterface(ctx context.Context, st *state.State) error 
 		if len(allowed) == 0 && p.MeshIP != "" {
 			allowed = []string{p.MeshIP + "/32"}
 		}
+		ep := p.Endpoint
+		if rp, ok := e.Peers.Get(p.ID); ok && loopbackEP(ep) {
+			ep = rp.Endpoint // rehydrate() already replaced a saved relay port
+		}
 		cfg := wireguard.PeerConfig{
 			PublicKey:                   p.PublicKey,
 			AllowedIPs:                  allowed,
-			Endpoint:                    p.Endpoint,
+			Endpoint:                    ep,
 			PersistentKeepaliveInterval: e.keepalive,
 		}
 		if err := e.WG.AddPeer(ctx, e.iface, cfg); err != nil {
