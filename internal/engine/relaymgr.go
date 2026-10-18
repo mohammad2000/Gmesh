@@ -417,18 +417,24 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			}
 		}
 		mappedFresh := peerMapped.IsValid() && now.Sub(peerMappedAt) < relayMappedFresh
+		e.relay.mu.Lock()
+		ours := e.relay.mapped
+		e.relay.mu.Unlock()
+		// Behind the same NAT (same public IP) the public address needs the
+		// router to hairpin; the LAN path doesn't.
+		usePeerMapped := mappedFresh && !(ours.IsValid() && ours.Addr() == peerMapped.Addr())
+		target := e.directCandidate(p, rp)
+		if usePeerMapped {
+			target = peerMapped.String()
+		}
 		switch {
-		case !punchReq.IsZero() && now.Sub(punchReq) < 15*time.Second && mappedFresh:
-			// The peer is punching toward us right now: fire back at its
-			// public WireGuard address so both NATs open at once.
-			e.punch(ctx, p, rp, peerMapped.String(), d.RxBytes, false, "answering the peer's punch")
+		case !punchReq.IsZero() && now.Sub(punchReq) < 15*time.Second && target != "":
+			// The peer is sending toward us right now: fire back so both
+			// sides' NATs/firewalls see outgoing packets at the same moment.
+			e.punch(ctx, p, rp, target, d.RxBytes, false, "answering the peer's punch")
 		case now.After(rp.nextTry):
-			cand := e.directCandidate(p, rp)
-			if mappedFresh {
-				cand = peerMapped.String()
-			}
-			if cand != "" {
-				e.punch(ctx, p, rp, cand, d.RxBytes, mappedFresh, "trying the direct path again")
+			if target != "" {
+				e.punch(ctx, p, rp, target, d.RxBytes, true, "trying the direct path again")
 			}
 			rp.tryEvery = min(rp.tryEvery*2, relayRetryMax)
 			rp.nextTry = now.Add(rp.tryEvery)

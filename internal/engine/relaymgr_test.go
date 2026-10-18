@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -263,5 +264,35 @@ func TestRelayCoordinatedPunch(t *testing.T) {
 	eng.relayPeerInfo(2, []byte(`not json`))
 	if rp.peerMapped.String() != "198.51.100.4:41000" {
 		t.Fatalf("peerMapped overwritten: %v", rp.peerMapped)
+	}
+}
+
+// Behind the same NAT the LAN path wins over the shared public address.
+func TestRelaySameNATUsesLAN(t *testing.T) {
+	eng, fw := setup(t)
+	ctx := context.Background()
+	res, _ := eng.Join(ctx, "10.200.0.1", "wg-test", 51820, "10.200.0.0/16", "n")
+	remote := relay.Key{7}.String()
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 2, MeshIP: "10.200.0.2", PublicKey: remote, Endpoint: "192.168.2.40:51828"}, 0)
+	pub, _ := relay.ParseKey(res.PublicKey)
+	cred := relay.IssueCredential([]byte("x"), pub, time.Now().Add(time.Hour))
+	_ = eng.SetRelayConfig(ctx, RelayConf{Relays: []string{okRelay(t)}, PublicKey: res.PublicKey, Expiry: cred.Expiry, MAC: base64.StdEncoding.EncodeToString(cred.MAC[:])})
+	eng.relayCheck(ctx)
+	rp := eng.relay.peers[2]
+	rp.lastDirect = "192.168.2.40:51828"
+	fwd := rp.sess.LocalEndpoint().String()
+	_ = eng.setEndpoint(ctx, func() *peer.Peer { p, _ := eng.Peers.Get(2); return p }(), fwd)
+	fw.mu.Lock()
+	fw.dumps[remote] = wireguard.PeerDump{PublicKey: remote, Endpoint: fwd, LastHandshake: time.Now(), RxBytes: 5}
+	fw.mu.Unlock()
+	eng.relayCheck(ctx)
+	eng.relay.mapped = netip.MustParseAddrPort("70.49.231.201:52060")
+	eng.relayPeerInfo(2, []byte(`{"v":1,"mapped":"70.49.231.201:51828","punch":true}`))
+	eng.relayCheck(ctx)
+	fw.mu.Lock()
+	got := fw.peers[remote].Endpoint
+	fw.mu.Unlock()
+	if got != "192.168.2.40:51828" {
+		t.Fatalf("punched at %s, want the LAN address", got)
 	}
 }
