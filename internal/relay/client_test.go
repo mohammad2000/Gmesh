@@ -149,6 +149,20 @@ func TestSessionAuthAndForward(t *testing.T) {
 		t.Errorf("reverse payload = %q", string(buf[:n]))
 	}
 
+	// Muted: what the relay delivers is dropped until the mute ends.
+	s1.Mute(400 * time.Millisecond)
+	_, _ = wg2.WriteToUDP([]byte("while muted"), s2.LocalEndpoint())
+	_ = wg1.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
+	if _, _, err := wg1.ReadFromUDP(buf); err == nil {
+		t.Fatal("delivered while muted")
+	}
+	time.Sleep(200 * time.Millisecond)
+	_, _ = wg2.WriteToUDP([]byte("after"), s2.LocalEndpoint())
+	_ = wg1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if n, _, err := wg1.ReadFromUDP(buf); err != nil || string(buf[:n]) != "after" {
+		t.Fatalf("not delivered after the mute: %v", err)
+	}
+
 	// Stats sanity.
 	st1 := s1.Stats()
 	if st1.TxFrames == 0 || st1.RxFrames == 0 {

@@ -36,6 +36,7 @@ type Session struct {
 	authFail  atomic.Pointer[string]
 	closed    atomic.Bool
 	cancel    context.CancelFunc
+	muteUntil atomic.Int64 // unix nano; relayed DATA is dropped until then
 
 	stats struct {
 		sync.Mutex
@@ -216,6 +217,9 @@ func (s *Session) relayToWGLoop() {
 		s.lastHeard.Store(time.Now().UnixNano())
 		switch typ {
 		case FrameDATA:
+			if time.Now().UnixNano() < s.muteUntil.Load() {
+				continue
+			}
 			if _, err := s.localForward.WriteToUDP(payload, s.wgEndpoint.Load()); err != nil {
 				continue
 			}
@@ -246,6 +250,13 @@ func (s *Session) refreshLoop(ctx context.Context, every time.Duration) {
 			_, _ = s.upstream.Write(*s.auth.Load())
 		}
 	}
+}
+
+// Mute drops what the relay delivers for d. While trying a direct path,
+// packets the peer had already sent through the relay would otherwise make
+// WireGuard roam straight back to the relay.
+func (s *Session) Mute(d time.Duration) {
+	s.muteUntil.Store(time.Now().Add(d).UnixNano())
 }
 
 // SetAuth replaces the AUTH frame (a renewed credential) and sends it.

@@ -47,6 +47,8 @@ const (
 	relayRetryMax    = 30 * time.Minute
 	relayDialBackoff = time.Minute
 	relayTryWindow   = 40 * time.Second // > keepalive: a failed try roams back before this
+	relayTryMute     = 3 * time.Second  // relayed packets dropped while a try starts
+	relayRxSilence   = 75 * time.Second // ~3 keepalives without a byte in: the path is dead
 
 	methodDirect = 1 // gmesh.v1.ConnectionMethod
 	methodRelay  = 6
@@ -89,7 +91,9 @@ type relayPeer struct {
 	tryEvery     time.Duration
 	tryingSince  time.Time // a direct try in progress
 	tryRx        int64
-	lastDirect   string // the last direct endpoint WG used
+	lastRx       int64
+	rxAt         time.Time // when rx last moved
+	lastDirect   string    // the last direct endpoint WG used
 }
 
 type relayManager struct {
@@ -289,6 +293,12 @@ func (e *Engine) relayCheck(ctx context.Context) {
 		fwd := rp.sess.LocalEndpoint().String()
 		onRelay := d.Endpoint == fwd
 		fresh := !d.LastHandshake.IsZero() && now.Sub(d.LastHandshake) < relayStaleAfter
+		if d.RxBytes != rp.lastRx || rp.rxAt.IsZero() {
+			rp.lastRx, rp.rxAt = d.RxBytes, now
+		}
+		// Persistent keepalive makes the peer send at least every 25 s; a
+		// receive counter standing still that long means nothing gets in.
+		silent := now.Sub(rp.rxAt) > relayRxSilence
 
 		if !onRelay {
 			if !rp.tryingSince.IsZero() {
@@ -313,9 +323,13 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			if rp.onRelaySince.IsZero() && d.Endpoint != "" && fresh {
 				rp.lastDirect = d.Endpoint
 			}
-			stuck := !fresh && now.Sub(rp.seen) > relayNewPeerWait
+			stuck := (!fresh || silent) && now.Sub(rp.seen) > relayNewPeerWait
 			if stuck && rp.sess.Healthy() && now.Sub(rp.lastSwitch) > relayMinSwitch {
-				e.relaySwitch(ctx, p, fwd, rp, "no handshake on "+orNone(d.Endpoint))
+				why := "no handshake on " + orNone(d.Endpoint)
+				if fresh {
+					why = "nothing received for " + now.Sub(rp.rxAt).Round(time.Second).String() + " on " + orNone(d.Endpoint)
+				}
+				e.relaySwitch(ctx, p, fwd, rp, why)
 				continue
 			}
 			if fresh && rp.onRelaySince.IsZero() {
@@ -335,7 +349,11 @@ func (e *Engine) relayCheck(ctx context.Context) {
 		}
 		p.Method = methodRelay
 		if now.After(rp.nextTry) {
-			if cand := e.directCandidate(p, rp); cand != "" && e.setEndpoint(ctx, p, cand) == nil {
+			cand := e.directCandidate(p, rp)
+			if cand != "" {
+				rp.sess.Mute(relayTryMute)
+			}
+			if cand != "" && e.setEndpoint(ctx, p, cand) == nil {
 				e.Log.Info("relay: trying the direct path again", "peer", p.ID, "endpoint", cand)
 				rp.tryingSince, rp.tryRx, rp.lastSwitch = now, d.RxBytes, now
 			}
