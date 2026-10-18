@@ -289,7 +289,7 @@ func New(cfg *config.Config, opts Options) (*Engine, error) {
 		L7:                   l7Mon,
 		Store:                store,
 		Events:               bus,
-		relay:                relayManager{peers: map[int64]*relayPeer{}},
+		relay:                relayManager{peers: map[int64]*relayPeer{}, kick: make(chan struct{}, 1)},
 		wsTunnels:            make(map[int64]*relay.WSTunnel),
 		exitFailoverOriginal: make(map[int64]int64),
 		keepalive:            time.Duration(cfg.WireGuard.KeepaliveSeconds) * time.Second,

@@ -93,6 +93,7 @@ type relayPeer struct {
 }
 
 type relayManager struct {
+	kick  chan struct{}
 	mu    sync.Mutex
 	conf  *RelayConf
 	cred  relay.Credential
@@ -189,7 +190,10 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 		rp.sess.SetAuth(relay.Auth{Cred: cr, Peer: rp.key})
 	}
 	e.Log.Info("relay configured", "relays", c.Relays, "expires", time.Unix(c.Expiry, 0).UTC())
-	go e.relayCheck(context.WithoutCancel(ctx))
+	select { // the watcher looks right away instead of at its next tick
+	case e.relay.kick <- struct{}{}:
+	default:
+	}
 	return nil
 }
 
@@ -214,6 +218,8 @@ func (e *Engine) relayLoop(ctx context.Context) {
 			e.closeRelays()
 			return
 		case <-t.C:
+			e.relayCheck(ctx)
+		case <-e.relay.kick:
 			e.relayCheck(ctx)
 		}
 	}
@@ -248,7 +254,9 @@ func (e *Engine) relayCheck(ctx context.Context) {
 	live := map[int64]bool{}
 	dials := 0
 	for _, p := range e.Peers.Snapshot() {
-		if p.PublicKey == "" {
+		// Scopes hang off a host (or this node); dial-in peers such as VPN
+		// clients have no endpoint of their own — nothing to fall back from.
+		if p.PublicKey == "" || p.Type == peer.TypeScope || (p.Endpoint == "" && len(p.Endpoints) == 0) {
 			continue
 		}
 		key, err := relay.ParseKey(p.PublicKey)

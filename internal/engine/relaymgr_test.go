@@ -117,6 +117,16 @@ func TestRelayFallbackAndReturn(t *testing.T) {
 		t.Errorf("method %d, want direct", p.Method)
 	}
 
+	// Dial-in peers (VPN clients: no endpoint) and scopes get no standby.
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 3, MeshIP: "10.200.0.3", PublicKey: relay.Key{8}.String()}, 0)
+	_ = eng.AddPeer(ctx, &peer.Peer{ID: 4, MeshIP: "10.200.0.4", PublicKey: relay.Key{9}.String(), Type: peer.TypeScope, Endpoint: "10.50.0.2:51820"}, 0)
+	eng.relayCheck(ctx)
+	if eng.relay.peers[3] != nil || eng.relay.peers[4] != nil {
+		t.Fatal("standby for a dial-in peer or a scope")
+	}
+	_ = eng.RemovePeer(ctx, 3)
+	_ = eng.RemovePeer(ctx, 4)
+
 	st := eng.GetRelayStatus(ctx)
 	if !st.Configured || len(st.Peers) != 1 || !st.Peers[0].Standby || st.Peers[0].OnRelay {
 		t.Fatalf("status %+v", st)
