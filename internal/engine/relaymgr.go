@@ -484,7 +484,7 @@ func (e *Engine) relayLinks(ctx context.Context, p *peer.Peer, rp *relayPeer, co
 			until := e.relay.preferUntil[g]
 			e.relay.mu.Unlock()
 			switch {
-			case !l.Healthy && now.Sub(rp.dialedAt[g]) > time.Minute:
+			case !l.Healthy && now.Sub(rp.dialedAt[g]) > 30*time.Second:
 				e.Log.Info("relay: link went silent, redialing", "peer", p.ID, "relay", l.Addr, "error", l.AuthError)
 				rp.sess.DropLink(g)
 			case relay.IsWS(l.Addr) && len(alts) > 1 && idle && now.After(until) && now.Sub(rp.dialedAt[g]) > relayPreferFor:

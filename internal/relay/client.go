@@ -62,8 +62,12 @@ type link struct {
 	closed    atomic.Bool
 }
 
+// linkDeadAfter: AUTH is refreshed every 10 s and answered, so 25 s of
+// silence means the relay (or the way to it) is gone.
+const linkDeadAfter = 25 * time.Second
+
 func (l *link) healthy() bool {
-	return !l.closed.Load() && time.Since(time.Unix(0, l.lastHeard.Load())) < time.Minute && l.authFail.Load() == nil
+	return !l.closed.Load() && time.Since(time.Unix(0, l.lastHeard.Load())) < linkDeadAfter && l.authFail.Load() == nil
 }
 
 func (l *link) close() {
@@ -79,7 +83,7 @@ type Config struct {
 	RelayAddr   string       // host:port ("udp://" optional), or a wss:// URL
 	WGEndpoint  *net.UDPAddr // where WireGuard listens, e.g. 127.0.0.1:51820
 	DialTimeout time.Duration
-	Refresh     time.Duration // AUTH re-sent this often; default 20s
+	Refresh     time.Duration // AUTH re-sent this often; default 10s
 	Log         *slog.Logger
 }
 
@@ -90,7 +94,7 @@ func NewSession(a Auth, wg *net.UDPAddr, refresh time.Duration, log *slog.Logger
 		log = slog.Default()
 	}
 	if refresh == 0 {
-		refresh = 20 * time.Second
+		refresh = 10 * time.Second
 	}
 	if wg == nil {
 		return nil, errors.New("relay: WGEndpoint is required")
@@ -212,7 +216,7 @@ func (s *Session) pick() []*link {
 		if l.healthy() {
 			healthy = append(healthy, l)
 		}
-		if d := l.lastData.Load(); d > cutoff && (best == nil || d > best.lastData.Load()) {
+		if d := l.lastData.Load(); d > cutoff && l.healthy() && (best == nil || d > best.lastData.Load()) {
 			best = l
 		}
 	}
@@ -259,7 +263,7 @@ func (s *Session) LocalEndpoint() *net.UDPAddr {
 	return s.localForward.LocalAddr().(*net.UDPAddr)
 }
 
-// Healthy reports whether any relay answered within the last minute.
+// Healthy reports whether any relay answered recently (linkDeadAfter).
 func (s *Session) Healthy() bool {
 	if s.closed.Load() {
 		return false
