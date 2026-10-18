@@ -346,6 +346,7 @@ func (e *Engine) relayCheck(ctx context.Context) {
 			rp.onRelaySince = now // the peer started it; we followed
 			rp.nextTry = now.Add(rp.tryEvery)
 			e.Log.Info("relay: peer reached us through the relay", "peer", p.ID)
+			e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": rp.relayAddr, "why": "the peer moved to the relay", "mesh_ip": p.MeshIP})
 		}
 		p.Method = methodRelay
 		if now.After(rp.nextTry) {
@@ -400,7 +401,7 @@ func (e *Engine) relayDial(ctx context.Context, rp *relayPeer, addr string, cred
 func (e *Engine) relayBackDirect(p *peer.Peer, rp *relayPeer, ep string, now time.Time) {
 	e.Log.Info("relay: peer back on a direct path", "peer", p.ID, "endpoint", ep,
 		"relayed_for", now.Sub(rp.onRelaySince).Round(time.Second).String())
-	e.emit(events.TypeRelayTeardown, p.ID, map[string]any{"endpoint": ep})
+	e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "direct", "endpoint": ep, "mesh_ip": p.MeshIP})
 	rp.onRelaySince, rp.tryEvery, rp.lastDirect = time.Time{}, relayRetryFirst, ep
 	p.Method, p.Endpoint = methodDirect, ep
 }
@@ -419,7 +420,7 @@ func (e *Engine) relaySwitch(ctx context.Context, p *peer.Peer, fwd string, rp *
 	rp.nextTry = now.Add(rp.tryEvery)
 	p.Method = methodRelay
 	e.Log.Info("relay: peer moved to the relay", "peer", p.ID, "relay", rp.relayAddr, "why", why)
-	e.emit(events.TypeRelaySetup, p.ID, map[string]any{"relay": rp.relayAddr, "kind": "udp", "why": why})
+	e.emit(events.TypePeerMethodChange, p.ID, map[string]any{"method": "relay", "relay": rp.relayAddr, "why": why, "mesh_ip": p.MeshIP})
 }
 
 func (e *Engine) setEndpoint(ctx context.Context, p *peer.Peer, ep string) error {
