@@ -21,12 +21,21 @@ import (
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
-func main() { os.Exit(run()) }
+func main() {
+	if serviceMain() {
+		return
+	}
+	os.Exit(run())
+}
+
+// baseContext is what the daemon runs under; the Windows service swaps in
+// one that the Service Control Manager's stop request cancels.
+var baseContext = context.Background
 
 // run is main's body; it returns the exit code so deferred cleanup runs
 // before the process exits.
 func run() int {
-	cfgPath := flag.String("config", "/etc/gmesh/config.yaml", "path to config file")
+	cfgPath := flag.String("config", defaultConfigPath(), "path to config file")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -68,7 +77,7 @@ func run() int {
 		return 1
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(baseContext(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	if err := eng.Start(ctx); err != nil {

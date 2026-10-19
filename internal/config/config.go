@@ -151,7 +151,7 @@ type StateConfig struct {
 
 // Default returns the baseline configuration.
 func Default() *Config {
-	return &Config{
+	c := &Config{
 		Socket: SocketConfig{
 			Path: "/run/gmesh.sock",
 			Mode: 0o660,
@@ -188,6 +188,8 @@ func Default() *Config {
 		Metrics:  MetricsConfig{Enabled: true, SocketPath: "/run/gmesh-metrics.sock"},
 		Audit:    AuditConfig{Enabled: true, Path: "/var/log/gmesh/audit.log", MaxBytes: 10 * 1024 * 1024},
 	}
+	platformDefaults(c)
+	return c
 }
 
 // Load reads config from path, overlaying onto defaults. Missing file = defaults.

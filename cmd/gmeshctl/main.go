@@ -17,12 +17,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
+	"github.com/mohammad2000/Gmesh/internal/config"
 	"github.com/mohammad2000/Gmesh/internal/firewall"
 	"github.com/mohammad2000/Gmesh/internal/version"
 )
 
 var (
 	socketPath string
+	tokenFile  string
 	outputJSON bool
 )
 
@@ -33,7 +35,9 @@ func main() {
 		Version: fmt.Sprintf("%s (%s) built %s",
 			version.Version, version.Commit, version.BuildDate),
 	}
-	root.PersistentFlags().StringVar(&socketPath, "socket", "/run/gmesh.sock", "path to gmeshd Unix socket")
+	def := config.Default().Socket
+	root.PersistentFlags().StringVar(&socketPath, "socket", def.Path, "gmeshd's Unix socket path, or host:port for its TCP endpoint")
+	root.PersistentFlags().StringVar(&tokenFile, "token-file", def.TokenFile, "bearer token file (gmeshd socket.token_file)")
 	root.PersistentFlags().BoolVar(&outputJSON, "json", false, "emit JSON instead of tabular output")
 
 	root.AddCommand(
@@ -68,17 +72,39 @@ func main() {
 // ── Helpers ────────────────────────────────────────────────────────────
 
 func dial() (gmeshv1.GMeshClient, func(), error) {
-	conn, err := grpc.NewClient("unix://"+socketPath,
+	network, target := "unix", socketPath
+	if !strings.Contains(socketPath, "/") && !strings.Contains(socketPath, `\`) && strings.Contains(socketPath, ":") {
+		network = "tcp"
+	}
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(_ context.Context, addr string) (net.Conn, error) {
-			return net.Dial("unix", strings.TrimPrefix(addr, "unix://"))
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, network, target)
 		}),
-	)
+	}
+	if tokenFile != "" {
+		b, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("token file: %w", err)
+		}
+		opts = append(opts, grpc.WithPerRPCCredentials(bearer(strings.TrimSpace(string(b)))))
+	}
+	conn, err := grpc.NewClient("passthrough:///gmeshd", opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("dial %s: %w", socketPath, err)
 	}
 	return gmeshv1.NewGMeshClient(conn), func() { _ = conn.Close() }, nil
 }
+
+// bearer sends gmeshd's control token with every call.
+type bearer string
+
+func (b bearer) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
+	return map[string]string{"authorization": "Bearer " + string(b)}, nil
+}
+
+func (bearer) RequireTransportSecurity() bool { return false }
 
 func writeJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
