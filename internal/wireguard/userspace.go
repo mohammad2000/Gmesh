@@ -118,7 +118,7 @@ func (u *userspaceManager) CreateInterface(
 	if runtime.GOOS == "darwin" && !isUtunName(name) {
 		createName = "utun"
 	}
-	tunDev, err := tun.CreateTUN(createName, mtu)
+	tunDev, err := createTUN(createName, mtu)
 	if err != nil {
 		return fmt.Errorf("userspace wg: create tun %q: %w", name, err)
 	}
