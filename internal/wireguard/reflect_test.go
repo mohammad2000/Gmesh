@@ -39,11 +39,18 @@ func TestSTUNBindReflexive(t *testing.T) {
 	}
 	defer sb.Close()
 	passed := make(chan string, 4)
+	// The device hands each receive loop a full batch of buffers; on Linux,
+	// with UDP GRO, wireguard-go needs all of them (a single buffer reads
+	// nothing there).
+	batch := sb.BatchSize()
 	for _, f := range fns { // the device's receive loops
 		go func(f conn.ReceiveFunc) {
-			bufs := [][]byte{make([]byte, 1500)}
-			sizes := []int{0}
-			eps := make([]conn.Endpoint, 1)
+			bufs := make([][]byte, batch)
+			for i := range bufs {
+				bufs[i] = make([]byte, 65535)
+			}
+			sizes := make([]int, batch)
+			eps := make([]conn.Endpoint, batch)
 			for {
 				n, err := f(bufs, sizes, eps)
 				if err != nil {

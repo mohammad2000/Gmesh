@@ -4,6 +4,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,7 +18,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
-	"encoding/base64"
 	gmeshv1 "github.com/mohammad2000/Gmesh/gen/gmesh/v1"
 	"github.com/mohammad2000/Gmesh/internal/anomaly"
 	"github.com/mohammad2000/Gmesh/internal/audit"
