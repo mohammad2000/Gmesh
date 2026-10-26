@@ -124,7 +124,12 @@ func TestWSTunnelRoundtrip(t *testing.T) {
 		t.Errorf("payload = %q", string(buf[:n]))
 	}
 
+	// The counter goes up after the WebSocket write returns, which can be
+	// after the peer already has the frame: give it a moment.
 	st := t1.Stats()
+	for end := time.Now().Add(time.Second); st.TxFrames == 0 && time.Now().Before(end); st = t1.Stats() {
+		time.Sleep(10 * time.Millisecond)
+	}
 	if st.TxFrames == 0 {
 		t.Errorf("tunnel stats empty: %+v", st)
 	}
