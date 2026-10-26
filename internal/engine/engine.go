@@ -1546,7 +1546,7 @@ func (e *Engine) AddPeer(ctx context.Context, p *peer.Peer, keepaliveOverride ti
 		return ErrNotJoined
 	}
 	if err := e.validatePeerAddrs(p.MeshIP, p.AllowedIPs); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidPeer, err)
+		return fmt.Errorf("%w: %w", ErrInvalidPeer, err)
 	}
 	ka := e.keepalive
 	if keepaliveOverride > 0 {
@@ -1675,7 +1675,7 @@ func (e *Engine) UpdatePeer(ctx context.Context, peerID int64, endpoint string, 
 	}
 	if len(allowedIPs) > 0 {
 		if err := e.validatePeerAddrs("", allowedIPs); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidPeer, err)
+			return fmt.Errorf("%w: %w", ErrInvalidPeer, err)
 		}
 	}
 	if endpoint != "" {
