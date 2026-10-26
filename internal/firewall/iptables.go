@@ -236,17 +236,6 @@ func (b *IptablesBackend) HitCounts(_ context.Context) (map[int64]int64, error) 
 	return map[int64]int64{}, nil
 }
 
-func iptablesChainsForDirection(base string, d Direction) []string {
-	switch d {
-	case DirectionInbound:
-		return []string{base + "_INPUT"}
-	case DirectionOutbound:
-		return []string{base + "_OUTPUT"}
-	default:
-		return []string{base + "_INPUT", base + "_OUTPUT"}
-	}
-}
-
 // ruleToIptablesArgs renders a rule to iptables -A ... args.
 func ruleToIptablesArgs(chain string, r Rule) []string {
 	var a []string
