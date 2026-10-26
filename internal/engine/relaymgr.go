@@ -173,7 +173,7 @@ func (e *Engine) loadRelayConf() {
 }
 
 // SetRelayConfig installs (or, with no relays, removes) the relay settings.
-func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
+func (e *Engine) SetRelayConfig(_ context.Context, c RelayConf) error {
 	if len(c.Relays) == 0 {
 		e.closeRelays()
 		e.relay.mu.Lock()
@@ -210,7 +210,7 @@ func (e *Engine) SetRelayConfig(ctx context.Context, c RelayConf) error {
 	e.relay.mu.Lock()
 	prev := e.relay.conf
 	e.relay.conf, e.relay.cred = &c, cr
-	var renew []*relayPeer
+	renew := make([]*relayPeer, 0, len(e.relay.peers))
 	for _, rp := range e.relay.peers {
 		if rp.sess == nil {
 			continue

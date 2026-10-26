@@ -10,6 +10,7 @@ require (
 	github.com/pion/stun/v2 v2.0.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.8.1
+	github.com/tailscale/wf v0.0.0-20240214030419-6fbb0a674ee6
 	golang.org/x/sys v0.35.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
@@ -38,7 +39,6 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tailscale/wf v0.0.0-20240214030419-6fbb0a674ee6 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf // indirect
 	golang.org/x/crypto v0.41.0 // indirect
@@ -48,6 +48,7 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/tools v0.35.0 // indirect
+	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
 	honnef.co/go/tools v0.3.2 // indirect

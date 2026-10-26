@@ -144,8 +144,9 @@ func isPrivateV4(ip net.IP) bool {
 // not a tunnel. Peers that are stuck behind IPv4 NAT/CGNAT on both sides
 // can often still reach each other over these.
 func GlobalIPv6Endpoints(listenPort uint32) []string {
-	var out []string
-	for _, ip := range globalIPv6() {
+	ips := globalIPv6()
+	out := make([]string, 0, len(ips))
+	for _, ip := range ips {
 		out = append(out, net.JoinHostPort(ip.String(), strconv.FormatUint(uint64(listenPort), 10)))
 	}
 	return out

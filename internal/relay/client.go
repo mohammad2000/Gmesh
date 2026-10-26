@@ -206,7 +206,8 @@ func (s *Session) pick() []*link {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var best *link
-	var healthy, open []*link
+	var healthy []*link
+	open := make([]*link, 0, len(s.links))
 	cutoff := time.Now().Add(-30 * time.Second).UnixNano()
 	for _, l := range s.links {
 		if l.closed.Load() {
@@ -233,7 +234,7 @@ func (s *Session) pick() []*link {
 func handshake(c upstream, auth []byte, timeout time.Duration) error {
 	buf := make([]byte, MaxFrameSize)
 	per := timeout / 3
-	var last error = errors.New("relay: no answer")
+	last := errors.New("relay: no answer")
 	for i := 0; i < 3; i++ {
 		if _, err := c.Write(auth); err != nil {
 			return fmt.Errorf("write auth: %w", err)
@@ -430,7 +431,7 @@ func (s *Session) SendPeerInfo(b []byte) error {
 		links = append(links, l)
 	}
 	s.mu.Unlock()
-	var err error = errors.New("relay: no link")
+	err := errors.New("relay: no link")
 	for _, l := range links {
 		if !l.healthy() {
 			continue

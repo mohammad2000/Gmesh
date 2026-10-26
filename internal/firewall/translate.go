@@ -158,18 +158,6 @@ func ruleToNftLines(family, table, iface string, r Rule) []string {
 	return out
 }
 
-// chainsForDirection returns the chain names a rule applies to.
-func chainsForDirection(d Direction) []string {
-	switch d {
-	case DirectionInbound:
-		return []string{"mesh_input"}
-	case DirectionOutbound:
-		return []string{"mesh_output"}
-	default:
-		return []string{"mesh_input", "mesh_output"}
-	}
-}
-
 // ruleBody builds the "match ... action" portion of an `add rule` line.
 func ruleBody(r Rule) string {
 	var parts []string

@@ -104,7 +104,7 @@ func ParseKey(s string) (Key, error) {
 
 func (k Key) String() string { return base64.StdEncoding.EncodeToString(k[:]) }
 
-const credLabel = "gmesh-relay-cred-v2"
+const credLabel = "gmesh-relay-cred-v2" //nolint:gosec // a domain-separation label for the HMAC, not a secret
 
 // Credential lets the holder of one WireGuard key use the relay until Expiry.
 type Credential struct {

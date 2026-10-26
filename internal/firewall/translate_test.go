@@ -175,7 +175,6 @@ func TestParseActionAndDirection(t *testing.T) {
 	}
 }
 
-
 // The chains must never filter non-mesh traffic: before 2026-10-16 the
 // default policy was the chain policy and a "deny" cut SSH and the LAN.
 func TestBuildNftScriptOnlyFiltersMeshInterface(t *testing.T) {

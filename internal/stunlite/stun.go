@@ -50,7 +50,7 @@ func ParseRequest(b []byte) (TxID, bool) {
 	if !isSTUN(b) || binary.BigEndian.Uint16(b[0:2]) != bindingRequest {
 		return t, false
 	}
-	copy(t[:], b[8:20])
+	copy(t[:], b[8:20]) //nolint:gosec // isSTUN checked len(b) >= headerLen (20)
 	return t, true
 }
 
