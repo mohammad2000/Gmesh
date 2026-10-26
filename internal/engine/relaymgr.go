@@ -648,7 +648,7 @@ func (e *Engine) relayFallbackNow(ctx context.Context, peerID int64) bool {
 }
 
 // GetRelayStatus reports the relay settings and each peer's state.
-func (e *Engine) GetRelayStatus(ctx context.Context) RelayStatus {
+func (e *Engine) GetRelayStatus(_ context.Context) RelayStatus {
 	e.relay.mu.Lock()
 	defer e.relay.mu.Unlock()
 	var out RelayStatus

@@ -104,6 +104,16 @@ class GMeshStub(object):
                 request_serializer=gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelRequest.SerializeToString,
                 response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelResponse.FromString,
                 _registered_method=True)
+        self.SetRelayConfig = channel.unary_unary(
+                '/gmesh.v1.GMesh/SetRelayConfig',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigResponse.FromString,
+                _registered_method=True)
+        self.GetRelayStatus = channel.unary_unary(
+                '/gmesh.v1.GMesh/GetRelayStatus',
+                request_serializer=gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusRequest.SerializeToString,
+                response_deserializer=gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusResponse.FromString,
+                _registered_method=True)
         self.HealthCheck = channel.unary_unary(
                 '/gmesh.v1.GMesh/HealthCheck',
                 request_serializer=gmesh_dot_v1_dot_gmesh__pb2.HealthCheckRequest.SerializeToString,
@@ -386,6 +396,20 @@ class GMeshServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def AllocateWSTunnel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetRelayConfig(self, request, context):
+        """Automatic relay fallback: the control plane hands each node the relay
+        addresses and a credential for its own WireGuard key.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRelayStatus(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -733,6 +757,16 @@ def add_GMeshServicer_to_server(servicer, server):
                     servicer.AllocateWSTunnel,
                     request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelRequest.FromString,
                     response_serializer=gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelResponse.SerializeToString,
+            ),
+            'SetRelayConfig': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetRelayConfig,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigResponse.SerializeToString,
+            ),
+            'GetRelayStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRelayStatus,
+                    request_deserializer=gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusRequest.FromString,
+                    response_serializer=gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusResponse.SerializeToString,
             ),
             'HealthCheck': grpc.unary_unary_rpc_method_handler(
                     servicer.HealthCheck,
@@ -1286,6 +1320,60 @@ class GMesh(object):
             '/gmesh.v1.GMesh/AllocateWSTunnel',
             gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelRequest.SerializeToString,
             gmesh_dot_v1_dot_gmesh__pb2.AllocateWSTunnelResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetRelayConfig(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/SetRelayConfig',
+            gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.SetRelayConfigResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRelayStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gmesh.v1.GMesh/GetRelayStatus',
+            gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusRequest.SerializeToString,
+            gmesh_dot_v1_dot_gmesh__pb2.GetRelayStatusResponse.FromString,
             options,
             channel_credentials,
             insecure,
